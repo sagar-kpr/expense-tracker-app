@@ -1,35 +1,67 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs } from "expo-router";
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useRef } from "react";
+import { useExpense } from "../../context/ExpenseContext";
+
+import BottomSheet from "@gorhom/bottom-sheet";
+
+import BottomNavbar from "../../components/BottomNavbar";
+
+import ExpenseModal from "../../components/ExpenseModal";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const { addExpense } = useExpense();
+
+  const openModal = () => {
+    bottomSheetRef.current?.expand();
+  };
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+    <>
+      <Tabs
+        tabBar={(props) => <BottomNavbar {...props} openModal={openModal} />}
+        screenOptions={{
+          headerShown: false,
         }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Home",
+          }}
+        />
+
+        <Tabs.Screen
+          name="history"
+          options={{
+            title: "History",
+          }}
+        />
+
+        <Tabs.Screen
+          name="add"
+          options={{
+            title: "Add",
+          }}
+        />
+
+        <Tabs.Screen
+          name="analytics"
+          options={{
+            title: "Analytics",
+          }}
+        />
+
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+          }}
+        />
+      </Tabs>
+
+      <ExpenseModal ref={bottomSheetRef} handleAddExpense={addExpense} />
+    </>
   );
 }
