@@ -98,7 +98,7 @@ export default function WelcomeScreen() {
       </View>
 
       <Pressable
-        onPress={() => router.push("/(auth)/user-type")}
+        onPress={() => router.push("/(auth)/login")}
         style={{
           backgroundColor: "#6C63FF",
           paddingVertical: 18,

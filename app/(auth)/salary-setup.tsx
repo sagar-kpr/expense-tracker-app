@@ -1,16 +1,75 @@
 import { Pressable, Text, TextInput, View } from "react-native";
 
+import { useEffect, useState } from "react";
+
 import { router } from "expo-router";
 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 
-export default function SalarySetupScreen() {
-  const { salary, salaryDate, setSalary, setSalaryDate } = useOnboardingStore();
+import { auth, db } from "@/firebase";
 
-  const handleContinue = () => {
-    router.push("/(auth)/success");
+import { useAuth } from "@/context/AuthContext";
+
+import { doc, updateDoc } from "firebase/firestore";
+
+export default function SalarySetupScreen() {
+  const { salary, salaryDate, setSalary, setSalaryDate, reset } =
+    useOnboardingStore();
+
+  const { refreshUserData } = useAuth();
+
+  const [name, setName] = useState("");
+
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const user = auth.currentUser;
+
+    if (!user) return;
+  }, []);
+
+  const handleContinue = async () => {
+    if (!name.trim()) {
+      setError("Please enter your name");
+
+      return;
+    }
+
+    if (!salary) {
+      setError("Please enter salary");
+
+      return;
+    }
+
+    if (!salaryDate) {
+      setError("Please enter salary date");
+
+      return;
+    }
+
+    const user = auth.currentUser;
+
+    if (!user) return;
+
+    setError("");
+
+    await updateDoc(doc(db, "users", user.uid), {
+      name,
+
+      salary: Number(salary),
+
+      salaryDate: Number(salaryDate),
+
+      onboarding: true,
+    });
+
+    await refreshUserData();
+
+    reset();
+
+    router.replace("/(auth)/success" as any);
   };
 
   return (
@@ -44,7 +103,8 @@ export default function SalarySetupScreen() {
             lineHeight: 44,
           }}
         >
-          Setup your{"\n"}salary
+          Setup your{"\n"}
+          salary
         </Text>
 
         <Text
@@ -73,23 +133,72 @@ export default function SalarySetupScreen() {
                 fontWeight: "600",
               }}
             >
+              Full Name
+            </Text>
+
+            <TextInput
+              value={name}
+              onChangeText={(text) => {
+                setName(text);
+
+                setError("");
+              }}
+              placeholder="Sagar Kapoor"
+              placeholderTextColor="#AAA"
+              style={{
+                backgroundColor: "white",
+
+                borderRadius: 20,
+
+                paddingVertical: 18,
+
+                paddingHorizontal: 18,
+
+                fontSize: 18,
+
+                borderWidth: 1,
+
+                borderColor: "#ECECEC",
+              }}
+            />
+          </View>
+
+          <View>
+            <Text
+              style={{
+                fontSize: 15,
+                color: "#666",
+                marginBottom: 10,
+                fontWeight: "600",
+              }}
+            >
               Monthly Salary
             </Text>
 
             <TextInput
               value={salary}
-              onChangeText={(text) => setSalary(text.replace(/[^0-9]/g, ""))}
+              onChangeText={(text) => {
+                setSalary(text.replace(/[^0-9]/g, ""));
+
+                setError("");
+              }}
               keyboardType="decimal-pad"
               returnKeyType="done"
-              placeholder="₹50,000"
+              placeholder="₹10,000"
               placeholderTextColor="#AAA"
               style={{
                 backgroundColor: "white",
+
                 borderRadius: 20,
+
                 paddingVertical: 18,
+
                 paddingHorizontal: 18,
+
                 fontSize: 18,
+
                 borderWidth: 1,
+
                 borderColor: "#ECECEC",
               }}
             />
@@ -109,20 +218,28 @@ export default function SalarySetupScreen() {
 
             <TextInput
               value={salaryDate}
-              onChangeText={(text) =>
-                setSalaryDate(text.replace(/[^0-9]/g, ""))
-              }
+              onChangeText={(text) => {
+                setSalaryDate(text.replace(/[^0-9]/g, ""));
+
+                setError("");
+              }}
               keyboardType="decimal-pad"
               returnKeyType="done"
-              placeholder="5"
+              placeholder="1"
               placeholderTextColor="#AAA"
               style={{
                 backgroundColor: "white",
+
                 borderRadius: 20,
+
                 paddingVertical: 18,
+
                 paddingHorizontal: 18,
+
                 fontSize: 18,
+
                 borderWidth: 1,
+
                 borderColor: "#ECECEC",
               }}
             />
@@ -135,10 +252,23 @@ export default function SalarySetupScreen() {
                 lineHeight: 20,
               }}
             >
-              Example: Enter 5 if your salary comes on the 5th of every month.
+              Example: Enter 1 if your salary comes on the 1st of every month.
             </Text>
           </View>
         </View>
+
+        {!!error && (
+          <Text
+            style={{
+              color: "#EF4444",
+              fontWeight: "600",
+              marginTop: 20,
+              lineHeight: 22,
+            }}
+          >
+            {error}
+          </Text>
+        )}
 
         <View
           style={{
@@ -150,7 +280,9 @@ export default function SalarySetupScreen() {
             onPress={handleContinue}
             style={{
               backgroundColor: "#6C63FF",
+
               paddingVertical: 18,
+
               borderRadius: 20,
             }}
           >
@@ -158,7 +290,9 @@ export default function SalarySetupScreen() {
               style={{
                 color: "white",
                 textAlign: "center",
+
                 fontSize: 18,
+
                 fontWeight: "700",
               }}
             >

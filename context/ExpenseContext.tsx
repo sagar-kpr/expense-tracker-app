@@ -1,3 +1,140 @@
+// import {
+//   createContext,
+//   ReactNode,
+//   useContext,
+//   useEffect,
+//   useState,
+// } from "react";
+
+// import {
+//   addDoc,
+//   collection,
+//   deleteDoc,
+//   doc,
+//   onSnapshot,
+//   orderBy,
+//   query,
+// } from "firebase/firestore";
+
+// import { auth, db } from "@/firebase";
+
+// type Expense = {
+//   id: string;
+
+//   amount: number;
+
+//   description: string;
+
+//   category?: string;
+
+//   createdAt: string;
+// };
+
+// type ExpenseContextType = {
+//   expenses: Expense[];
+
+//   loading: boolean;
+
+//   addExpense: (
+//     amount: string,
+//     description: string,
+//     category?: string,
+//   ) => Promise<void>;
+
+//   deleteExpense: (id: string) => Promise<void>;
+// };
+
+// const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
+
+// export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
+//   const [expenses, setExpenses] = useState<Expense[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+//     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+//       if (!user) {
+//         setExpenses([]);
+
+//         setLoading(false);
+
+//         return;
+//       }
+
+//       const q = query(
+//         collection(db, "users", user.uid, "expenses"),
+//         orderBy("createdAt", "desc"),
+//       );
+
+//       const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+//         const expenseData = snapshot.docs.map((doc) => ({
+//           id: doc.id,
+//           ...doc.data(),
+//         })) as Expense[];
+
+//         setExpenses(expenseData);
+
+//         setLoading(false);
+//       });
+
+//       return unsubscribeSnapshot;
+//     });
+
+//     return () => unsubscribeAuth();
+//   }, []);
+
+//   const addExpense = async (
+//     amount: string,
+//     description: string,
+//     category = "Other",
+//   ) => {
+//     const user = auth.currentUser;
+
+//     if (!user) return;
+
+//     await addDoc(collection(db, "users", user.uid, "expenses"), {
+//       amount: Number(amount),
+
+//       description,
+
+//       category,
+
+//       createdAt: new Date().toISOString(),
+//     });
+//   };
+
+//   const deleteExpense = async (id: string) => {
+//     const user = auth.currentUser;
+
+//     if (!user) return;
+
+//     await deleteDoc(doc(db, "users", user.uid, "expenses", id));
+//   };
+
+//   return (
+//     <ExpenseContext.Provider
+//       value={{
+//         expenses,
+//         loading,
+//         addExpense,
+//         deleteExpense,
+//       }}
+//     >
+//       {children}
+//     </ExpenseContext.Provider>
+//   );
+// };
+
+// export const useExpense = () => {
+//   const context = useContext(ExpenseContext);
+
+//   if (!context) {
+//     throw new Error("useExpense must be used inside ExpenseProvider");
+//   }
+
+//   return context;
+// };
+
 import {
   createContext,
   ReactNode,
@@ -16,13 +153,17 @@ import {
   query,
 } from "firebase/firestore";
 
-import { db } from "@/firebase";
+import { auth, db } from "@/firebase";
 
 type Expense = {
   id: string;
+
   amount: number;
+
   description: string;
-  category: string;
+
+  category?: string;
+
   createdAt: string;
 };
 
@@ -48,20 +189,43 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, "expenses"), orderBy("createdAt", "desc"));
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setExpenses([]);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const expenseData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Expense[];
+        setLoading(false);
 
-      setExpenses(expenseData);
+        return;
+      }
 
-      setLoading(false);
+      const q = query(
+        collection(db, "users", user.uid, "expenses"),
+        orderBy("createdAt", "desc"),
+      );
+
+      const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+        if (snapshot.empty) {
+          setExpenses([]);
+
+          setLoading(false);
+
+          return;
+        }
+
+        const expenseData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Expense[];
+
+        setExpenses(expenseData);
+
+        setLoading(false);
+      });
+
+      return unsubscribeSnapshot;
     });
 
-    return unsubscribe;
+    return () => unsubscribeAuth();
   }, []);
 
   const addExpense = async (
@@ -69,7 +233,11 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     description: string,
     category = "Other",
   ) => {
-    await addDoc(collection(db, "expenses"), {
+    const user = auth.currentUser;
+
+    if (!user) return;
+
+    await addDoc(collection(db, "users", user.uid, "expenses"), {
       amount: Number(amount),
 
       description,
@@ -81,7 +249,11 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteExpense = async (id: string) => {
-    await deleteDoc(doc(db, "expenses", id));
+    const user = auth.currentUser;
+
+    if (!user) return;
+
+    await deleteDoc(doc(db, "users", user.uid, "expenses", id));
   };
 
   return (

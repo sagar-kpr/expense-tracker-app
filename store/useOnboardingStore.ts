@@ -1,65 +1,101 @@
+// import { create } from "zustand";
+
+// import { persist } from "zustand/middleware";
+
+// import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// interface OnboardingState {
+//   salary: string;
+
+//   salaryDate: string;
+
+//   onboardingCompleted: boolean;
+
+//   setSalary: (value: string) => void;
+
+//   setSalaryDate: (value: string) => void;
+
+//   completeOnboarding: () => void;
+// }
+
+// export const useOnboardingStore = create<OnboardingState>()(
+//   persist(
+//     (set) => ({
+//       salary: "",
+
+//       salaryDate: "",
+
+//       onboardingCompleted: false,
+
+//       setSalary: (value) =>
+//         set({
+//           salary: value,
+//         }),
+
+//       setSalaryDate: (value) =>
+//         set({
+//           salaryDate: value,
+//         }),
+
+//       completeOnboarding: () =>
+//         set({
+//           onboardingCompleted: true,
+//         }),
+//     }),
+//     {
+//       name: "onboarding-storage",
+
+//       storage: {
+//         getItem: async (name) => {
+//           const value = await AsyncStorage.getItem(name);
+
+//           return value ? JSON.parse(value) : null;
+//         },
+
+//         setItem: async (name, value) => {
+//           await AsyncStorage.setItem(name, JSON.stringify(value));
+//         },
+
+//         removeItem: async (name) => {
+//           await AsyncStorage.removeItem(name);
+//         },
+//       },
+//     },
+//   ),
+// );
+
 import { create } from "zustand";
 
-import { persist } from "zustand/middleware";
-
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-interface OnboardingState {
+type OnboardingStore = {
   salary: string;
 
   salaryDate: string;
 
-  onboardingCompleted: boolean;
+  setSalary: (salary: string) => void;
 
-  setSalary: (value: string) => void;
+  setSalaryDate: (salaryDate: string) => void;
 
-  setSalaryDate: (value: string) => void;
+  reset: () => void;
+};
 
-  completeOnboarding: () => void;
-}
+export const useOnboardingStore = create<OnboardingStore>((set) => ({
+  salary: "",
 
-export const useOnboardingStore = create<OnboardingState>()(
-  persist(
-    (set) => ({
-      salary: "",
+  salaryDate: "",
 
-      salaryDate: "",
-
-      onboardingCompleted: false,
-
-      setSalary: (value) =>
-        set({
-          salary: value,
-        }),
-
-      setSalaryDate: (value) =>
-        set({
-          salaryDate: value,
-        }),
-
-      completeOnboarding: () =>
-        set({
-          onboardingCompleted: true,
-        }),
+  setSalary: (salary) =>
+    set({
+      salary,
     }),
-    {
-      name: "onboarding-storage",
 
-      storage: {
-        getItem: async (name) => {
-          const value = await AsyncStorage.getItem(name);
+  setSalaryDate: (salaryDate) =>
+    set({
+      salaryDate,
+    }),
 
-          return value ? JSON.parse(value) : null;
-        },
-
-        setItem: async (name, value) => {
-          await AsyncStorage.setItem(name, JSON.stringify(value));
-        },
-
-        removeItem: async (name) => {
-          await AsyncStorage.removeItem(name);
-        },
-      },
-    },
-  ),
-);
+  reset: () =>
+    set({
+      salary: "",
+      salaryDate: "",
+    }),
+}));

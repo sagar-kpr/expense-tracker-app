@@ -1,13 +1,38 @@
 import { Redirect } from "expo-router";
 
-import { useOnboardingStore } from "@/store/useOnboardingStore";
+import { useAuth } from "@/context/AuthContext";
 
-export default function App() {
-  const { onboardingCompleted } = useOnboardingStore();
+export default function Index() {
+  const { user, userData, loading } = useAuth();
 
-  if (onboardingCompleted) {
-    return <Redirect href="/(tabs)" />;
+  if (loading) return null;
+
+  // NO USER
+  if (!user) {
+    return <Redirect href="/(auth)/welcome" />;
   }
 
-  return <Redirect href="/(auth)/welcome" />;
+  // USER EXISTS
+  if (user && userData) {
+    // ONBOARDING DONE
+    if (userData.onboarding) {
+      return <Redirect href="/(tabs)" />;
+    }
+
+    // TYPE NOT SELECTED
+    if (!userData.type) {
+      return <Redirect href="/(auth)/user-type" />;
+    }
+
+    // TYPE SELECTED
+    // SALARY USER
+    if (userData.type === "salary") {
+      return <Redirect href="/(auth)/salary-setup" />;
+    }
+
+    // SELF EMPLOYED
+    return <Redirect href="/(auth)/success" />;
+  }
+
+  return null;
 }
