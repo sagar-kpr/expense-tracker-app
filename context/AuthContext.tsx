@@ -1,233 +1,3 @@
-// import React, { createContext, useContext, useEffect, useState } from "react";
-
-// import * as WebBrowser from "expo-web-browser";
-
-// import * as Google from "expo-auth-session/providers/google";
-
-// import {
-//   createUserWithEmailAndPassword,
-//   GoogleAuthProvider,
-//   onAuthStateChanged,
-//   sendPasswordResetEmail,
-//   signInWithCredential,
-//   signInWithEmailAndPassword,
-//   signOut,
-//   User,
-// } from "firebase/auth";
-
-// import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-
-// import { auth, db } from "@/firebase";
-
-// WebBrowser.maybeCompleteAuthSession();
-
-// interface UserData {
-//   name: string;
-
-//   email: string;
-
-//   type: string;
-
-//   salary: number | null;
-
-//   salaryDate: number | null;
-
-//   onboarding: boolean;
-
-//   createdAt?: any;
-// }
-
-// interface AuthContextType {
-//   user: User | null;
-
-//   userData: UserData | null;
-
-//   loading: boolean;
-
-//   login: () => Promise<void>;
-
-//   logout: () => Promise<void>;
-
-//   signup: (email: string, password: string) => Promise<void>;
-
-//   loginWithEmail: (email: string, password: string) => Promise<void>;
-
-//   forgotPassword: (email: string) => Promise<void>;
-
-//   refreshUserData: () => Promise<void>;
-// }
-
-// const AuthContext = createContext<AuthContextType>({} as AuthContextType);
-
-// export const AuthProvider = ({ children }: any) => {
-//   const [user, setUser] = useState<User | null>(null);
-
-//   const [userData, setUserData] = useState<UserData | null>(null);
-
-//   const [loading, setLoading] = useState(true);
-
-//   const [request, response, promptAsync] = Google.useAuthRequest({
-//     clientId:
-//       "692538487477-18613hcmqg5cbnmm5sab799qrmher6dd.apps.googleusercontent.com",
-
-//     androidClientId:
-//       "692538487477-a6f05panmknp1nfvful6mkfjjl7t24u5.apps.googleusercontent.com",
-//   });
-
-//   const fetchUserData = async (uid: string) => {
-//     const userRef = doc(db, "users", uid);
-
-//     const snap = await getDoc(userRef);
-
-//     if (snap.exists()) {
-//       setUserData(snap.data() as UserData);
-//     } else {
-//       setUserData(null);
-//     }
-//   };
-
-//   useEffect(() => {
-//     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-//       setUser(firebaseUser);
-
-//       if (firebaseUser) {
-//         await fetchUserData(firebaseUser.uid);
-//       } else {
-//         setUserData(null);
-//       }
-
-//       setLoading(false);
-//     });
-
-//     return unsubscribe;
-//   }, []);
-
-//   useEffect(() => {
-//     const handleGoogleAuth = async () => {
-//       if (response?.type !== "success") return;
-
-//       try {
-//         const { id_token, access_token } = response.params;
-
-//         const credential = GoogleAuthProvider.credential(
-//           id_token,
-//           access_token,
-//         );
-
-//         const userCredential = await signInWithCredential(auth, credential);
-
-//         const firebaseUser = userCredential.user;
-
-//         const userRef = doc(db, "users", firebaseUser.uid);
-
-//         const userSnap = await getDoc(userRef);
-
-//         if (!userSnap.exists()) {
-//           await setDoc(userRef, {
-//             name: firebaseUser.displayName || "",
-
-//             email: firebaseUser.email || "",
-
-//             type: "",
-
-//             salary: null,
-
-//             salaryDate: null,
-
-//             onboarding: false,
-
-//             createdAt: serverTimestamp(),
-//           });
-//         }
-
-//         await fetchUserData(firebaseUser.uid);
-//       } catch (error) {
-//         console.log("Google Login Error:", error);
-//       }
-//     };
-
-//     handleGoogleAuth();
-//   }, [response]);
-
-//   const login = async () => {
-//     await promptAsync();
-//   };
-
-//   const logout = async () => {
-//     await signOut(auth);
-//   };
-
-//   const signup = async (email: string, password: string) => {
-//     const userCredential = await createUserWithEmailAndPassword(
-//       auth,
-//       email,
-//       password,
-//     );
-
-//     const firebaseUser = userCredential.user;
-
-//     setUser(firebaseUser);
-
-//     const userRef = doc(db, "users", firebaseUser.uid);
-
-//     await setDoc(userRef, {
-//       name: "",
-
-//       email: firebaseUser.email,
-
-//       type: "",
-
-//       salary: null,
-
-//       salaryDate: null,
-
-//       onboarding: false,
-
-//       createdAt: serverTimestamp(),
-//     });
-
-//     const snap = await getDoc(userRef);
-
-//     if (snap.exists()) {
-//       setUserData(snap.data() as UserData);
-//     }
-//   };
-
-//   const loginWithEmail = async (email: string, password: string) => {
-//     await signInWithEmailAndPassword(auth, email, password);
-//   };
-
-//   const forgotPassword = async (email: string) => {
-//     await sendPasswordResetEmail(auth, email);
-//   };
-
-//   const refreshUserData = async () => {
-//     if (!user) return;
-
-//     await fetchUserData(user.uid);
-//   };
-
-//   return (
-//     <AuthContext.Provider
-//       value={{
-//         user,
-//         userData,
-//         loading,
-//         login,
-//         logout,
-//         signup,
-//         loginWithEmail,
-//         forgotPassword,
-//         refreshUserData,
-//       }}
-//     >
-//       {children}
-//     </AuthContext.Provider>
-//   );
-// };
-
-// export const useAuth = () => useContext(AuthContext);
-
 import {
   createContext,
   ReactNode,
@@ -247,7 +17,7 @@ import {
   User,
 } from "firebase/auth";
 
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 
 import * as Google from "expo-auth-session/providers/google";
 
@@ -283,8 +53,6 @@ type AuthContextType = {
   forgotPassword: (email: string) => Promise<void>;
 
   logout: () => Promise<void>;
-
-  refreshUserData: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -304,47 +72,66 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     webClientId: "YOUR_WEB_CLIENT_ID",
   });
 
-  const fetchUserData = async (uid: string) => {
-    const docRef = doc(db, "users", uid);
-
-    const snap = await getDoc(docRef);
-
-    if (!snap.exists()) {
-      setUserData(null);
-
-      return null;
-    }
-
-    const data = snap.data() as UserData;
-
-    setUserData(data);
-
-    return data;
-  };
-
   useEffect(() => {
+    let unsubUser: (() => void) | undefined;
+
     const unsubscribe = onAuthStateChanged(
       auth,
 
       async (firebaseUser) => {
         try {
           if (firebaseUser) {
+            if (unsubUser) {
+              unsubUser();
+            }
+
             setUser(firebaseUser);
 
-            await fetchUserData(firebaseUser.uid);
+            unsubUser = onSnapshot(
+              doc(db, "users", firebaseUser.uid),
+
+              (snapshot) => {
+                if (snapshot.exists()) {
+                  setUserData(snapshot.data() as UserData);
+
+                  setLoading(false);
+                } else {
+                  setUserData(null);
+
+                  setLoading(false);
+                }
+              },
+
+              (error) => {
+                console.log("Snapshot error:", error);
+
+                setUserData(null);
+
+                setLoading(false);
+              },
+            );
           } else {
             setUser(null);
 
             setUserData(null);
+
+            setLoading(false);
           }
-        } finally {
-          // IMPORTANT
+        } catch (error) {
+          console.log("Auth listener error:", error);
+
           setLoading(false);
         }
       },
     );
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+
+      if (unsubUser) {
+        unsubUser();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -366,13 +153,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
             onboarding: false,
 
-            type: "",
+            type: "salary",
 
             salary: null,
 
-            salaryDate: null,
+            salaryDate: 1,
 
-            name: "",
+            name: result.user.displayName || "",
           };
 
           await setDoc(docRef, newUserData);
@@ -401,7 +188,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       salaryDate: null,
 
-      name: "",
+      name: email.split("@")[0],
     };
 
     setUser(result.user);
@@ -423,23 +210,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await signOut(auth);
   };
 
-  const refreshUserData = async () => {
-    const currentUser = auth.currentUser;
-
-    if (!currentUser) {
-      setUserData(null);
-
-      return;
-    }
-
-    await fetchUserData(currentUser.uid);
-  };
-
   return (
     <AuthContext.Provider
       value={{
         user,
+
         userData,
+
         loading,
 
         login: promptAsync as any,
@@ -451,8 +228,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         forgotPassword,
 
         logout,
-
-        refreshUserData,
       }}
     >
       {children}

@@ -1,548 +1,3 @@
-// import {
-//   Alert,
-//   ScrollView,
-//   Switch,
-//   Text,
-//   TouchableOpacity,
-//   View,
-// } from "react-native";
-
-// import Animated, { FadeInUp } from "react-native-reanimated";
-
-// import { useMemo, useState } from "react";
-
-// import { useExpense } from "@/context/ExpenseContext";
-
-// import { useOnboardingStore } from "@/store/useOnboardingStore";
-
-// import { useAuth } from "@/context/AuthContext";
-
-// export default function ProfileScreen() {
-//   const { expenses } = useExpense();
-
-//   const { salary, setSalary } = useOnboardingStore();
-
-//   const { userData, logout } = useAuth();
-
-//   const [notifications, setNotifications] = useState(true);
-
-//   const [darkMode, setDarkMode] = useState(false);
-
-//   const totalSpent = useMemo(() => {
-//     return expenses.reduce((sum, item) => sum + Number(item.amount), 0);
-//   }, [expenses]);
-
-//   const remaining = Number(userData?.salary || 0) - totalSpent;
-
-//   const totalTransactions = expenses.length;
-
-//   const handleEditSalary = () => {
-//     Alert.prompt(
-//       "Edit Salary",
-
-//       "Enter your monthly salary",
-
-//       [
-//         {
-//           text: "Cancel",
-
-//           style: "cancel",
-//         },
-
-//         {
-//           text: "Save",
-
-//           onPress: (value: any) => {
-//             if (!value) return;
-
-//             setSalary(value);
-//           },
-//         },
-//       ],
-
-//       "plain-text",
-
-//       salary,
-//     );
-//   };
-
-//   // const handleReset = () => {
-//   //   Alert.alert(
-//   //     "Reset App",
-
-//   //     "This feature will come soon.",
-//   //   );
-//   // };
-
-//   return (
-//     <ScrollView
-//       style={{
-//         flex: 1,
-//         backgroundColor: "#F7F7F7",
-//       }}
-//       contentContainerStyle={{
-//         padding: 20,
-//         paddingTop: 70,
-//         paddingBottom: 120,
-//       }}
-//       showsVerticalScrollIndicator={false}
-//     >
-//       <Text
-//         style={{
-//           fontSize: 30,
-//           fontWeight: "800",
-//           color: "#111",
-//           marginBottom: 28,
-//         }}
-//       >
-//         Profile
-//       </Text>
-
-//       <Animated.View
-//         entering={FadeInUp.delay(100).duration(700)}
-//         style={{
-//           backgroundColor: "#6C63FF",
-
-//           borderRadius: 30,
-
-//           padding: 24,
-//         }}
-//       >
-//         <View
-//           style={{
-//             width: 70,
-//             height: 70,
-//             borderRadius: 999,
-//             backgroundColor: "rgba(255,255,255,0.2)",
-
-//             justifyContent: "center",
-
-//             alignItems: "center",
-
-//             marginBottom: 18,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               fontSize: 28,
-//             }}
-//           >
-//             👤
-//           </Text>
-//         </View>
-
-//         <Text
-//           style={{
-//             color: "white",
-//             fontSize: 28,
-//             fontWeight: "800",
-//           }}
-//         >
-//           {userData?.name || "User"}
-//         </Text>
-
-//         {/* <Text
-//           style={{
-//             color: "rgba(255,255,255,0.8)",
-
-//             marginTop: 8,
-
-//             fontSize: 16,
-//           }}
-//         >
-//           Monthly Expense Tracker
-//         </Text> */}
-//       </Animated.View>
-
-//       <Animated.View
-//         entering={FadeInUp.delay(200).duration(700)}
-//         style={{
-//           backgroundColor: "white",
-
-//           borderRadius: 28,
-
-//           padding: 24,
-
-//           marginTop: 24,
-//         }}
-//       >
-//         <Text
-//           style={{
-//             fontSize: 20,
-//             fontWeight: "700",
-//             color: "#111",
-//             marginBottom: 22,
-//           }}
-//         >
-//           Salary
-//         </Text>
-
-//         <Text
-//           style={{
-//             color: "#777",
-//             marginBottom: 8,
-//           }}
-//         >
-//           Monthly Salary
-//         </Text>
-
-//         <Text
-//           style={{
-//             fontSize: 34,
-//             fontWeight: "800",
-//             color: "#111",
-//           }}
-//         >
-//           ₹{Number(userData?.salary || 0).toLocaleString()}
-//         </Text>
-
-//         <TouchableOpacity
-//           onPress={handleEditSalary}
-//           activeOpacity={0.8}
-//           style={{
-//             marginTop: 22,
-//             backgroundColor: "#6C63FF",
-
-//             paddingVertical: 14,
-
-//             borderRadius: 18,
-
-//             alignItems: "center",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "white",
-//               fontWeight: "700",
-//               fontSize: 16,
-//             }}
-//           >
-//             Edit Salary
-//           </Text>
-//         </TouchableOpacity>
-//       </Animated.View>
-
-//       <Animated.View
-//         entering={FadeInUp.delay(300).duration(700)}
-//         style={{
-//           marginTop: 24,
-//           flexDirection: "row",
-//           justifyContent: "space-between",
-//         }}
-//       >
-//         <View
-//           style={{
-//             backgroundColor: "white",
-
-//             width: "48%",
-
-//             borderRadius: 24,
-
-//             padding: 20,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "#777",
-//               marginBottom: 10,
-//             }}
-//           >
-//             Total Spent
-//           </Text>
-
-//           <Text
-//             style={{
-//               fontSize: 24,
-//               fontWeight: "800",
-//               color: "#111",
-//             }}
-//           >
-//             ₹{totalSpent.toLocaleString()}
-//           </Text>
-//         </View>
-
-//         <View
-//           style={{
-//             backgroundColor: "white",
-
-//             width: "48%",
-
-//             borderRadius: 24,
-
-//             padding: 20,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "#777",
-//               marginBottom: 10,
-//             }}
-//           >
-//             Remaining
-//           </Text>
-
-//           <Text
-//             style={{
-//               fontSize: 24,
-//               fontWeight: "800",
-//               color: remaining >= 0 ? "#22C55E" : "#EF4444",
-//             }}
-//           >
-//             ₹{remaining.toLocaleString()}
-//           </Text>
-//         </View>
-//       </Animated.View>
-
-//       <Animated.View
-//         entering={FadeInUp.delay(400).duration(700)}
-//         style={{
-//           backgroundColor: "white",
-
-//           borderRadius: 28,
-
-//           padding: 24,
-
-//           marginTop: 24,
-//         }}
-//       >
-//         <Text
-//           style={{
-//             fontSize: 20,
-//             fontWeight: "700",
-//             color: "#111",
-//             marginBottom: 24,
-//           }}
-//         >
-//           Statistics
-//         </Text>
-
-//         <View
-//           style={{
-//             flexDirection: "row",
-
-//             justifyContent: "space-between",
-
-//             marginBottom: 20,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "#666",
-//               fontSize: 16,
-//             }}
-//           >
-//             Total Transactions
-//           </Text>
-
-//           <Text
-//             style={{
-//               color: "#111",
-//               fontWeight: "700",
-//               fontSize: 16,
-//             }}
-//           >
-//             {totalTransactions}
-//           </Text>
-//         </View>
-
-//         <View
-//           style={{
-//             flexDirection: "row",
-
-//             justifyContent: "space-between",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "#666",
-//               fontSize: 16,
-//             }}
-//           >
-//             Avg Expense
-//           </Text>
-
-//           <Text
-//             style={{
-//               color: "#111",
-//               fontWeight: "700",
-//               fontSize: 16,
-//             }}
-//           >
-//             ₹
-//             {totalTransactions > 0
-//               ? Math.round(totalSpent / totalTransactions).toLocaleString()
-//               : 0}
-//           </Text>
-//         </View>
-//       </Animated.View>
-
-//       <Animated.View
-//         entering={FadeInUp.delay(500).duration(700)}
-//         style={{
-//           backgroundColor: "white",
-
-//           borderRadius: 28,
-
-//           padding: 24,
-
-//           marginTop: 24,
-//         }}
-//       >
-//         <Text
-//           style={{
-//             fontSize: 20,
-//             fontWeight: "700",
-//             color: "#111",
-//             marginBottom: 24,
-//           }}
-//         >
-//           Settings
-//         </Text>
-
-//         <View
-//           style={{
-//             flexDirection: "row",
-
-//             justifyContent: "space-between",
-
-//             alignItems: "center",
-
-//             marginBottom: 22,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               fontSize: 16,
-//               color: "#111",
-//             }}
-//           >
-//             Notifications
-//           </Text>
-
-//           <Switch
-//             value={darkMode}
-//             onValueChange={setDarkMode}
-//             trackColor={{
-//               false: "#D1D5DB",
-//               true: "#6C63FF",
-//             }}
-//             thumbColor={darkMode ? "#FFFFFF" : "#FFFFFF"}
-//           />
-//         </View>
-
-//         <View
-//           style={{
-//             flexDirection: "row",
-
-//             justifyContent: "space-between",
-
-//             alignItems: "center",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               fontSize: 16,
-//               color: "#111",
-//             }}
-//           >
-//             Dark Mode
-//           </Text>
-
-//           <Switch
-//             value={darkMode}
-//             onValueChange={setDarkMode}
-//             trackColor={{
-//               false: "#D1D5DB",
-//               true: "#6C63FF",
-//             }}
-//             thumbColor={darkMode ? "#FFFFFF" : "#FFFFFF"}
-//           />
-//         </View>
-//       </Animated.View>
-
-//       {/* <Animated.View
-//         entering={FadeInUp.delay(600).duration(700)}
-//         style={{
-//           backgroundColor: "white",
-
-//           borderRadius: 28,
-
-//           padding: 24,
-
-//           marginTop: 24,
-//         }}
-//       >
-//         <Text
-//           style={{
-//             fontSize: 20,
-//             fontWeight: "700",
-//             color: "#111",
-//             marginBottom: 24,
-//           }}
-//         >
-//           Data
-//         </Text>
-
-//         <TouchableOpacity
-//           onPress={handleReset}
-//           activeOpacity={0.8}
-//           style={{
-//             backgroundColor: "#EF4444",
-
-//             paddingVertical: 16,
-
-//             borderRadius: 18,
-
-//             alignItems: "center",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "white",
-//               fontWeight: "700",
-//               fontSize: 16,
-//             }}
-//           >
-//             Reset App
-//           </Text>
-//         </TouchableOpacity>
-//       </Animated.View> */}
-
-//       <Animated.View
-//         entering={FadeInUp.delay(700).duration(700)}
-//         style={{
-//           marginTop: 24,
-//           marginBottom: 40,
-//         }}
-//       >
-//         <TouchableOpacity
-//           onPress={logout}
-//           activeOpacity={0.8}
-//           style={{
-//             backgroundColor: "#111",
-
-//             paddingVertical: 18,
-
-//             borderRadius: 22,
-
-//             alignItems: "center",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "white",
-//               fontSize: 16,
-//               fontWeight: "700",
-//             }}
-//           >
-//             Logout
-//           </Text>
-//         </TouchableOpacity>
-//       </Animated.View>
-//     </ScrollView>
-//   );
-// }
-
 import {
   Alert,
   ScrollView,
@@ -559,6 +14,8 @@ import { useMemo, useState } from "react";
 import { router } from "expo-router";
 
 import { doc, updateDoc } from "firebase/firestore";
+
+import * as Haptics from "expo-haptics";
 
 import { auth, db } from "@/firebase";
 
@@ -583,7 +40,22 @@ export default function ProfileScreen() {
 
   const totalTransactions = expenses.length;
 
+  const avgExpense =
+    totalTransactions > 0 ? Math.round(totalSpent / totalTransactions) : 0;
+
+  const activeDays = new Set(
+    expenses.map((item: any) => {
+      const rawDate: any = item.createdAt;
+
+      const date = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
+
+      return date.toDateString();
+    }),
+  ).size;
+
   const handleEditSalary = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     Alert.prompt(
       "Edit Salary",
 
@@ -623,11 +95,14 @@ export default function ProfileScreen() {
     <ScrollView
       style={{
         flex: 1,
+
         backgroundColor: "#F7F7F7",
       }}
       contentContainerStyle={{
         padding: 20,
+
         paddingTop: 70,
+
         paddingBottom: 120,
       }}
       showsVerticalScrollIndicator={false}
@@ -635,8 +110,11 @@ export default function ProfileScreen() {
       <Text
         style={{
           fontSize: 30,
+
           fontWeight: "800",
+
           color: "#111",
+
           marginBottom: 28,
         }}
       >
@@ -648,55 +126,243 @@ export default function ProfileScreen() {
         style={{
           backgroundColor: "#6C63FF",
 
-          borderRadius: 30,
+          borderRadius: 34,
 
-          padding: 24,
+          padding: 26,
+
+          overflow: "hidden",
+
+          position: "relative",
         }}
       >
         <View
           style={{
-            width: 70,
-            height: 70,
-            borderRadius: 999,
-            backgroundColor: "rgba(255,255,255,0.2)",
+            position: "absolute",
 
-            justifyContent: "center",
+            width: 240,
+
+            height: 240,
+
+            borderRadius: 999,
+
+            backgroundColor: "rgba(255,255,255,0.08)",
+
+            top: -100,
+
+            right: -80,
+          }}
+        />
+
+        <View
+          style={{
+            position: "absolute",
+
+            width: 130,
+
+            height: 130,
+
+            borderRadius: 999,
+
+            backgroundColor: "rgba(255,255,255,0.05)",
+
+            bottom: -40,
+
+            left: -35,
+          }}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
 
             alignItems: "center",
-
-            marginBottom: 18,
           }}
         >
-          <Text
+          <View
             style={{
-              fontSize: 28,
+              width: 76,
+
+              height: 76,
+
+              borderRadius: 26,
+
+              backgroundColor: "rgba(255,255,255,0.18)",
+
+              justifyContent: "center",
+
+              alignItems: "center",
+
+              marginRight: 18,
+
+              borderWidth: 1.5,
+
+              borderColor: "rgba(255,255,255,0.18)",
             }}
           >
-            👤
-          </Text>
+            <Text
+              style={{
+                fontSize: 32,
+              }}
+            >
+              👤
+            </Text>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                color: "white",
+
+                fontSize: 30,
+
+                fontWeight: "800",
+              }}
+            >
+              {userData?.name || "User"}
+            </Text>
+
+            <Text
+              numberOfLines={1}
+              style={{
+                color: "rgba(255,255,255,0.82)",
+
+                marginTop: 5,
+
+                fontSize: 14,
+              }}
+            >
+              {userData?.email}
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+
+                alignItems: "center",
+
+                marginTop: 14,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.14)",
+
+                  paddingHorizontal: 12,
+
+                  paddingVertical: 6,
+
+                  borderRadius: 999,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "white",
+
+                    fontSize: 12,
+
+                    fontWeight: "700",
+                  }}
+                >
+                  Salary User
+                </Text>
+              </View>
+
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.72)",
+
+                  marginLeft: 12,
+
+                  fontSize: 12,
+                }}
+              >
+                Joined{" "}
+                {new Date().toLocaleDateString("en-IN", {
+                  month: "short",
+
+                  year: "numeric",
+                })}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <Text
+        <View
           style={{
-            color: "white",
-            fontSize: 28,
-            fontWeight: "800",
+            flexDirection: "row",
+
+            justifyContent: "space-between",
+
+            marginTop: 28,
+
+            paddingTop: 22,
+
+            borderTopWidth: 1,
+
+            borderTopColor: "rgba(255,255,255,0.12)",
           }}
         >
-          {userData?.name || "User"}
-        </Text>
+          <View>
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.72)",
 
-        <Text
-          style={{
-            color: "rgba(255,255,255,0.8)",
+                fontSize: 13,
+              }}
+            >
+              Monthly Salary
+            </Text>
 
-            marginTop: 8,
+            <Text
+              style={{
+                color: "white",
 
-            fontSize: 15,
-          }}
-        >
-          {userData?.email}
-        </Text>
+                fontSize: 24,
+
+                fontWeight: "800",
+
+                marginTop: 8,
+              }}
+            >
+              ₹{Number(userData?.salary || 0).toLocaleString()}
+            </Text>
+          </View>
+
+          {/* <View
+            style={{
+              alignItems: "flex-end",
+            }}
+          >
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.72)",
+
+                fontSize: 13,
+              }}
+            >
+              Transactions
+            </Text>
+
+            <Text
+              style={{
+                color: "white",
+
+                fontSize: 24,
+
+                fontWeight: "800",
+
+                marginTop: 8,
+              }}
+            >
+              {totalTransactions}
+            </Text>
+          </View> */}
+        </View>
       </Animated.View>
 
       <Animated.View
@@ -704,74 +370,321 @@ export default function ProfileScreen() {
         style={{
           backgroundColor: "white",
 
-          borderRadius: 28,
+          borderRadius: 30,
 
           padding: 24,
 
           marginTop: 24,
+
+          overflow: "hidden",
         }}
       >
-        <Text
+        <View
           style={{
-            fontSize: 20,
-            fontWeight: "700",
-            color: "#111",
-            marginBottom: 22,
+            position: "absolute",
+
+            width: 160,
+
+            height: 160,
+
+            borderRadius: 999,
+
+            backgroundColor: "#6C63FF08",
+
+            top: -60,
+
+            right: -40,
           }}
-        >
-          Salary
-        </Text>
+        />
 
-        <Text
+        <View
           style={{
-            color: "#777",
-            marginBottom: 8,
-          }}
-        >
-          Monthly Salary
-        </Text>
+            flexDirection: "row",
 
-        <Text
-          style={{
-            fontSize: 34,
-            fontWeight: "800",
-            color: "#111",
-          }}
-        >
-          ₹{Number(userData?.salary || 0).toLocaleString()}
-        </Text>
-
-        <TouchableOpacity
-          onPress={handleEditSalary}
-          activeOpacity={0.8}
-          style={{
-            marginTop: 22,
-            backgroundColor: "#6C63FF",
-
-            paddingVertical: 14,
-
-            borderRadius: 18,
+            justifyContent: "space-between",
 
             alignItems: "center",
           }}
         >
-          <Text
+          <View>
+            <Text
+              style={{
+                fontSize: 20,
+
+                fontWeight: "800",
+
+                color: "#111",
+              }}
+            >
+              Salary
+            </Text>
+
+            <Text
+              style={{
+                color: "#777",
+
+                marginTop: 6,
+
+                fontSize: 14,
+              }}
+            >
+              Monthly income settings
+            </Text>
+          </View>
+
+          <View
             style={{
-              color: "white",
-              fontWeight: "700",
-              fontSize: 16,
+              width: 54,
+
+              height: 54,
+
+              borderRadius: 18,
+
+              backgroundColor: "#6C63FF12",
+
+              justifyContent: "center",
+
+              alignItems: "center",
             }}
           >
-            Edit Salary
+            <Text
+              style={{
+                fontSize: 24,
+              }}
+            >
+              💰
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={{
+            marginTop: 28,
+          }}
+        >
+          <Text
+            style={{
+              color: "#777",
+
+              fontSize: 14,
+            }}
+          >
+            Monthly Salary
           </Text>
-        </TouchableOpacity>
+
+          <Text
+            style={{
+              fontSize: 42,
+
+              fontWeight: "800",
+
+              color: "#111",
+
+              marginTop: 10,
+            }}
+          >
+            ₹{Number(userData?.salary || 0).toLocaleString()}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+
+            justifyContent: "space-between",
+
+            marginTop: 28,
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+
+              backgroundColor: "#F7F7F7",
+
+              borderRadius: 22,
+
+              padding: 18,
+
+              marginRight: 10,
+            }}
+          >
+            <Text
+              style={{
+                color: "#777",
+
+                fontSize: 13,
+              }}
+            >
+              Salary Date
+            </Text>
+
+            <Text
+              style={{
+                color: "#111",
+
+                fontSize: 20,
+
+                fontWeight: "800",
+
+                marginTop: 8,
+              }}
+            >
+              {userData?.salaryDate}
+            </Text>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+
+              backgroundColor: "#F7F7F7",
+
+              borderRadius: 22,
+
+              padding: 18,
+
+              marginLeft: 10,
+            }}
+          >
+            <Text
+              style={{
+                color: "#777",
+
+                fontSize: 13,
+              }}
+            >
+              Income Type
+            </Text>
+
+            <Text
+              style={{
+                color: "#111",
+
+                fontSize: 20,
+
+                fontWeight: "800",
+
+                marginTop: 8,
+              }}
+            >
+              Salary
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+
+            marginTop: 26,
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleEditSalary}
+            activeOpacity={0.85}
+            style={{
+              flex: 1,
+
+              backgroundColor: "#6C63FF",
+
+              paddingVertical: 16,
+
+              borderRadius: 20,
+
+              alignItems: "center",
+
+              marginRight: 10,
+            }}
+          >
+            <Text
+              style={{
+                color: "white",
+
+                fontWeight: "800",
+
+                fontSize: 15,
+              }}
+            >
+              Edit Salary
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+              Alert.prompt(
+                "Edit Salary Date",
+
+                "Enter salary date (1-31)",
+
+                [
+                  {
+                    text: "Cancel",
+
+                    style: "cancel",
+                  },
+
+                  {
+                    text: "Save",
+
+                    onPress: async (value: any) => {
+                      if (!value) return;
+
+                      const user = auth.currentUser;
+
+                      if (!user) return;
+
+                      await updateDoc(doc(db, "users", user.uid), {
+                        salaryDate: Number(value),
+                      });
+                    },
+                  },
+                ],
+
+                "plain-text",
+
+                String(userData?.salaryDate || "1"),
+              );
+            }}
+            style={{
+              flex: 1,
+
+              backgroundColor: "#F3F2FF",
+
+              paddingVertical: 16,
+
+              borderRadius: 20,
+
+              alignItems: "center",
+
+              marginLeft: 10,
+            }}
+          >
+            <Text
+              style={{
+                color: "#6C63FF",
+
+                fontWeight: "800",
+
+                fontSize: 15,
+              }}
+            >
+              Edit Date
+            </Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
 
       <Animated.View
         entering={FadeInUp.delay(300).duration(700)}
         style={{
           marginTop: 24,
+
           flexDirection: "row",
+
           justifyContent: "space-between",
         }}
       >
@@ -789,6 +702,7 @@ export default function ProfileScreen() {
           <Text
             style={{
               color: "#777",
+
               marginBottom: 10,
             }}
           >
@@ -798,7 +712,9 @@ export default function ProfileScreen() {
           <Text
             style={{
               fontSize: 24,
+
               fontWeight: "800",
+
               color: "#111",
             }}
           >
@@ -820,6 +736,7 @@ export default function ProfileScreen() {
           <Text
             style={{
               color: "#777",
+
               marginBottom: 10,
             }}
           >
@@ -829,7 +746,9 @@ export default function ProfileScreen() {
           <Text
             style={{
               fontSize: 24,
+
               fontWeight: "800",
+
               color: remaining >= 0 ? "#22C55E" : "#EF4444",
             }}
           >
@@ -853,8 +772,11 @@ export default function ProfileScreen() {
         <Text
           style={{
             fontSize: 20,
+
             fontWeight: "700",
+
             color: "#111",
+
             marginBottom: 24,
           }}
         >
@@ -873,6 +795,7 @@ export default function ProfileScreen() {
           <Text
             style={{
               color: "#666",
+
               fontSize: 16,
             }}
           >
@@ -882,11 +805,45 @@ export default function ProfileScreen() {
           <Text
             style={{
               color: "#111",
+
               fontWeight: "700",
+
               fontSize: 16,
             }}
           >
             {totalTransactions}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+
+            justifyContent: "space-between",
+
+            marginBottom: 20,
+          }}
+        >
+          <Text
+            style={{
+              color: "#666",
+
+              fontSize: 16,
+            }}
+          >
+            Avg Expense
+          </Text>
+
+          <Text
+            style={{
+              color: "#111",
+
+              fontWeight: "700",
+
+              fontSize: 16,
+            }}
+          >
+            ₹{avgExpense.toLocaleString()}
           </Text>
         </View>
 
@@ -900,23 +857,23 @@ export default function ProfileScreen() {
           <Text
             style={{
               color: "#666",
+
               fontSize: 16,
             }}
           >
-            Avg Expense
+            Active Days
           </Text>
 
           <Text
             style={{
               color: "#111",
+
               fontWeight: "700",
+
               fontSize: 16,
             }}
           >
-            ₹
-            {totalTransactions > 0
-              ? Math.round(totalSpent / totalTransactions).toLocaleString()
-              : 0}
+            {activeDays}
           </Text>
         </View>
       </Animated.View>
@@ -936,8 +893,11 @@ export default function ProfileScreen() {
         <Text
           style={{
             fontSize: 20,
+
             fontWeight: "700",
+
             color: "#111",
+
             marginBottom: 24,
           }}
         >
@@ -958,6 +918,7 @@ export default function ProfileScreen() {
           <Text
             style={{
               fontSize: 16,
+
               color: "#111",
             }}
           >
@@ -969,6 +930,7 @@ export default function ProfileScreen() {
             onValueChange={setNotifications}
             trackColor={{
               false: "#D1D5DB",
+
               true: "#6C63FF",
             }}
             thumbColor="#FFFFFF"
@@ -987,6 +949,7 @@ export default function ProfileScreen() {
           <Text
             style={{
               fontSize: 16,
+
               color: "#111",
             }}
           >
@@ -998,6 +961,7 @@ export default function ProfileScreen() {
             onValueChange={setDarkMode}
             trackColor={{
               false: "#D1D5DB",
+
               true: "#6C63FF",
             }}
             thumbColor="#FFFFFF"
@@ -1006,14 +970,56 @@ export default function ProfileScreen() {
       </Animated.View>
 
       <Animated.View
+        entering={FadeInUp.delay(650).duration(700)}
+        style={{
+          marginTop: 24,
+        }}
+      >
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => {
+            Alert.alert(
+              "Coming Soon",
+
+              "Export feature will be added soon.",
+            );
+          }}
+          style={{
+            backgroundColor: "white",
+
+            paddingVertical: 18,
+
+            borderRadius: 22,
+
+            alignItems: "center",
+          }}
+        >
+          <Text
+            style={{
+              color: "#111",
+
+              fontSize: 16,
+
+              fontWeight: "700",
+            }}
+          >
+            Export Data
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      <Animated.View
         entering={FadeInUp.delay(700).duration(700)}
         style={{
           marginTop: 24,
+
           marginBottom: 40,
         }}
       >
         <TouchableOpacity
           onPress={async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
             await logout();
 
             router.replace("/(auth)/login");
@@ -1032,7 +1038,9 @@ export default function ProfileScreen() {
           <Text
             style={{
               color: "white",
+
               fontSize: 16,
+
               fontWeight: "700",
             }}
           >

@@ -18,12 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { auth, db } from "@/firebase";
 
-import { useAuth } from "@/context/AuthContext";
-
 export default function UserTypeScreen() {
   const [loadingType, setLoadingType] = useState("");
-
-  const { refreshUserData } = useAuth();
 
   const handleSelect = async (type: string) => {
     try {
@@ -38,8 +34,6 @@ export default function UserTypeScreen() {
           type,
         });
 
-        await refreshUserData();
-
         router.replace("/(auth)/salary-setup" as any);
       } else {
         await updateDoc(doc(db, "users", user.uid), {
@@ -47,8 +41,6 @@ export default function UserTypeScreen() {
 
           onboarding: true,
         });
-
-        await refreshUserData();
 
         router.replace("/(auth)/success" as any);
       }

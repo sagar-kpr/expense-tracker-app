@@ -1,3 +1,140 @@
+// // import {
+// //   createContext,
+// //   ReactNode,
+// //   useContext,
+// //   useEffect,
+// //   useState,
+// // } from "react";
+
+// // import {
+// //   addDoc,
+// //   collection,
+// //   deleteDoc,
+// //   doc,
+// //   onSnapshot,
+// //   orderBy,
+// //   query,
+// // } from "firebase/firestore";
+
+// // import { auth, db } from "@/firebase";
+
+// // type Expense = {
+// //   id: string;
+
+// //   amount: number;
+
+// //   description: string;
+
+// //   category?: string;
+
+// //   createdAt: string;
+// // };
+
+// // type ExpenseContextType = {
+// //   expenses: Expense[];
+
+// //   loading: boolean;
+
+// //   addExpense: (
+// //     amount: string,
+// //     description: string,
+// //     category?: string,
+// //   ) => Promise<void>;
+
+// //   deleteExpense: (id: string) => Promise<void>;
+// // };
+
+// // const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
+
+// // export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
+// //   const [expenses, setExpenses] = useState<Expense[]>([]);
+
+// //   const [loading, setLoading] = useState(true);
+
+// //   useEffect(() => {
+// //     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+// //       if (!user) {
+// //         setExpenses([]);
+
+// //         setLoading(false);
+
+// //         return;
+// //       }
+
+// //       const q = query(
+// //         collection(db, "users", user.uid, "expenses"),
+// //         orderBy("createdAt", "desc"),
+// //       );
+
+// //       const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+// //         const expenseData = snapshot.docs.map((doc) => ({
+// //           id: doc.id,
+// //           ...doc.data(),
+// //         })) as Expense[];
+
+// //         setExpenses(expenseData);
+
+// //         setLoading(false);
+// //       });
+
+// //       return unsubscribeSnapshot;
+// //     });
+
+// //     return () => unsubscribeAuth();
+// //   }, []);
+
+// //   const addExpense = async (
+// //     amount: string,
+// //     description: string,
+// //     category = "Other",
+// //   ) => {
+// //     const user = auth.currentUser;
+
+// //     if (!user) return;
+
+// //     await addDoc(collection(db, "users", user.uid, "expenses"), {
+// //       amount: Number(amount),
+
+// //       description,
+
+// //       category,
+
+// //       createdAt: new Date().toISOString(),
+// //     });
+// //   };
+
+// //   const deleteExpense = async (id: string) => {
+// //     const user = auth.currentUser;
+
+// //     if (!user) return;
+
+// //     await deleteDoc(doc(db, "users", user.uid, "expenses", id));
+// //   };
+
+// //   return (
+// //     <ExpenseContext.Provider
+// //       value={{
+// //         expenses,
+// //         loading,
+// //         addExpense,
+// //         deleteExpense,
+// //       }}
+// //     >
+// //       {children}
+// //     </ExpenseContext.Provider>
+// //   );
+// // };
+
+// // export const useExpense = () => {
+// //   const context = useContext(ExpenseContext);
+
+// //   if (!context) {
+// //     throw new Error("useExpense must be used inside ExpenseProvider");
+// //   }
+
+// //   return context;
+// // };
+
 // import {
 //   createContext,
 //   ReactNode,
@@ -67,6 +204,14 @@
 //       );
 
 //       const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+//         if (snapshot.empty) {
+//           setExpenses([]);
+
+//           setLoading(false);
+
+//           return;
+//         }
+
 //         const expenseData = snapshot.docs.map((doc) => ({
 //           id: doc.id,
 //           ...doc.data(),
@@ -189,8 +334,14 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeSnapshot: (() => void) | undefined;
+
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-      if (!user) {
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+
+      if (!user?.uid) {
         setExpenses([]);
 
         setLoading(false);
@@ -198,34 +349,53 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      setLoading(true);
+
       const q = query(
         collection(db, "users", user.uid, "expenses"),
+
         orderBy("createdAt", "desc"),
       );
 
-      const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
-        if (snapshot.empty) {
+      unsubscribeSnapshot = onSnapshot(
+        q,
+
+        (snapshot) => {
+          if (snapshot.empty) {
+            setExpenses([]);
+
+            setLoading(false);
+
+            return;
+          }
+
+          const expenseData = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Expense[];
+
+          setExpenses(expenseData);
+
+          setLoading(false);
+        },
+
+        (error) => {
+          console.log("Expense listener error:", error);
+
           setExpenses([]);
 
           setLoading(false);
-
-          return;
-        }
-
-        const expenseData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Expense[];
-
-        setExpenses(expenseData);
-
-        setLoading(false);
-      });
-
-      return unsubscribeSnapshot;
+        },
+      );
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   const addExpense = async (
@@ -237,15 +407,19 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
 
     if (!user) return;
 
-    await addDoc(collection(db, "users", user.uid, "expenses"), {
-      amount: Number(amount),
+    await addDoc(
+      collection(db, "users", user.uid, "expenses"),
 
-      description,
+      {
+        amount: Number(amount),
 
-      category,
+        description,
 
-      createdAt: new Date().toISOString(),
-    });
+        category,
+
+        createdAt: new Date().toISOString(),
+      },
+    );
   };
 
   const deleteExpense = async (id: string) => {
@@ -260,8 +434,11 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     <ExpenseContext.Provider
       value={{
         expenses,
+
         loading,
+
         addExpense,
+
         deleteExpense,
       }}
     >

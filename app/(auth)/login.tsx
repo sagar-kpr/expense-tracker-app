@@ -1,224 +1,3 @@
-// import {
-//   ActivityIndicator,
-//   Alert,
-//   Text,
-//   TextInput,
-//   TouchableOpacity,
-//   View,
-// } from "react-native";
-
-// import { useState } from "react";
-
-// import Animated, { FadeInUp } from "react-native-reanimated";
-
-// import { useAuth } from "@/context/AuthContext";
-
-// export default function LoginScreen() {
-//   const { login, loading, signup, loginWithEmail, forgotPassword } = useAuth();
-
-//   const [email, setEmail] = useState("");
-
-//   const [password, setPassword] = useState("");
-
-//   const [isSignup, setIsSignup] = useState(false);
-
-//   const handleAuth = async () => {
-//     try {
-//       if (isSignup) {
-//         await signup(email, password);
-//       } else {
-//         await loginWithEmail(email, password);
-//       }
-//     } catch (err: any) {
-//       Alert.alert("Error", err.message);
-//     }
-//   };
-
-//   const handleForgot = async () => {
-//     if (!email) {
-//       Alert.alert("Enter email first");
-
-//       return;
-//     }
-
-//     try {
-//       await forgotPassword(email);
-
-//       Alert.alert("Password reset email sent");
-//     } catch (err: any) {
-//       Alert.alert("Error", err.message);
-//     }
-//   };
-
-//   return (
-//     <View
-//       style={{
-//         flex: 1,
-//         backgroundColor: "#F7F7F7",
-
-//         justifyContent: "center",
-
-//         padding: 24,
-//       }}
-//     >
-//       <Animated.View entering={FadeInUp.duration(700)}>
-//         <Text
-//           style={{
-//             fontSize: 40,
-//             fontWeight: "800",
-//             color: "#111",
-//           }}
-//         >
-//           Expense Tracker
-//         </Text>
-
-//         <Text
-//           style={{
-//             marginTop: 10,
-//             color: "#777",
-//             fontSize: 16,
-//           }}
-//         >
-//           Track your money smarter.
-//         </Text>
-
-//         <TextInput
-//           placeholder="Email"
-//           value={email}
-//           onChangeText={setEmail}
-//           autoCapitalize="none"
-//           keyboardType="email-address"
-//           style={{
-//             backgroundColor: "white",
-
-//             marginTop: 36,
-
-//             borderRadius: 18,
-
-//             paddingHorizontal: 18,
-
-//             paddingVertical: 16,
-
-//             fontSize: 16,
-//           }}
-//         />
-
-//         <TextInput
-//           placeholder="Password"
-//           value={password}
-//           onChangeText={setPassword}
-//           secureTextEntry
-//           style={{
-//             backgroundColor: "white",
-
-//             marginTop: 16,
-
-//             borderRadius: 18,
-
-//             paddingHorizontal: 18,
-
-//             paddingVertical: 16,
-
-//             fontSize: 16,
-//           }}
-//         />
-
-//         <TouchableOpacity
-//           onPress={handleAuth}
-//           activeOpacity={0.8}
-//           style={{
-//             marginTop: 24,
-
-//             backgroundColor: "#6C63FF",
-
-//             paddingVertical: 18,
-
-//             borderRadius: 22,
-
-//             alignItems: "center",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "white",
-//               fontSize: 17,
-//               fontWeight: "700",
-//             }}
-//           >
-//             {isSignup ? "Create Account" : "Login"}
-//           </Text>
-//         </TouchableOpacity>
-
-//         <TouchableOpacity
-//           onPress={login}
-//           activeOpacity={0.8}
-//           style={{
-//             marginTop: 16,
-
-//             backgroundColor: "white",
-
-//             paddingVertical: 18,
-
-//             borderRadius: 22,
-
-//             alignItems: "center",
-//           }}
-//         >
-//           {loading ? (
-//             <ActivityIndicator />
-//           ) : (
-//             <Text
-//               style={{
-//                 color: "#111",
-//                 fontSize: 17,
-//                 fontWeight: "700",
-//               }}
-//             >
-//               Continue with Google
-//             </Text>
-//           )}
-//         </TouchableOpacity>
-
-//         <TouchableOpacity
-//           onPress={handleForgot}
-//           style={{
-//             marginTop: 18,
-//             alignItems: "center",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "#6C63FF",
-//               fontWeight: "600",
-//             }}
-//           >
-//             Forgot Password?
-//           </Text>
-//         </TouchableOpacity>
-
-//         <TouchableOpacity
-//           onPress={() => setIsSignup(!isSignup)}
-//           style={{
-//             marginTop: 24,
-//             alignItems: "center",
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "#111",
-//               fontWeight: "600",
-//             }}
-//           >
-//             {isSignup
-//               ? "Already have an account? Login"
-//               : "Don't have an account? Sign Up"}
-//           </Text>
-//         </TouchableOpacity>
-//       </Animated.View>
-//     </View>
-//   );
-// }
-
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -235,6 +14,10 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { router } from "expo-router";
 
+import { Ionicons } from "@expo/vector-icons";
+
+import * as Haptics from "expo-haptics";
+
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginScreen() {
@@ -243,6 +26,12 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
 
   const [password, setPassword] = useState("");
+
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [isSignup, setIsSignup] = useState(false);
 
@@ -256,9 +45,23 @@ export default function LoginScreen() {
 
       setAuthLoading(true);
 
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
       if (isSignup) {
+        if (password !== confirmPassword) {
+          setError("Passwords do not match");
+
+          setAuthLoading(false);
+
+          return;
+        }
+
         await signup(email.trim(), password);
+
         router.dismissAll();
+
+        // IMPORTANT FIX 🔥
+        // user-type first
         router.replace("/(auth)/user-type" as any);
       } else {
         await loginWithEmail(email.trim(), password);
@@ -301,6 +104,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={{
         flex: 1,
+
         backgroundColor: "#F7F7F7",
       }}
     >
@@ -325,7 +129,13 @@ export default function LoginScreen() {
           >
             Expense
             {"\n"}
-            Tracker
+            <Text
+              style={{
+                color: "#6C63FF",
+              }}
+            >
+              Tracker
+            </Text>
           </Text>
 
           <Text
@@ -374,34 +184,113 @@ export default function LoginScreen() {
             }}
           />
 
-          <TextInput
-            placeholder="Password"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-
-              setError("");
-            }}
-            secureTextEntry
-            placeholderTextColor="#AAA"
+          <View
             style={{
-              backgroundColor: "white",
-
               marginTop: 16,
-
-              borderRadius: 20,
-
-              paddingHorizontal: 18,
-
-              paddingVertical: 18,
-
-              fontSize: 16,
-
-              borderWidth: 1,
-
-              borderColor: "#ECECEC",
             }}
-          />
+          >
+            <View
+              style={{
+                backgroundColor: "white",
+
+                borderRadius: 20,
+
+                borderWidth: 1,
+
+                borderColor: "#ECECEC",
+
+                flexDirection: "row",
+
+                alignItems: "center",
+
+                paddingHorizontal: 18,
+              }}
+            >
+              <TextInput
+                placeholder="Password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+
+                  setError("");
+                }}
+                secureTextEntry={!showPassword}
+                placeholderTextColor="#AAA"
+                style={{
+                  flex: 1,
+
+                  paddingVertical: 18,
+
+                  fontSize: 16,
+                }}
+              />
+
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color="#777"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {isSignup && (
+            <View
+              style={{
+                marginTop: 16,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: "white",
+
+                  borderRadius: 20,
+
+                  borderWidth: 1,
+
+                  borderColor: "#ECECEC",
+
+                  flexDirection: "row",
+
+                  alignItems: "center",
+
+                  paddingHorizontal: 18,
+                }}
+              >
+                <TextInput
+                  placeholder="Confirm Password"
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+
+                    setError("");
+                  }}
+                  secureTextEntry={!showConfirmPassword}
+                  placeholderTextColor="#AAA"
+                  style={{
+                    flex: 1,
+
+                    paddingVertical: 18,
+
+                    fontSize: 16,
+                  }}
+                />
+
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  <Ionicons
+                    name={
+                      showConfirmPassword ? "eye-off-outline" : "eye-outline"
+                    }
+                    size={22}
+                    color="#777"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {!!error && (
             <Text
@@ -514,7 +403,11 @@ export default function LoginScreen() {
           )}
 
           <TouchableOpacity
-            onPress={() => setIsSignup(!isSignup)}
+            onPress={() => {
+              setIsSignup(!isSignup);
+
+              setError("");
+            }}
             style={{
               marginTop: 28,
 

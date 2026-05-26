@@ -149,32 +149,22 @@ export default function HomeScreen() {
     },
   };
 
-  const getRelativeDate = (value: any) => {
-    const expenseDate = value?.toDate ? value.toDate() : new Date(value);
+  const getRelativeDate = (date: string) => {
+    const now = new Date();
 
-    if (Number.isNaN(expenseDate.getTime())) {
-      return "";
-    }
+    const expenseDate = new Date(date);
 
-    const today = new Date();
-    const yesterday = new Date();
+    const diff = now.getTime() - expenseDate.getTime();
 
-    today.setHours(0, 0, 0, 0);
-    yesterday.setHours(0, 0, 0, 0);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    const expenseDay = new Date(expenseDate);
+    if (days === 0) return "Today";
 
-    expenseDay.setHours(0, 0, 0, 0);
+    if (days === 1) return "Yesterday";
 
-    if (expenseDay.getTime() === today.getTime()) return "Today";
+    if (days < 7) return `${days} days ago`;
 
-    if (expenseDay.getTime() === yesterday.getTime()) return "Yesterday";
-
-    return expenseDate.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-    });
+    return expenseDate.toLocaleDateString();
   };
 
   const today = new Date();
@@ -925,15 +915,11 @@ export default function HomeScreen() {
                           style={{
                             backgroundColor: meta.color + "15",
 
-                            alignItems: "center",
-
                             paddingHorizontal: 10,
 
                             paddingVertical: 5,
 
                             borderRadius: 999,
-
-                            width: 82,
                           }}
                         >
                           <Text

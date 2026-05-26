@@ -1,24 +1,202 @@
+// import { Pressable, Text, View } from "react-native";
+
+// import { router } from "expo-router";
+
+// export default function WelcomeScreen() {
+//   return (
+//     <View
+//       style={{
+//         flex: 1,
+//         backgroundColor: "#F5F5F5",
+//         paddingHorizontal: 28,
+//         justifyContent: "center",
+//       }}
+//     >
+//       <View>
+//         <Text
+//           style={{
+//             fontSize: 44,
+//             fontWeight: "800",
+//             color: "#111",
+//             lineHeight: 52,
+//           }}
+//         >
+//           Expense{"\n"}
+//           <Text
+//             style={{
+//               color: "#6C63FF",
+//             }}
+//           >
+//             Tracker
+//           </Text>
+//         </Text>
+
+//         <Text
+//           style={{
+//             fontSize: 18,
+//             color: "#666",
+//             marginTop: 18,
+//             lineHeight: 28,
+//           }}
+//         >
+//           Track Simply, Live Freely
+//         </Text>
+
+//         <Text
+//           style={{
+//             fontSize: 15,
+//             color: "#888",
+//             marginTop: 30,
+//             lineHeight: 24,
+//           }}
+//         >
+//           A minimal and smart expense tracker for salary and self-employed
+//           people.
+//         </Text>
+
+//         <View
+//           style={{
+//             marginTop: 35,
+//             gap: 18,
+//           }}
+//         >
+//           {[
+//             "Quick Add Expense",
+//             "Smart Categories",
+//             "Salary Cycle View",
+//             "Beautiful Analytics",
+//           ].map((item) => (
+//             <View
+//               key={item}
+//               style={{
+//                 flexDirection: "row",
+//                 alignItems: "center",
+//               }}
+//             >
+//               <View
+//                 style={{
+//                   width: 10,
+//                   height: 10,
+//                   borderRadius: 999,
+//                   backgroundColor: "#6C63FF",
+//                   marginRight: 12,
+//                 }}
+//               />
+
+//               <Text
+//                 style={{
+//                   fontSize: 15,
+//                   color: "#444",
+//                   fontWeight: "500",
+//                 }}
+//               >
+//                 {item}
+//               </Text>
+//             </View>
+//           ))}
+//         </View>
+//       </View>
+
+//       <Pressable
+//         onPress={() => router.push("/(auth)/login")}
+//         style={{
+//           backgroundColor: "#6C63FF",
+//           paddingVertical: 18,
+//           borderRadius: 20,
+//           marginTop: 60,
+//         }}
+//       >
+//         <Text
+//           style={{
+//             color: "white",
+//             textAlign: "center",
+//             fontSize: 18,
+//             fontWeight: "700",
+//           }}
+//         >
+//           Get Started
+//         </Text>
+//       </Pressable>
+//     </View>
+//   );
+// }
+
 import { Pressable, Text, View } from "react-native";
 
 import { router } from "expo-router";
+
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+} from "react-native-reanimated";
+
+import * as Haptics from "expo-haptics";
 
 export default function WelcomeScreen() {
   return (
     <View
       style={{
         flex: 1,
+
         backgroundColor: "#F5F5F5",
+
         paddingHorizontal: 28,
+
         justifyContent: "center",
+
+        overflow: "hidden",
       }}
     >
-      <View>
-        <Text
+      {/* <View
+        style={{
+          position: "absolute",
+
+          width: 260,
+
+          height: 260,
+
+          borderRadius: 999,
+
+          backgroundColor: "#6C63FF10",
+
+          top: -80,
+
+          right: -80,
+        }}
+      />
+
+      <View
+        style={{
+          position: "absolute",
+
+          width: 180,
+
+          height: 180,
+
+          borderRadius: 999,
+
+          backgroundColor: "#6C63FF08",
+
+          bottom: -50,
+
+          left: -40,
+        }}
+      /> */}
+
+      <Animated.View entering={FadeIn.delay(1000).duration(700)}>
+        <Animated.Text
+          entering={FadeInUp.delay(100).duration(700)}
           style={{
-            fontSize: 44,
+            fontSize: 46,
+
             fontWeight: "800",
+
             color: "#111",
-            lineHeight: 52,
+
+            lineHeight: 56,
+
+            letterSpacing: -1,
           }}
         >
           Expense{"\n"}
@@ -29,34 +207,45 @@ export default function WelcomeScreen() {
           >
             Tracker
           </Text>
-        </Text>
+        </Animated.Text>
 
-        <Text
+        <Animated.Text
+          entering={FadeInUp.delay(250).duration(700)}
           style={{
-            fontSize: 18,
-            color: "#666",
-            marginTop: 18,
-            lineHeight: 28,
+            fontSize: 19,
+
+            color: "#555",
+
+            marginTop: 20,
+
+            lineHeight: 30,
+
+            fontWeight: "600",
           }}
         >
           Track Simply, Live Freely
-        </Text>
+        </Animated.Text>
 
-        <Text
+        <Animated.Text
+          entering={FadeInUp.delay(400).duration(700)}
           style={{
             fontSize: 15,
+
             color: "#888",
-            marginTop: 30,
-            lineHeight: 24,
+
+            marginTop: 28,
+
+            lineHeight: 25,
           }}
         >
           A minimal and smart expense tracker for salary and self-employed
           people.
-        </Text>
+        </Animated.Text>
 
         <View
           style={{
-            marginTop: 35,
+            marginTop: 42,
+
             gap: 18,
           }}
         >
@@ -65,58 +254,94 @@ export default function WelcomeScreen() {
             "Smart Categories",
             "Salary Cycle View",
             "Beautiful Analytics",
-          ].map((item) => (
-            <View
+          ].map((item, index) => (
+            <Animated.View
               key={item}
+              entering={FadeInDown.delay(500 + index * 120).duration(700)}
               style={{
                 flexDirection: "row",
+
                 alignItems: "center",
               }}
             >
               <View
                 style={{
-                  width: 10,
-                  height: 10,
+                  width: 11,
+
+                  height: 11,
+
                   borderRadius: 999,
+
                   backgroundColor: "#6C63FF",
-                  marginRight: 12,
+
+                  marginRight: 14,
                 }}
               />
 
               <Text
                 style={{
                   fontSize: 15,
+
                   color: "#444",
-                  fontWeight: "500",
+
+                  fontWeight: "600",
                 }}
               >
                 {item}
               </Text>
-            </View>
+            </Animated.View>
           ))}
         </View>
-      </View>
+      </Animated.View>
 
-      <Pressable
-        onPress={() => router.push("/(auth)/login")}
-        style={{
-          backgroundColor: "#6C63FF",
-          paddingVertical: 18,
-          borderRadius: 20,
-          marginTop: 60,
-        }}
-      >
-        <Text
+      <Animated.View entering={FadeIn.delay(1000).duration(700)}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+            router.push("/(auth)/login");
+          }}
           style={{
-            color: "white",
-            textAlign: "center",
-            fontSize: 18,
-            fontWeight: "700",
+            backgroundColor: "#6C63FF",
+
+            paddingVertical: 18,
+
+            borderRadius: 22,
+
+            marginTop: 65,
+
+            shadowColor: "#6C63FF",
+
+            shadowOpacity: 0.28,
+
+            shadowRadius: 18,
+
+            shadowOffset: {
+              width: 0,
+
+              height: 10,
+            },
+
+            elevation: 10,
           }}
         >
-          Get Started
-        </Text>
-      </Pressable>
+          <Text
+            style={{
+              color: "white",
+
+              textAlign: "center",
+
+              fontSize: 18,
+
+              fontWeight: "800",
+
+              letterSpacing: 0.3,
+            }}
+          >
+            Get Started
+          </Text>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
