@@ -1,545 +1,23 @@
-// import { Pressable, ScrollView, Text, View } from "react-native";
-
-// import { useMemo, useRef } from "react";
-
-// import { useAuth } from "@/context/AuthContext";
-// import BottomSheet from "@gorhom/bottom-sheet";
-
-// import ExpenseModal from "@/components/ExpenseModal";
-
-// import { useExpense } from "@/context/ExpenseContext";
-
-// import { useOnboardingStore } from "@/store/useOnboardingStore";
-
-// export default function HomeScreen() {
-//   const bottomSheetRef = useRef<BottomSheet>(null);
-//   const { userData } = useAuth();
-//   const { expenses, addExpense } = useExpense();
-
-//   const { salary } = useOnboardingStore();
-
-//   const totalSpent = useMemo(
-//     () => expenses.reduce((sum, item) => sum + Number(item.amount), 0),
-//     [expenses],
-//   );
-
-//   const remainingSalary = Number(salary || 0) - totalSpent;
-
-//   const handleAddExpense = async (amount: string, description: string) => {
-//     await addExpense(amount, description);
-//   };
-
-//   // const totalSpent = expenses.reduce(
-//   //   (sum, item) => sum + Number(item.amount),
-//   //   0,
-//   // );
-
-//   // const remainingSalary = Number(salary || 0) - totalSpent;
-
-//   const daysLeft = 13;
-
-//   const dailyAverage =
-//     daysLeft > 0 ? remainingSalary / daysLeft : remainingSalary;
-
-//   // const grouped = expenses.reduce((acc: Record<string, number>, item) => {
-//   //   acc[item.category] = (acc[item.category] || 0) + Number(item.amount);
-
-//   //   return acc;
-//   // }, {});
-//   const grouped = {
-//     "0 - 100": 0,
-//     "101 - 500": 0,
-//     "501 - 1000": 0,
-//     "1000+": 0,
-//   };
-
-//   expenses.forEach((item) => {
-//     const amount = Number(item.amount);
-
-//     if (amount <= 100) {
-//       grouped["0 - 100"] += amount;
-//     } else if (amount <= 500) {
-//       grouped["101 - 500"] += amount;
-//     } else if (amount <= 1000) {
-//       grouped["501 - 1000"] += amount;
-//     } else {
-//       grouped["1000+"] += amount;
-//     }
-//   });
-
-//   const categoryColors: Record<string, string> = {
-//     Food: "#22C55E",
-
-//     Travel: "#3B82F6",
-
-//     Shopping: "#F59E0B",
-
-//     Bills: "#EF4444",
-
-//     Other: "#8B5CF6",
-//   };
-
-//   return (
-//     <>
-//       <ScrollView
-//         style={{
-//           flex: 1,
-//           backgroundColor: "#F7F7F7",
-//         }}
-//         contentContainerStyle={{
-//           padding: 20,
-//           paddingTop: 70,
-//           paddingBottom: 140,
-//         }}
-//         showsVerticalScrollIndicator={false}
-//       >
-//         <Text
-//           style={{
-//             fontSize: 16,
-//             color: "#777",
-//           }}
-//         >
-//           Welcome Back 👋
-//         </Text>
-//         <Text
-//           style={{
-//             fontSize: 32,
-//             fontWeight: "800",
-//             color: "#111",
-//             marginTop: 8,
-//           }}
-//         >
-//           Dashboard
-//         </Text>
-//         <View
-//           style={{
-//             backgroundColor: "#6C63FF",
-//             borderRadius: 30,
-//             padding: 24,
-//             marginTop: 30,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               color: "rgba(255,255,255,0.8)",
-//               fontSize: 15,
-//             }}
-//           >
-//             Remaining Balance
-//           </Text>
-
-//           <Text
-//             style={{
-//               color: "white",
-//               fontSize: 38,
-//               fontWeight: "800",
-//               marginTop: 12,
-//             }}
-//           >
-//             ₹{remainingSalary.toLocaleString()}
-//           </Text>
-
-//           <View
-//             style={{
-//               height: 1,
-//               backgroundColor: "rgba(255,255,255,0.15)",
-//               marginVertical: 22,
-//             }}
-//           />
-
-//           <View
-//             style={{
-//               flexDirection: "row",
-//               justifyContent: "space-between",
-//             }}
-//           >
-//             <View>
-//               <Text
-//                 style={{
-//                   color: "rgba(255,255,255,0.7)",
-//                   fontSize: 14,
-//                 }}
-//               >
-//                 Salary
-//               </Text>
-
-//               <Text
-//                 style={{
-//                   color: "white",
-//                   fontSize: 22,
-//                   fontWeight: "700",
-//                   marginTop: 6,
-//                 }}
-//               >
-//                 ₹{Number(salary || 0).toLocaleString()}
-//               </Text>
-//             </View>
-
-//             <View>
-//               <Text
-//                 style={{
-//                   color: "rgba(255,255,255,0.7)",
-//                   fontSize: 14,
-//                 }}
-//               >
-//                 Spent
-//               </Text>
-
-//               <Text
-//                 style={{
-//                   color: "white",
-//                   fontSize: 22,
-//                   fontWeight: "700",
-//                   marginTop: 6,
-//                 }}
-//               >
-//                 ₹{totalSpent.toLocaleString()}
-//               </Text>
-//             </View>
-//           </View>
-//         </View>
-//         {/* Progress section */}
-//         <View
-//           style={{
-//             backgroundColor: "white",
-//             borderRadius: 26,
-//             padding: 24,
-//             marginTop: 24,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               fontSize: 22,
-//               fontWeight: "700",
-//               color: "#111",
-//               marginBottom: 22,
-//             }}
-//           >
-//             Monthly Usage
-//           </Text>
-
-//           <View
-//             style={{
-//               height: 18,
-//               backgroundColor: "#ECECEC",
-//               borderRadius: 999,
-//               overflow: "hidden",
-//             }}
-//           >
-//             <View
-//               style={{
-//                 width: `${Math.min(
-//                   100,
-//                   (totalSpent / Number(salary || 1)) * 100,
-//                 )}%`,
-//                 height: "100%",
-//                 backgroundColor: remainingSalary > 0 ? "#6C63FF" : "#EF4444",
-//                 borderRadius: 999,
-//               }}
-//             />
-//           </View>
-
-//           <View
-//             style={{
-//               flexDirection: "row",
-//               justifyContent: "space-between",
-//               marginTop: 14,
-//             }}
-//           >
-//             <Text
-//               style={{
-//                 color: "#666",
-//                 fontSize: 15,
-//               }}
-//             >
-//               Used: {Math.round((totalSpent / Number(salary || 1)) * 100)}%
-//             </Text>
-
-//             <Text
-//               style={{
-//                 color: "#111",
-//                 fontWeight: "700",
-//                 fontSize: 15,
-//               }}
-//             >
-//               ₹{totalSpent.toLocaleString()}
-//             </Text>
-//           </View>
-//         </View>
-//         {/* Overview section */}
-//         <View
-//           style={{
-//             backgroundColor: "white",
-//             borderRadius: 26,
-//             padding: 24,
-//             marginTop: 24,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               fontSize: 22,
-//               fontWeight: "700",
-//               color: "#111",
-//               marginBottom: 20,
-//             }}
-//           >
-//             Overview
-//           </Text>
-
-//           <View
-//             style={{
-//               flexDirection: "row",
-//               justifyContent: "space-between",
-//               marginBottom: 18,
-//             }}
-//           >
-//             <Text
-//               style={{
-//                 color: "#666",
-//                 fontSize: 16,
-//               }}
-//             >
-//               Total Spent
-//             </Text>
-
-//             <Text
-//               style={{
-//                 fontWeight: "700",
-//                 fontSize: 16,
-//                 color: "#111",
-//               }}
-//             >
-//               ₹{totalSpent.toLocaleString()}
-//             </Text>
-//           </View>
-
-//           <View
-//             style={{
-//               flexDirection: "row",
-//               justifyContent: "space-between",
-//               marginBottom: 18,
-//             }}
-//           >
-//             <Text
-//               style={{
-//                 color: "#666",
-//                 fontSize: 16,
-//               }}
-//             >
-//               Days Left
-//             </Text>
-
-//             <Text
-//               style={{
-//                 fontWeight: "700",
-//                 fontSize: 16,
-//                 color: "#111",
-//               }}
-//             >
-//               {daysLeft} Days
-//             </Text>
-//           </View>
-
-//           <View
-//             style={{
-//               flexDirection: "row",
-//               justifyContent: "space-between",
-//             }}
-//           >
-//             <Text
-//               style={{
-//                 color: "#666",
-//                 fontSize: 16,
-//               }}
-//             >
-//               Daily Average
-//             </Text>
-
-//             <Text
-//               style={{
-//                 fontWeight: "700",
-//                 fontSize: 16,
-//                 color: "#111",
-//               }}
-//             >
-//               ₹{Math.max(0, Math.round(dailyAverage)).toLocaleString()}
-//             </Text>
-//           </View>
-//         </View>
-//         {/* Category section */}
-//         <View
-//           style={{
-//             backgroundColor: "white",
-//             borderRadius: 26,
-//             padding: 24,
-//             marginTop: 24,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               fontSize: 22,
-//               fontWeight: "700",
-//               color: "#111",
-//               marginBottom: 20,
-//             }}
-//           >
-//             By Category
-//           </Text>
-
-//           {Object.entries(grouped).length === 0 && (
-//             <Text
-//               style={{
-//                 color: "#888",
-//               }}
-//             >
-//               No expenses yet.
-//             </Text>
-//           )}
-
-//           {Object.entries(grouped).map(([key, value], index) => {
-//             const colors = [
-//               "#22C55E",
-//               "#3B82F6",
-//               "#F59E0B",
-//               "#EF4444",
-//               "#8B5CF6",
-//             ];
-
-//             const color = colors[index % colors.length];
-
-//             return (
-//               <View
-//                 key={key}
-//                 style={{
-//                   flexDirection: "row",
-//                   justifyContent: "space-between",
-//                   alignItems: "center",
-//                   marginBottom: 14,
-//                   backgroundColor: "#F5F5F5",
-//                   paddingVertical: 14,
-//                   paddingHorizontal: 14,
-//                   borderRadius: 18,
-//                 }}
-//               >
-//                 <View
-//                   style={{
-//                     flexDirection: "row",
-//                     alignItems: "center",
-//                   }}
-//                 >
-//                   <View
-//                     style={{
-//                       width: 12,
-//                       height: 12,
-//                       borderRadius: 999,
-//                       backgroundColor: color,
-//                       marginRight: 12,
-//                     }}
-//                   />
-
-//                   <Text
-//                     style={{
-//                       color: "#222",
-//                       fontSize: 16,
-//                       fontWeight: "600",
-//                     }}
-//                   >
-//                     {key}
-//                   </Text>
-//                 </View>
-
-//                 <Text
-//                   style={{
-//                     fontWeight: "700",
-//                     fontSize: 16,
-//                     color: "#111",
-//                   }}
-//                 >
-//                   ₹{Number(value).toLocaleString()}
-//                 </Text>
-//               </View>
-//             );
-//           })}
-//         </View>
-//         {/* <View
-//           style={{
-//             marginTop: 35,
-//           }}
-//         >
-//           <Text
-//             style={{
-//               fontSize: 22,
-//               fontWeight: "700",
-//               color: "#111",
-//               marginBottom: 18,
-//             }}
-//           >
-//             Recent Expenses
-//           </Text>
-
-//           {expenses.length === 0 ? (
-//             <View
-//               style={{
-//                 backgroundColor: "white",
-//                 borderRadius: 24,
-//                 padding: 20,
-//               }}
-//             >
-//               <Text
-//                 style={{
-//                   color: "#888",
-//                   textAlign: "center",
-//                   fontSize: 15,
-//                 }}
-//               >
-//                 No expenses added yet.
-//               </Text>
-//             </View>
-//           ) : (
-//             expenses.map((item) => <ExpenseItem key={item.id} item={item} />)
-//           )}
-//         </View> */}
-//       </ScrollView>
-
-//       <Pressable
-//         onPress={() => bottomSheetRef.current?.expand()}
-//         style={{
-//           position: "absolute",
-//           bottom: 40,
-//           right: 24,
-//           width: 64,
-//           height: 64,
-//           borderRadius: 999,
-//           backgroundColor: "#6C63FF",
-//           justifyContent: "center",
-//           alignItems: "center",
-//           shadowColor: "#000",
-//           shadowOpacity: 0.15,
-//           shadowRadius: 10,
-//           elevation: 10,
-//         }}
-//       >
-//         <Text
-//           style={{
-//             color: "white",
-//             fontSize: 34,
-//             marginTop: -2,
-//           }}
-//         >
-//           +
-//         </Text>
-//       </Pressable>
-
-//       <ExpenseModal ref={bottomSheetRef} handleAddExpense={handleAddExpense} />
-//     </>
-//   );
-// }
-
-import { Pressable, ScrollView, Text, View } from "react-native";
-
-import { useMemo, useRef } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 
 import BottomSheet from "@gorhom/bottom-sheet";
+import * as Haptics from "expo-haptics";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import Animated, {
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 
 import ExpenseModal from "@/components/ExpenseModal";
 
@@ -554,6 +32,8 @@ export default function HomeScreen() {
 
   const { userData } = useAuth();
 
+  const [refreshing, setRefreshing] = useState(false);
+
   const totalSpent = useMemo(
     () => expenses.reduce((sum, item) => sum + Number(item.amount), 0),
     [expenses],
@@ -561,8 +41,140 @@ export default function HomeScreen() {
 
   const remainingSalary = Number(userData?.salary || 0) - totalSpent;
 
-  const handleAddExpense = async (amount: string, description: string) => {
-    await addExpense(amount, description);
+  const greeting = (() => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good Morning ☀️";
+
+    if (hour < 18) return "Good Afternoon 🌤";
+
+    return "Good Evening 🌙";
+  })();
+
+  const firstName = userData?.name?.trim()?.split(" ")[0];
+
+  const handleAddExpense = async (
+    amount: string,
+    description: string,
+    category: string,
+  ) => {
+    await addExpense(amount, description, category);
+  };
+
+  const grouped = expenses.reduce(
+    (acc: Record<string, number>, item) => {
+      const category = item.category || "Other";
+
+      acc[category] = (acc[category] || 0) + Number(item.amount);
+
+      return acc;
+    },
+
+    {},
+  );
+
+  const categoryData = [
+    {
+      key: "Food",
+      color: "#22C55E",
+      emoji: "🍔",
+    },
+
+    {
+      key: "Travel",
+      color: "#3B82F6",
+      emoji: "✈️",
+    },
+
+    {
+      key: "Shopping",
+      color: "#F59E0B",
+      emoji: "🛍",
+    },
+
+    {
+      key: "Bills",
+      color: "#EF4444",
+      emoji: "💡",
+    },
+
+    {
+      key: "Health",
+      color: "#EC4899",
+      emoji: "🏥",
+    },
+
+    {
+      key: "Other",
+      color: "#8B5CF6",
+      emoji: "✨",
+    },
+  ];
+
+  const categoryMeta: Record<
+    string,
+    {
+      emoji: string;
+      color: string;
+    }
+  > = {
+    Food: {
+      emoji: "🍔",
+      color: "#22C55E",
+    },
+
+    Travel: {
+      emoji: "✈️",
+      color: "#3B82F6",
+    },
+
+    Shopping: {
+      emoji: "🛍",
+      color: "#F59E0B",
+    },
+
+    Bills: {
+      emoji: "💡",
+      color: "#EF4444",
+    },
+
+    Health: {
+      emoji: "🏥",
+      color: "#EC4899",
+    },
+
+    Other: {
+      emoji: "✨",
+      color: "#8B5CF6",
+    },
+  };
+
+  const getRelativeDate = (value: any) => {
+    const expenseDate = value?.toDate ? value.toDate() : new Date(value);
+
+    if (Number.isNaN(expenseDate.getTime())) {
+      return "";
+    }
+
+    const today = new Date();
+    const yesterday = new Date();
+
+    today.setHours(0, 0, 0, 0);
+    yesterday.setHours(0, 0, 0, 0);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const expenseDay = new Date(expenseDate);
+
+    expenseDay.setHours(0, 0, 0, 0);
+
+    if (expenseDay.getTime() === today.getTime()) return "Today";
+
+    if (expenseDay.getTime() === yesterday.getTime()) return "Yesterday";
+
+    return expenseDate.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+    });
   };
 
   const today = new Date();
@@ -588,26 +200,68 @@ export default function HomeScreen() {
   const dailyAverage =
     daysLeft > 0 ? remainingSalary / daysLeft : remainingSalary;
 
-  const grouped = {
-    "0 - 100": 0,
-    "101 - 500": 0,
-    "501 - 1000": 0,
-    "1000+": 0,
-  };
+  const progress = useSharedValue(0);
 
-  expenses.forEach((item) => {
-    const amount = Number(item.amount);
+  const progressPercentage = Math.min(
+    100,
+    (totalSpent / Number(userData?.salary || 1)) * 100,
+  );
 
-    if (amount <= 100) {
-      grouped["0 - 100"] += amount;
-    } else if (amount <= 500) {
-      grouped["101 - 500"] += amount;
-    } else if (amount <= 1000) {
-      grouped["501 - 1000"] += amount;
-    } else {
-      grouped["1000+"] += amount;
-    }
+  useEffect(() => {
+    progress.value = withTiming(progressPercentage, {
+      duration: 1200,
+    });
+  }, [progressPercentage]);
+
+  const animatedProgressStyle = useAnimatedStyle(() => {
+    return {
+      width: `${progress.value}%`,
+    };
   });
+
+  const fabScale = useSharedValue(1);
+
+  useEffect(() => {
+    fabScale.value = withRepeat(
+      withSequence(
+        withTiming(1.04, {
+          duration: 1400,
+        }),
+
+        withTiming(1, {
+          duration: 1400,
+        }),
+      ),
+
+      -1,
+      true,
+    );
+  }, []);
+
+  const fabAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          scale: fabScale.value,
+        },
+      ],
+    };
+  });
+
+  const handleRefresh = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRefreshing(true);
+
+    progress.value = 0;
+
+    setTimeout(() => {
+      progress.value = withTiming(progressPercentage, {
+        duration: 1200,
+      });
+
+      setRefreshing(false);
+    }, 700);
+  };
 
   return (
     <>
@@ -616,12 +270,23 @@ export default function HomeScreen() {
           flex: 1,
           backgroundColor: "#F7F7F7",
         }}
+        // contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{
           padding: 20,
           paddingTop: 70,
           paddingBottom: 140,
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#6C63FF"
+            colors={["#6C63FF"]}
+            progressBackgroundColor="white"
+            progressViewOffset={70}
+          />
+        }
       >
         <Text
           style={{
@@ -629,7 +294,7 @@ export default function HomeScreen() {
             color: "#777",
           }}
         >
-          Welcome Back 👋
+          {firstName ? `${greeting}, ${firstName}` : `${greeting}`}
         </Text>
 
         <Text
@@ -643,7 +308,8 @@ export default function HomeScreen() {
           Dashboard
         </Text>
 
-        <View
+        <Animated.View
+          entering={FadeInUp.delay(100).duration(700)}
           style={{
             backgroundColor: "#6C63FF",
 
@@ -747,9 +413,10 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
-        <View
+        <Animated.View
+          entering={FadeInUp.delay(200).duration(700)}
           style={{
             backgroundColor: "white",
 
@@ -785,19 +452,18 @@ export default function HomeScreen() {
               overflow: "hidden",
             }}
           >
-            <View
-              style={{
-                width: `${Math.min(
-                  100,
-                  (totalSpent / Number(userData?.salary || 1)) * 100,
-                )}%`,
+            <Animated.View
+              style={[
+                {
+                  height: "100%",
 
-                height: "100%",
+                  backgroundColor: remainingSalary > 0 ? "#6C63FF" : "#EF4444",
 
-                backgroundColor: remainingSalary > 0 ? "#6C63FF" : "#EF4444",
+                  borderRadius: 999,
+                },
 
-                borderRadius: 999,
-              }}
+                animatedProgressStyle,
+              ]}
             />
           </View>
 
@@ -817,8 +483,7 @@ export default function HomeScreen() {
                 fontSize: 15,
               }}
             >
-              Used:{" "}
-              {Math.round((totalSpent / Number(userData?.salary || 1)) * 100)}%
+              Used: {Math.round(progressPercentage)}%
             </Text>
 
             <Text
@@ -833,9 +498,10 @@ export default function HomeScreen() {
               ₹{totalSpent.toLocaleString()}
             </Text>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* <View
+        <Animated.View
+          entering={FadeInUp.delay(250).duration(700)}
           style={{
             backgroundColor: "white",
 
@@ -844,118 +510,100 @@ export default function HomeScreen() {
             padding: 24,
 
             marginTop: 24,
+
+            flexDirection: "row",
+
+            alignItems: "center",
+
+            justifyContent: "space-between",
           }}
         >
-          <Text
-            style={{
-              fontSize: 22,
-
-              fontWeight: "700",
-
-              color: "#111",
-
-              marginBottom: 20,
-            }}
-          >
-            Overview
-          </Text>
-
           <View
             style={{
-              flexDirection: "row",
-
-              justifyContent: "space-between",
-
-              marginBottom: 18,
+              flex: 1,
             }}
           >
             <Text
               style={{
-                color: "#666",
+                fontSize: 15,
 
-                fontSize: 16,
+                color: "#777",
+
+                fontWeight: "600",
               }}
             >
-              Total Spent
+              Safe to Spend Today
             </Text>
 
             <Text
               style={{
-                fontWeight: "700",
+                fontSize: 32,
 
-                fontSize: 16,
+                fontWeight: "800",
 
-                color: "#111",
-              }}
-            >
-              ₹{totalSpent.toLocaleString()}
-            </Text>
-          </View>
+                color: dailyAverage > 0 ? "#111" : "#EF4444",
 
-          <View
-            style={{
-              flexDirection: "row",
-
-              justifyContent: "space-between",
-
-              marginBottom: 18,
-            }}
-          >
-            <Text
-              style={{
-                color: "#666",
-
-                fontSize: 16,
-              }}
-            >
-              Days Left
-            </Text>
-
-            <Text
-              style={{
-                fontWeight: "700",
-
-                fontSize: 16,
-
-                color: "#111",
-              }}
-            >
-              {daysLeft} Days
-            </Text>
-          </View>
-
-          <View
-            style={{
-              flexDirection: "row",
-
-              justifyContent: "space-between",
-            }}
-          >
-            <Text
-              style={{
-                color: "#666",
-
-                fontSize: 16,
-              }}
-            >
-              Daily Average
-            </Text>
-
-            <Text
-              style={{
-                fontWeight: "700",
-
-                fontSize: 16,
-
-                color: "#111",
+                marginTop: 10,
               }}
             >
               ₹{Math.max(0, Math.round(dailyAverage)).toLocaleString()}
+              <Text
+                style={{
+                  fontSize: 16,
+
+                  color: "#777",
+
+                  fontWeight: "600",
+                }}
+              >
+                /day
+              </Text>
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 10,
+
+                fontSize: 13,
+
+                color: "#999",
+
+                lineHeight: 20,
+              }}
+            >
+              {daysLeft} days left till next salary.
             </Text>
           </View>
-        </View> */}
 
-        <View
+          <View
+            style={{
+              width: 72,
+
+              height: 72,
+
+              borderRadius: 24,
+
+              backgroundColor: dailyAverage > 0 ? "#6C63FF15" : "#EF444415",
+
+              justifyContent: "center",
+
+              alignItems: "center",
+
+              marginLeft: 16,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 34,
+              }}
+            >
+              {dailyAverage > 0 ? "💰" : "⚠️"}
+            </Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInUp.delay(300).duration(700)}
           style={{
             backgroundColor: "white",
 
@@ -980,125 +628,420 @@ export default function HomeScreen() {
             By Category
           </Text>
 
-          {Object.entries(grouped).map(([key, value], index) => {
-            const colors = ["#22C55E", "#3B82F6", "#F59E0B", "#EF4444"];
+          {Object.keys(grouped).length === 0 && (
+            <View
+              style={{
+                paddingVertical: 30,
 
-            const color = colors[index % colors.length];
-
-            return (
-              <View
-                key={key}
+                alignItems: "center",
+              }}
+            >
+              <Text
                 style={{
-                  flexDirection: "row",
-
-                  justifyContent: "space-between",
-
-                  alignItems: "center",
-
-                  marginBottom: 14,
-
-                  backgroundColor: "#F5F5F5",
-
-                  paddingVertical: 14,
-
-                  paddingHorizontal: 14,
-
-                  borderRadius: 18,
+                  fontSize: 42,
                 }}
               >
+                📊
+              </Text>
+
+              <Text
+                style={{
+                  marginTop: 12,
+
+                  color: "#777",
+
+                  fontSize: 15,
+                }}
+              >
+                No category data yet
+              </Text>
+            </View>
+          )}
+
+          {categoryData
+            .filter((item) => grouped[item.key] > 0)
+            .map((item) => {
+              const value = grouped[item.key];
+
+              return (
                 <View
+                  key={item.key}
                   style={{
                     flexDirection: "row",
 
+                    justifyContent: "space-between",
+
                     alignItems: "center",
+
+                    marginBottom: 14,
+
+                    backgroundColor: "#F8F8F8",
+
+                    paddingVertical: 16,
+
+                    paddingHorizontal: 16,
+
+                    borderRadius: 20,
                   }}
                 >
                   <View
                     style={{
-                      width: 12,
+                      flexDirection: "row",
 
-                      height: 12,
-
-                      borderRadius: 999,
-
-                      backgroundColor: color,
-
-                      marginRight: 12,
+                      alignItems: "center",
                     }}
-                  />
+                  >
+                    <View
+                      style={{
+                        width: 44,
+
+                        height: 44,
+
+                        borderRadius: 16,
+
+                        backgroundColor: item.color + "18",
+
+                        justifyContent: "center",
+
+                        alignItems: "center",
+
+                        marginRight: 14,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 20,
+                        }}
+                      >
+                        {item.emoji}
+                      </Text>
+                    </View>
+
+                    <View>
+                      <Text
+                        style={{
+                          color: "#111",
+
+                          fontSize: 16,
+
+                          fontWeight: "700",
+                        }}
+                      >
+                        {item.key}
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: "#888",
+
+                          fontSize: 13,
+
+                          marginTop: 3,
+                        }}
+                      >
+                        Category Expense
+                      </Text>
+                    </View>
+                  </View>
 
                   <Text
                     style={{
-                      color: "#222",
+                      fontWeight: "800",
 
-                      fontSize: 16,
+                      fontSize: 18,
 
-                      fontWeight: "600",
+                      color: "#111",
                     }}
                   >
-                    {key}
+                    ₹{Number(value).toLocaleString()}
                   </Text>
                 </View>
+              );
+            })}
+        </Animated.View>
 
-                <Text
-                  style={{
-                    fontWeight: "700",
-
-                    fontSize: 16,
-
-                    color: "#111",
-                  }}
-                >
-                  ₹{Number(value).toLocaleString()}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
-
-      <Pressable
-        onPress={() => bottomSheetRef.current?.expand()}
-        style={{
-          position: "absolute",
-
-          bottom: 40,
-
-          right: 24,
-
-          width: 64,
-
-          height: 64,
-
-          borderRadius: 999,
-
-          backgroundColor: "#6C63FF",
-
-          justifyContent: "center",
-
-          alignItems: "center",
-
-          shadowColor: "#000",
-
-          shadowOpacity: 0.15,
-
-          shadowRadius: 10,
-
-          elevation: 10,
-        }}
-      >
-        <Text
+        <Animated.View
+          entering={FadeInUp.delay(400).duration(700)}
           style={{
-            color: "white",
-
-            fontSize: 34,
-
-            marginTop: -2,
+            marginTop: 26,
           }}
         >
-          +
-        </Text>
-      </Pressable>
+          <Text
+            style={{
+              fontSize: 22,
+
+              fontWeight: "700",
+
+              color: "#111",
+
+              marginBottom: 18,
+            }}
+          >
+            Recent Transactions
+          </Text>
+
+          {expenses.length === 0 ? (
+            <View
+              style={{
+                backgroundColor: "white",
+
+                borderRadius: 26,
+
+                paddingVertical: 46,
+
+                alignItems: "center",
+
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 52,
+                }}
+              >
+                💸
+              </Text>
+
+              <Text
+                style={{
+                  marginTop: 16,
+
+                  fontSize: 18,
+
+                  fontWeight: "800",
+
+                  color: "#111",
+                }}
+              >
+                No transactions yet
+              </Text>
+
+              <Text
+                style={{
+                  marginTop: 10,
+
+                  color: "#888",
+
+                  fontSize: 14,
+
+                  textAlign: "center",
+
+                  lineHeight: 22,
+
+                  paddingHorizontal: 40,
+                }}
+              >
+                Your recent expenses will appear here once you start tracking
+                spending.
+              </Text>
+            </View>
+          ) : (
+            expenses.slice(0, 5).map((item) => {
+              const meta =
+                categoryMeta[item.category || "Other"] || categoryMeta.Other;
+
+              return (
+                <View
+                  key={item.id}
+                  style={{
+                    backgroundColor: "white",
+
+                    borderRadius: 24,
+
+                    padding: 18,
+
+                    marginBottom: 14,
+
+                    flexDirection: "row",
+
+                    alignItems: "center",
+
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+
+                      alignItems: "center",
+
+                      flex: 1,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 52,
+
+                        height: 52,
+
+                        borderRadius: 18,
+
+                        backgroundColor: meta.color + "18",
+
+                        justifyContent: "center",
+
+                        alignItems: "center",
+
+                        marginRight: 14,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 24,
+                        }}
+                      >
+                        {meta.emoji}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        flex: 1,
+                      }}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: "#111",
+
+                          fontSize: 16,
+
+                          fontWeight: "700",
+                        }}
+                      >
+                        {item.description || item.category || "Other"}
+                      </Text>
+
+                      <View
+                        style={{
+                          flexDirection: "row",
+
+                          alignItems: "center",
+
+                          marginTop: 6,
+                        }}
+                      >
+                        <View
+                          style={{
+                            backgroundColor: meta.color + "15",
+
+                            alignItems: "center",
+
+                            paddingHorizontal: 10,
+
+                            paddingVertical: 5,
+
+                            borderRadius: 999,
+
+                            width: 82,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: meta.color,
+
+                              fontSize: 12,
+
+                              fontWeight: "700",
+                            }}
+                          >
+                            {item.category || "Other"}
+                          </Text>
+                        </View>
+
+                        <Text
+                          style={{
+                            color: "#999",
+
+                            fontSize: 13,
+
+                            marginLeft: 10,
+
+                            lineHeight: 16,
+
+                            marginTop: 1,
+                          }}
+                        >
+                          {getRelativeDate(item.createdAt)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <Text
+                    style={{
+                      fontSize: 18,
+
+                      fontWeight: "800",
+
+                      color: "#111",
+
+                      marginLeft: 12,
+                    }}
+                  >
+                    ₹{Number(item.amount).toLocaleString()}
+                  </Text>
+                </View>
+              );
+            })
+          )}
+        </Animated.View>
+      </ScrollView>
+
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+
+            bottom: 40,
+
+            right: 24,
+          },
+
+          fabAnimatedStyle,
+        ]}
+      >
+        <Pressable
+          onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+            bottomSheetRef.current?.expand();
+          }}
+          style={{
+            width: 64,
+
+            height: 64,
+
+            borderRadius: 999,
+
+            backgroundColor: "#6C63FF",
+
+            justifyContent: "center",
+
+            alignItems: "center",
+
+            shadowColor: "#000",
+
+            shadowOpacity: 0.15,
+
+            shadowRadius: 10,
+
+            elevation: 10,
+          }}
+        >
+          <Text
+            style={{
+              color: "white",
+
+              fontSize: 34,
+
+              marginTop: -2,
+            }}
+          >
+            +
+          </Text>
+        </Pressable>
+      </Animated.View>
 
       <ExpenseModal ref={bottomSheetRef} handleAddExpense={handleAddExpense} />
     </>

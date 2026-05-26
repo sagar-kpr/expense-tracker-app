@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+
 import {
   Dimensions,
   RefreshControl,
@@ -6,8 +7,10 @@ import {
   Text,
   View,
 } from "react-native";
+
 import Animated, {
   FadeInUp,
+  type SharedValue,
   useAnimatedProps,
   useSharedValue,
   withTiming,
@@ -17,18 +20,67 @@ import { LineChart } from "react-native-chart-kit";
 
 import Svg, { Circle } from "react-native-svg";
 
+import * as Haptics from "expo-haptics";
+
 import { useExpense } from "@/context/ExpenseContext";
+
 import { useFocusEffect } from "@react-navigation/native";
 
+import { useAuth } from "@/context/AuthContext";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 
 const screenWidth = Dimensions.get("window").width;
+
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+type DonutSegmentProps = {
+  color: string;
+  circumference: number;
+  dash: number;
+  gap: number;
+  progress: SharedValue<number>;
+  radius: number;
+  rotation: number;
+  strokeWidth: number;
+};
+
+function DonutSegment({
+  color,
+  circumference,
+  dash,
+  gap,
+  progress,
+  radius,
+  rotation,
+  strokeWidth,
+}: DonutSegmentProps) {
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDasharray: [dash * progress.value, circumference],
+  }));
+
+  return (
+    <AnimatedCircle
+      cx="90"
+      cy="90"
+      r={radius}
+      stroke={color}
+      strokeWidth={strokeWidth}
+      fill="none"
+      animatedProps={animatedProps}
+      strokeDasharray={`${dash} ${gap}`}
+      strokeDashoffset={0}
+      transform={`rotate(${rotation - 90} 90 90)`}
+      strokeLinecap="round"
+    />
+  );
+}
 
 export default function AnalyticsScreen() {
   const { expenses } = useExpense();
 
-  const { salary } = useOnboardingStore();
+  const { salary: onboardingSalary } = useOnboardingStore();
+
+  const { userData } = useAuth();
 
   const [selectedDate, setSelectedDate] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -37,6 +89,8 @@ export default function AnalyticsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     setRefreshing(true);
 
     setSelectedDate(
@@ -56,7 +110,7 @@ export default function AnalyticsScreen() {
     progress.value = withTiming(1, {
       duration: 1400,
     });
-  }, [selectedDate]);
+  }, [progress, selectedDate]);
 
   const months = [
     "Jan",
@@ -88,53 +142,63 @@ export default function AnalyticsScreen() {
       const date = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
 
       return (
-        date.getDate() >= selectedDate.getDate() &&
         date.getMonth() === selectedDate.getMonth() &&
         date.getFullYear() === selectedDate.getFullYear()
       );
     });
   }, [expenses, selectedDate]);
 
-  const grouped = {
-    "0-100": 0,
-    "101-500": 0,
-    "501-1000": 0,
-    "1000+": 0,
-  };
+  const groupedCategories = filteredExpenses.reduce(
+    (acc: Record<string, number>, item: any) => {
+      const category = item.category || "Other";
 
-  filteredExpenses.forEach((item) => {
-    const amount = Number(item.amount);
+      acc[category] = (acc[category] || 0) + Number(item.amount);
 
-    if (amount <= 100) {
-      grouped["0-100"] += amount;
-    } else if (amount <= 500) {
-      grouped["101-500"] += amount;
-    } else if (amount <= 1000) {
-      grouped["501-1000"] += amount;
-    } else {
-      grouped["1000+"] += amount;
-    }
-  });
+      return acc;
+    },
+    {},
+  );
 
-  const totalSpent = Object.values(grouped).reduce(
+  const totalSpent = Object.values(groupedCategories).reduce(
     (sum, value) => sum + value,
     0,
   );
 
+  const salaryAmount = Number(userData?.salary ?? onboardingSalary ?? 0);
+
   const salaryUsed =
-    Number(salary || 0) > 0 ? (totalSpent / Number(salary)) * 100 : 0;
+    salaryAmount > 0 ? Math.min((totalSpent / salaryAmount) * 100, 100) : 0;
 
-  const ranges = Object.entries(grouped);
+  const ranges = Object.entries(groupedCategories).sort(
+    (a: any, b: any) => b[1] - a[1],
+  );
 
-  const colors = ["#22C55E", "#3B82F6", "#F59E0B", "#EF4444"];
+  const colors = [
+    "#22C55E",
+    "#3B82F6",
+    "#F59E0B",
+    "#EF4444",
+    "#8B5CF6",
+    "#EC4899",
+  ];
+
+  const emptyCategoryData = [
+    "Food",
+    "Travel",
+    "Shopping",
+    "Bills",
+    "Other",
+    "Health",
+  ].map((category) => [category, 0] as [string, number]);
+
+  const displayRanges =
+    ranges.length > 0 ? (ranges as [string, number][]) : emptyCategoryData;
 
   const radius = 70;
 
   const strokeWidth = 18;
 
   const circumference = 2 * Math.PI * radius;
-
-  let cumulative = 0;
 
   const groupedByDay = filteredExpenses.reduce(
     (acc: Record<string, number>, item) => {
@@ -155,12 +219,34 @@ export default function AnalyticsScreen() {
     .map(Number)
     .sort((a, b) => a - b);
 
+  const daysInSelectedMonth = new Date(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth() + 1,
+    0,
+  ).getDate();
+
+  const monthDays = Array.from(
+    {
+      length: daysInSelectedMonth,
+    },
+    (_value, index) => index + 1,
+  );
+
+  const chartLabels = monthDays.map((day) => {
+    const shouldShowLabel =
+      day === 1 || day === daysInSelectedMonth || day % 5 === 0;
+
+    return shouldShowLabel ? String(day) : "";
+  });
+
+  const chartValues = monthDays.map((day) => groupedByDay[day] || 0);
+
   const chartData = {
-    labels: sortedDays.map(String),
+    labels: chartLabels,
 
     datasets: [
       {
-        data: sortedDays.map((day) => groupedByDay[day]),
+        data: chartValues,
       },
     ],
   };
@@ -178,6 +264,8 @@ export default function AnalyticsScreen() {
   const highestDay = Object.entries(groupedByDay).sort(
     (a: any, b: any) => b[1] - a[1],
   )[0];
+
+  const topCategory = ranges[0];
 
   return (
     <ScrollView
@@ -203,7 +291,7 @@ export default function AnalyticsScreen() {
     >
       <Text
         style={{
-          fontSize: 30,
+          fontSize: 32,
           fontWeight: "800",
           color: "#111",
         }}
@@ -225,22 +313,27 @@ export default function AnalyticsScreen() {
           return (
             <Text
               key={month}
-              onPress={() =>
-                setSelectedDate(new Date(selectedDate.getFullYear(), index, 1))
-              }
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+                setSelectedDate(new Date(selectedDate.getFullYear(), index, 1));
+              }}
               style={{
                 backgroundColor: active ? "#6C63FF" : "white",
 
                 color: active ? "white" : "#555",
 
                 paddingVertical: 12,
+
                 paddingHorizontal: 18,
 
                 borderRadius: 999,
 
                 marginRight: 10,
 
-                fontWeight: "600",
+                fontWeight: "700",
+
+                overflow: "hidden",
               }}
             >
               {month}
@@ -253,265 +346,398 @@ export default function AnalyticsScreen() {
         entering={FadeInUp.delay(100).duration(700)}
         style={{
           backgroundColor: "white",
+
           borderRadius: 28,
+
           padding: 24,
+
           marginTop: 28,
+
           alignItems: "center",
         }}
       >
         <Text
           style={{
             fontSize: 22,
+
             fontWeight: "700",
+
             color: "#111",
+
             marginBottom: 26,
           }}
         >
           Spending Distribution
         </Text>
 
-        <Animated.View
-          key={`donut-${selectedDate.getMonth()}-${refreshing}`}
-          // entering={ZoomIn.duration(1200)}
-          style={{
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Svg width={180} height={180}>
-            <Circle
-              cx="90"
-              cy="90"
-              r={radius}
-              stroke="#ECECEC"
-              strokeWidth={strokeWidth}
-              fill="none"
-            />
+        {displayRanges.length > 0 ? (
+          <>
+            <Animated.View
+              key={`donut-${selectedDate.getMonth()}-${refreshing}`}
+              style={{
+                justifyContent: "center",
 
-            {(() => {
-              let cumulativePercent = 0;
+                alignItems: "center",
+              }}
+            >
+              <Svg width={180} height={180}>
+                <Circle
+                  cx="90"
+                  cy="90"
+                  r={radius}
+                  stroke="#ECECEC"
+                  strokeWidth={strokeWidth}
+                  fill="none"
+                />
 
-              return ranges.map(([key, value], index) => {
-                const percent = totalSpent > 0 ? value / totalSpent : 0;
+                {(() => {
+                  let cumulativePercent = 0;
 
-                const dash = circumference * percent;
+                  return ranges.map(([key, value], index) => {
+                    const percent = totalSpent > 0 ? value / totalSpent : 0;
 
-                const gap = circumference - dash + 6;
+                    const dash = circumference * percent;
 
-                const rotation = cumulativePercent * 360;
+                    const gap = circumference - dash + 6;
 
-                cumulativePercent += percent;
-                const animatedProps = useAnimatedProps(() => ({
-                  strokeDasharray: [dash * progress.value, circumference],
-                }));
+                    const rotation = cumulativePercent * 360;
+
+                    cumulativePercent += percent;
+
+                    return (
+                      <DonutSegment
+                        key={key}
+                        color={colors[index % colors.length]}
+                        circumference={circumference}
+                        dash={dash}
+                        gap={gap}
+                        progress={progress}
+                        radius={radius}
+                        rotation={rotation}
+                        strokeWidth={strokeWidth}
+                      />
+                    );
+                  });
+                })()}
+              </Svg>
+
+              <View
+                style={{
+                  position: "absolute",
+
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 28,
+
+                    fontWeight: "800",
+
+                    color: "#111",
+                  }}
+                >
+                  {Math.round(salaryUsed)}%
+                </Text>
+
+                <Text
+                  style={{
+                    color: "#777",
+
+                    marginTop: 4,
+                  }}
+                >
+                  Salary Used
+                </Text>
+              </View>
+            </Animated.View>
+
+            <View
+              style={{
+                width: "100%",
+
+                marginTop: 30,
+              }}
+            >
+              {displayRanges.map(([key, value], index) => {
+                const percent =
+                  totalSpent > 0
+                    ? ((value / totalSpent) * 100).toFixed(1)
+                    : "0";
 
                 return (
-                  <AnimatedCircle
+                  <View
                     key={key}
-                    cx="90"
-                    cy="90"
-                    r={radius}
-                    stroke={colors[index]}
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                    animatedProps={animatedProps}
-                    strokeDasharray={`${dash} ${gap}`}
-                    strokeDashoffset={0}
-                    transform={`rotate(${rotation - 90} 90 90)`}
-                    strokeLinecap="round"
-                  />
-                );
-              });
-            })()}
-          </Svg>
+                    style={{
+                      flexDirection: "row",
 
+                      justifyContent: "space-between",
+
+                      alignItems: "center",
+
+                      marginBottom: 18,
+
+                      backgroundColor: "#F5F5F5",
+
+                      padding: 16,
+
+                      borderRadius: 18,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+
+                        alignItems: "center",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 12,
+
+                          height: 12,
+
+                          borderRadius: 999,
+
+                          backgroundColor: colors[index % colors.length],
+
+                          marginRight: 12,
+                        }}
+                      />
+
+                      <Text
+                        style={{
+                          fontSize: 16,
+
+                          fontWeight: "700",
+
+                          color: "#222",
+                        }}
+                      >
+                        {key}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        alignItems: "flex-end",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontWeight: "700",
+
+                          color: "#111",
+
+                          fontSize: 16,
+                        }}
+                      >
+                        ₹{value.toLocaleString()}
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: "#777",
+
+                          marginTop: 2,
+                        }}
+                      >
+                        {percent}%
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        ) : (
           <View
             style={{
-              position: "absolute",
+              paddingVertical: 50,
+
               alignItems: "center",
             }}
           >
             <Text
               style={{
-                fontSize: 28,
-                fontWeight: "800",
-                color: "#111",
+                fontSize: 52,
               }}
             >
-              {Math.round(salaryUsed)}%
+              📊
             </Text>
 
             <Text
               style={{
-                color: "#777",
-                marginTop: 4,
+                marginTop: 14,
+
+                fontSize: 18,
+
+                fontWeight: "800",
+
+                color: "#111",
               }}
             >
-              Salary Used
+              No spending data
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 8,
+
+                color: "#888",
+
+                textAlign: "center",
+
+                lineHeight: 22,
+              }}
+            >
+              No analytics available for this month.
             </Text>
           </View>
-        </Animated.View>
-
-        <View
-          style={{
-            width: "100%",
-            marginTop: 30,
-          }}
-        >
-          {ranges.map(([key, value], index) => {
-            const percent =
-              totalSpent > 0 ? ((value / totalSpent) * 100).toFixed(1) : "0";
-
-            return (
-              <View
-                key={key}
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 18,
-                  backgroundColor: "#F5F5F5",
-                  padding: 16,
-                  borderRadius: 18,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 999,
-                      backgroundColor: colors[index],
-                      marginRight: 12,
-                    }}
-                  />
-
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: "#222",
-                    }}
-                  >
-                    {key}
-                  </Text>
-                </View>
-
-                <View
-                  style={{
-                    alignItems: "flex-end",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontWeight: "700",
-                      color: "#111",
-                      fontSize: 16,
-                    }}
-                  >
-                    ₹{value.toLocaleString()}
-                  </Text>
-
-                  <Text
-                    style={{
-                      color: "#777",
-                      marginTop: 2,
-                    }}
-                  >
-                    {percent}%
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
+        )}
       </Animated.View>
 
-      <View
+      <Animated.View
+        entering={FadeInUp.delay(100).duration(700)}
         style={{
           backgroundColor: "white",
+
           borderRadius: 28,
+
           padding: 24,
+
           marginTop: 24,
         }}
       >
         <Text
           style={{
             fontSize: 22,
+
             fontWeight: "700",
+
             color: "#111",
+
             marginBottom: 22,
           }}
         >
           Daily Spending
         </Text>
 
-        {sortedDays.length > 0 ? (
+        {chartValues.length > 0 ? (
           <LineChart
             data={chartData}
             width={screenWidth - 88}
             height={240}
-            withDots
+            withDots={sortedDays.length < 12}
             withInnerLines
             withOuterLines={false}
             withVerticalLines={false}
             chartConfig={{
               backgroundColor: "#fff",
+
               backgroundGradientFrom: "#fff",
+
               backgroundGradientTo: "#fff",
+
               decimalPlaces: 0,
 
               color: () => "#6C63FF",
 
               labelColor: () => "#777",
 
+              fillShadowGradient: "#6C63FF",
+
+              fillShadowGradientOpacity: 0.12,
+
+              propsForBackgroundLines: {
+                strokeWidth: 0.5,
+              },
+
               propsForDots: {
                 r: "5",
+
                 strokeWidth: "2",
+
                 stroke: "#6C63FF",
+              },
+
+              propsForLabels: {
+                fontSize: 11,
               },
             }}
             bezier
             style={{
               borderRadius: 18,
+
+              marginLeft: -10,
             }}
           />
         ) : (
           <View
             style={{
-              paddingVertical: 40,
+              paddingVertical: 50,
+
               alignItems: "center",
             }}
           >
             <Text
               style={{
-                color: "#888",
+                fontSize: 52,
+              }}
+            >
+              📈
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 14,
+
+                fontSize: 18,
+
+                fontWeight: "800",
+
+                color: "#111",
               }}
             >
               No chart data
             </Text>
+
+            <Text
+              style={{
+                marginTop: 8,
+
+                color: "#888",
+
+                textAlign: "center",
+
+                lineHeight: 22,
+              }}
+            >
+              Daily spending trends will appear here.
+            </Text>
           </View>
         )}
-      </View>
+      </Animated.View>
 
       <View
         style={{
           backgroundColor: "white",
+
           borderRadius: 28,
+
           padding: 24,
+
           marginTop: 24,
         }}
       >
         <Text
           style={{
             fontSize: 22,
+
             fontWeight: "700",
+
             color: "#111",
+
             marginBottom: 24,
           }}
         >
@@ -520,14 +746,45 @@ export default function AnalyticsScreen() {
 
         <View
           style={{
+            backgroundColor: "#6C63FF10",
+
+            padding: 18,
+
+            borderRadius: 20,
+
+            marginBottom: 24,
+          }}
+        >
+          <Text
+            style={{
+              color: "#6C63FF",
+
+              fontWeight: "700",
+
+              fontSize: 15,
+
+              lineHeight: 24,
+            }}
+          >
+            {topCategory
+              ? `You spent most on ${topCategory[0]} this month 🔥`
+              : "No spending insights yet"}
+          </Text>
+        </View>
+
+        <View
+          style={{
             flexDirection: "row",
+
             justifyContent: "space-between",
+
             marginBottom: 20,
           }}
         >
           <Text
             style={{
               color: "#666",
+
               fontSize: 16,
             }}
           >
@@ -537,7 +794,9 @@ export default function AnalyticsScreen() {
           <Text
             style={{
               fontWeight: "700",
+
               fontSize: 16,
+
               color: "#111",
             }}
           >
@@ -548,13 +807,16 @@ export default function AnalyticsScreen() {
         <View
           style={{
             flexDirection: "row",
+
             justifyContent: "space-between",
+
             marginBottom: 20,
           }}
         >
           <Text
             style={{
               color: "#666",
+
               fontSize: 16,
             }}
           >
@@ -564,7 +826,9 @@ export default function AnalyticsScreen() {
           <Text
             style={{
               fontWeight: "700",
+
               fontSize: 16,
+
               color: "#111",
             }}
           >
@@ -578,13 +842,16 @@ export default function AnalyticsScreen() {
         <View
           style={{
             flexDirection: "row",
+
             justifyContent: "space-between",
+
             marginBottom: 20,
           }}
         >
           <Text
             style={{
               color: "#666",
+
               fontSize: 16,
             }}
           >
@@ -594,7 +861,9 @@ export default function AnalyticsScreen() {
           <Text
             style={{
               fontWeight: "700",
+
               fontSize: 16,
+
               color: "#111",
             }}
           >
@@ -605,12 +874,14 @@ export default function AnalyticsScreen() {
         <View
           style={{
             flexDirection: "row",
+
             justifyContent: "space-between",
           }}
         >
           <Text
             style={{
               color: "#666",
+
               fontSize: 16,
             }}
           >
@@ -620,7 +891,9 @@ export default function AnalyticsScreen() {
           <Text
             style={{
               fontWeight: "700",
+
               fontSize: 16,
+
               color: "#111",
             }}
           >

@@ -1,96 +1,692 @@
-import { ScrollView, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Haptics from "expo-haptics";
+import { useMemo, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { useExpense } from "@/context/ExpenseContext";
 
-import ExpenseItem from "@/components/ExpenseItem";
+type Expense = {
+  id: string;
+  amount: number | string;
+  description?: string;
+  category?: string;
+  createdAt?: string | Date | { toDate?: () => Date };
+};
+
+type CategoryMeta = {
+  color: string;
+  icon: string;
+};
+
+const FILTERS = ["All", "Today", "Yesterday", "This Month"];
+const RUPEE = "\u20B9";
+
+const CATEGORY_META: Record<string, CategoryMeta> = {
+  Food: {
+    color: "#22C55E",
+    icon: "\uD83C\uDF54",
+  },
+  Travel: {
+    color: "#0EA5E9",
+    icon: "\uD83D\uDE97",
+  },
+  Shopping: {
+    color: "#F59E0B",
+    icon: "\uD83D\uDECD\uFE0F",
+  },
+  Bills: {
+    color: "#EF4444",
+    icon: "\uD83D\uDCA1",
+  },
+  Health: {
+    color: "#EC4899",
+    icon: "\uD83C\uDFE5",
+  },
+  Other: {
+    color: "#7C3AED",
+    icon: "\u2728",
+  },
+};
+
+const parseExpenseDate = (value: Expense["createdAt"]) => {
+  if (!value) {
+    return null;
+  }
+
+  const date =
+    typeof value === "object" && "toDate" in value && value.toDate
+      ? value.toDate()
+      : new Date(value as string | Date);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isSameDay = (left: Date, right: Date) =>
+  left.toDateString() === right.toDateString();
+
+const getDateLabel = (date: Date) => {
+  const today = new Date();
+  const yesterday = new Date();
+
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (isSameDay(date, today)) {
+    return "Today";
+  }
+
+  if (isSameDay(date, yesterday)) {
+    return "Yesterday";
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+};
+
+const getExpenseTime = (date: Date | null) => {
+  if (!date) {
+    return "--:--";
+  }
+
+  return date.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 export default function HistoryScreen() {
   const { expenses } = useExpense();
 
-  const groupedExpenses = expenses.reduce((groups: any, item) => {
-    const rawDate: any = item.createdAt;
+  const [search, setSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState("All");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
-    const date = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
+  const handleRefresh = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRefreshing(true);
 
-    if (isNaN(date.getTime())) {
-      return groups;
-    }
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 900);
+  };
 
+  const filteredExpenses = useMemo(() => {
     const today = new Date();
-
     const yesterday = new Date();
 
     yesterday.setDate(yesterday.getDate() - 1);
 
-    let label = "";
+    return [...(expenses as Expense[])]
+      .filter((item) => {
+        const date = parseExpenseDate(item.createdAt);
+        const text = `${item.description || ""} ${item.category || ""} ${
+          item.amount || ""
+        }`.toLowerCase();
 
-    if (date.toDateString() === today.toDateString()) {
-      label = "Today";
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      label = "Yesterday";
-    } else {
-      label = date.toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
+        const matchesSearch = text.includes(search.trim().toLowerCase());
+
+        let matchesFilter = true;
+
+        if (date && selectedFilter === "Today") {
+          matchesFilter = isSameDay(date, today);
+        } else if (date && selectedFilter === "Yesterday") {
+          matchesFilter = isSameDay(date, yesterday);
+        } else if (date && selectedFilter === "This Month") {
+          matchesFilter =
+            date.getMonth() === today.getMonth() &&
+            date.getFullYear() === today.getFullYear();
+        } else if (!date && selectedFilter !== "All") {
+          matchesFilter = false;
+        }
+
+        const matchesDate =
+          !selectedDate || (date ? isSameDay(date, selectedDate) : false);
+
+        return matchesSearch && matchesFilter && matchesDate;
+      })
+      .sort((left, right) => {
+        const leftDate = parseExpenseDate(left.createdAt)?.getTime() || 0;
+        const rightDate = parseExpenseDate(right.createdAt)?.getTime() || 0;
+
+        return rightDate - leftDate;
       });
-    }
+  }, [expenses, search, selectedFilter, selectedDate]);
 
-    if (!groups[label]) {
-      groups[label] = [];
-    }
+  const groupedExpenses = useMemo(() => {
+    return filteredExpenses.reduce<Record<string, Expense[]>>(
+      (groups, item) => {
+        const date = parseExpenseDate(item.createdAt);
+        const label = date ? getDateLabel(date) : "Unknown Date";
 
-    groups[label].push(item);
+        if (!groups[label]) {
+          groups[label] = [];
+        }
 
-    return groups;
-  }, {});
+        groups[label].push(item);
+
+        return groups;
+      },
+      {},
+    );
+  }, [filteredExpenses]);
+
+  const totalSpent = useMemo(
+    () =>
+      filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    [filteredExpenses],
+  );
+
+  const formattedSelectedDate = selectedDate?.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
   return (
     <ScrollView
-      style={{
-        flex: 1,
-        backgroundColor: "#F7F7F7",
-      }}
-      contentContainerStyle={{
-        padding: 20,
-        paddingTop: 70,
-        paddingBottom: 120,
-      }}
+      style={styles.screen}
+      contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor="#6C63FF"
+          colors={["#6C63FF"]}
+          progressBackgroundColor="white"
+          progressViewOffset={70}
+        />
+      }
     >
-      <Text
-        style={{
-          fontSize: 30,
-          fontWeight: "800",
-          color: "#111",
-          marginBottom: 28,
-        }}
-      >
-        History
-      </Text>
+      <Animated.View entering={FadeInUp.duration(650)}>
+        <Text style={styles.title}>History</Text>
 
-      {Object.entries(groupedExpenses).map(([date, items]: any) => (
-        <View
-          key={date}
-          style={{
-            marginBottom: 28,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: "#111",
-              marginBottom: 16,
-            }}
-          >
-            {date}
-          </Text>
-
-          {items.map((item: any) => (
-            <ExpenseItem key={item.id} item={item} />
-          ))}
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={25} color="#686873" />
+          <TextInput
+            placeholder="Search expenses..."
+            value={search}
+            onChangeText={setSearch}
+            placeholderTextColor="#8E8E98"
+            style={styles.searchInput}
+          />
         </View>
-      ))}
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContent}
+          style={styles.filterScroll}
+        >
+          {FILTERS.map((filter) => {
+            const active = selectedFilter === filter;
+
+            return (
+              <Pressable
+                key={filter}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedFilter(filter);
+                }}
+                style={[styles.filterButton, active && styles.filterActive]}
+              >
+                <Text
+                  style={[styles.filterText, active && styles.filterTextActive]}
+                >
+                  {filter}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.dateRow}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowDatePicker((value) => !value);
+            }}
+            style={styles.dateButton}
+          >
+            <Ionicons name="calendar-outline" size={22} color="#54545C" />
+            <Text style={styles.dateText}>
+              {formattedSelectedDate || "Select Date"}
+            </Text>
+            <Ionicons name="chevron-down" size={18} color="#151526" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setSelectedDate(null);
+            }}
+            hitSlop={10}
+          >
+            <Text style={styles.clearText}>Clear</Text>
+          </Pressable>
+        </View>
+
+        {showDatePicker && (
+          <View style={styles.datePickerBox}>
+            <DateTimePicker
+              value={selectedDate || new Date()}
+              mode="date"
+              display={Platform.OS === "ios" ? "inline" : "default"}
+              onChange={(_event, date) => {
+                if (Platform.OS !== "ios") {
+                  setShowDatePicker(false);
+                }
+
+                if (date) {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedDate(date);
+                }
+              }}
+            />
+          </View>
+        )}
+
+        <View style={styles.totalCard}>
+          <View style={styles.totalLeft}>
+            <View style={styles.totalIconBox}>
+              <Ionicons name="wallet" size={30} color="#5D4CFF" />
+            </View>
+
+            <View>
+              <Text style={styles.totalLabel}>Total Spent</Text>
+              <Text style={styles.totalAmount}>
+                {RUPEE}
+                {totalSpent.toLocaleString("en-IN")}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.chartIconBox}>
+            <Ionicons name="bar-chart" size={32} color="#5D4CFF" />
+          </View>
+        </View>
+      </Animated.View>
+
+      {filteredExpenses.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Ionicons name="receipt-outline" size={58} color="#6C63FF" />
+          <Text style={styles.emptyTitle}>No expenses found</Text>
+          <Text style={styles.emptyText}>
+            Your expense history will appear here once you start tracking.
+          </Text>
+        </View>
+      ) : (
+        Object.entries(groupedExpenses).map(([date, items], index) => (
+          <Animated.View
+            key={date}
+            entering={FadeInUp.delay(100 + index * 80).duration(650)}
+            style={styles.group}
+          >
+            <View style={styles.groupHeader}>
+              <Text style={styles.groupTitle}>{date}</Text>
+              <Text style={styles.groupCount}>
+                {items.length} transaction{items.length > 1 ? "s" : ""}
+              </Text>
+            </View>
+
+            {items.map((item) => {
+              const category = item.category || "Other";
+              const meta = CATEGORY_META[category] || CATEGORY_META.Other;
+              const dateValue = parseExpenseDate(item.createdAt);
+
+              return (
+                <View key={item.id} style={styles.transactionCard}>
+                  <View style={styles.transactionLeft}>
+                    <View
+                      style={[
+                        styles.categoryIconBox,
+                        {
+                          backgroundColor: `${meta.color}15`,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.categoryIcon}>{meta.icon}</Text>
+                    </View>
+
+                    <View style={styles.transactionInfo}>
+                      <Text numberOfLines={1} style={styles.transactionTitle}>
+                        {item.description || category}
+                      </Text>
+
+                      <View style={styles.transactionMeta}>
+                        <View
+                          style={[
+                            styles.categoryPill,
+                            {
+                              backgroundColor: `${meta.color}14`,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.categoryText,
+                              {
+                                color: meta.color,
+                              },
+                            ]}
+                          >
+                            {category}
+                          </Text>
+                        </View>
+
+                        <Text style={styles.transactionTime}>
+                          {getExpenseTime(dateValue)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <Text style={styles.transactionAmount}>
+                    {RUPEE}
+                    {Number(item.amount || 0).toLocaleString("en-IN")}
+                  </Text>
+                </View>
+              );
+            })}
+          </Animated.View>
+        ))
+      )}
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#FAF9FF",
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 64,
+    paddingBottom: 140,
+  },
+  title: {
+    color: "#111",
+    fontSize: 32,
+    fontWeight: "800",
+    marginBottom: 24,
+  },
+  searchBox: {
+    alignItems: "center",
+    backgroundColor: "white",
+    borderColor: "#F0EEF7",
+    borderRadius: 22,
+    borderWidth: 1,
+    elevation: 4,
+    flexDirection: "row",
+    minHeight: 66,
+    paddingHorizontal: 18,
+    shadowColor: "#151526",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+  },
+  searchInput: {
+    color: "#111",
+    flex: 1,
+    fontSize: 16,
+    marginLeft: 14,
+    paddingVertical: 0,
+  },
+  filterScroll: {
+    marginTop: 28,
+  },
+  filterContent: {
+    gap: 12,
+    paddingRight: 20,
+  },
+  filterButton: {
+    alignItems: "center",
+    backgroundColor: "transparent",
+    borderColor: "#4A3E8F",
+    borderRadius: 24,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 50,
+    paddingHorizontal: 27,
+  },
+  filterActive: {
+    backgroundColor: "#5E4BFF",
+    borderColor: "#5E4BFF",
+    shadowColor: "#5E4BFF",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+  },
+  filterText: {
+    color: "#4A3E8F",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  filterTextActive: {
+    color: "white",
+  },
+  dateRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 22,
+    marginTop: 24,
+  },
+  dateButton: {
+    alignItems: "center",
+    backgroundColor: "white",
+    borderColor: "#F0EEF7",
+    borderRadius: 24,
+    borderWidth: 1,
+    elevation: 3,
+    flexDirection: "row",
+    minHeight: 56,
+    paddingHorizontal: 18,
+    shadowColor: "#151526",
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+  },
+  dateText: {
+    color: "#696872",
+    fontSize: 14,
+    fontWeight: "700",
+    marginHorizontal: 16,
+  },
+  clearText: {
+    color: "#C84F6A",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  datePickerBox: {
+    backgroundColor: "white",
+    borderRadius: 22,
+    marginTop: 16,
+    overflow: "hidden",
+  },
+  totalCard: {
+    alignItems: "center",
+    backgroundColor: "white",
+    borderColor: "#F0EEF7",
+    borderRadius: 22,
+    borderWidth: 1,
+    elevation: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 28,
+    minHeight: 104,
+    paddingHorizontal: 24,
+    shadowColor: "#151526",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+  },
+  totalLeft: {
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  totalIconBox: {
+    alignItems: "center",
+    backgroundColor: "#F0ECFF",
+    borderRadius: 20,
+    height: 64,
+    justifyContent: "center",
+    marginRight: 22,
+    width: 64,
+  },
+  totalLabel: {
+    color: "#6B6A75",
+    fontSize: 15,
+  },
+  totalAmount: {
+    color: "#111",
+    fontSize: 32,
+    fontWeight: "800",
+    marginTop: 6,
+  },
+  chartIconBox: {
+    alignItems: "center",
+    backgroundColor: "#F0ECFF",
+    borderRadius: 16,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  emptyCard: {
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 24,
+    marginTop: 28,
+    paddingHorizontal: 36,
+    paddingVertical: 52,
+  },
+  emptyTitle: {
+    color: "#111",
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 16,
+  },
+  emptyText: {
+    color: "#7D7C86",
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  group: {
+    marginTop: 30,
+  },
+  groupHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  groupTitle: {
+    color: "#111",
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  groupCount: {
+    color: "#686873",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  transactionCard: {
+    alignItems: "center",
+    backgroundColor: "white",
+    borderColor: "#F3F1FA",
+    borderRadius: 20,
+    borderWidth: 1,
+    elevation: 2,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    minHeight: 90,
+    paddingHorizontal: 18,
+    shadowColor: "#151526",
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+  },
+  transactionLeft: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    minWidth: 0,
+  },
+  categoryIconBox: {
+    alignItems: "center",
+    borderRadius: 16,
+    height: 58,
+    justifyContent: "center",
+    marginRight: 18,
+    width: 58,
+  },
+  categoryIcon: {
+    fontSize: 27,
+  },
+  transactionInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  transactionTitle: {
+    color: "#111",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  transactionMeta: {
+    alignItems: "center",
+    flexDirection: "row",
+    marginTop: 9,
+  },
+  categoryPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  transactionTime: {
+    color: "#6E6D78",
+    fontSize: 13,
+    marginLeft: 18,
+  },
+  transactionAmount: {
+    color: "#111",
+    fontSize: 18,
+    fontWeight: "800",
+    marginLeft: 14,
+  },
+});
