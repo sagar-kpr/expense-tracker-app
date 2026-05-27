@@ -146,13 +146,13 @@ export default function SalaryDashboard() {
         />
       }
     >
-      <Text style={{ color: theme.text, fontSize: 18 }}>
+      <Text style={{ color: theme.text, fontSize: 16 }}>
         {firstName ? `${greeting}, ${firstName}` : greeting}
       </Text>
       <Text
         style={{
           color: theme.text,
-          fontSize: 42,
+          fontSize: 36,
           fontWeight: "900",
           marginTop: 6,
           letterSpacing: 0,
@@ -195,18 +195,18 @@ export default function SalaryDashboard() {
           <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
             <View
               style={{
-                width: 76,
-                height: 76,
-                borderRadius: 28,
+                width: 64,
+                height: 64,
+                borderRadius: 22,
                 backgroundColor: "rgba(139,92,246,0.28)",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="wallet" size={36} color="#9E75FF" />
+              <Ionicons name="wallet" size={29} color="#9E75FF" />
             </View>
             <View style={{ flex: 1, marginLeft: 18 }}>
-              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 19 }}>
+              <Text style={{ color: "rgba(255,255,255,0.82)", fontSize: 17 }}>
                 Remaining Balance
               </Text>
               <Text
@@ -214,7 +214,7 @@ export default function SalaryDashboard() {
                 adjustsFontSizeToFit
                 style={{
                   color: "#FFFFFF",
-                  fontSize: 42,
+                  fontSize: 36,
                   fontWeight: "900",
                   marginTop: 14,
                   letterSpacing: 0,
@@ -251,13 +251,13 @@ export default function SalaryDashboard() {
             >
               <Ionicons
                 name={remaining < 0 ? "warning" : "shield-checkmark"}
-                size={18}
+                size={16}
                 color={remaining < 0 ? "#FF7B7B" : "#86EFAC"}
               />
               <Text
                 style={{
                   color: remaining < 0 ? "#FF8F8F" : "#BBF7D0",
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: "800",
                   marginLeft: 8,
                 }}
@@ -283,7 +283,7 @@ export default function SalaryDashboard() {
         }}
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-          <Text style={{ color: theme.text, fontSize: 24, fontWeight: "900", flex: 1 }}>
+          <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}>
             Monthly Usage
           </Text>
           <View
@@ -298,7 +298,7 @@ export default function SalaryDashboard() {
             <Text
               style={{
                 color: remaining < 0 ? "#DC2626" : "#159665",
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: "800",
               }}
             >
@@ -337,8 +337,8 @@ export default function SalaryDashboard() {
             gap: 16,
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 17 }}>Used: {usageRatio}%</Text>
-          <Text style={{ color: theme.text, fontSize: 17, fontWeight: "700" }}>
+          <Text style={{ color: theme.text, fontSize: 15 }}>Used: {usageRatio}%</Text>
+          <Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>
             <Text style={{ color: "#EF4444", fontWeight: "900" }}>{formatMoney(spent)}</Text>{" "}
             of {formatMoney(salary)}
           </Text>
@@ -358,9 +358,9 @@ export default function SalaryDashboard() {
       >
         <View
           style={{
-            width: 66,
-            height: 66,
-            borderRadius: 22,
+            width: 58,
+            height: 58,
+            borderRadius: 20,
             backgroundColor: remaining < 0 ? "#FEE2E2" : "#EDEAFF",
             alignItems: "center",
             justifyContent: "center",
@@ -369,7 +369,7 @@ export default function SalaryDashboard() {
         >
           <Ionicons
             name={remaining < 0 ? "alert-circle" : "calendar"}
-            size={32}
+            size={27}
             color={remaining < 0 ? "#EF4444" : theme.primary}
           />
         </View>
@@ -382,13 +382,13 @@ export default function SalaryDashboard() {
             adjustsFontSizeToFit
             style={{
               color: remaining < 0 ? theme.danger : theme.text,
-              fontSize: 32,
+              fontSize: 28,
               fontWeight: "900",
               marginTop: 6,
             }}
           >
             {formatMoney(Math.max(0, Math.round(safeToSpend)))}
-            <Text style={{ color: theme.subText, fontSize: 16, fontWeight: "700" }}>/day</Text>
+            <Text style={{ color: theme.subText, fontSize: 14, fontWeight: "700" }}>/day</Text>
           </Text>
           <Text style={{ color: theme.subText, fontSize: 13, marginTop: 6 }}>
             {daysLeft} days left till next salary.
@@ -410,8 +410,8 @@ export default function SalaryDashboard() {
               <View
                 key={item.key}
                 style={{
-                  width: 108,
-                  minHeight: 144,
+                  width: 100,
+                  minHeight: 134,
                   borderRadius: 18,
                   padding: 14,
                   alignItems: "center",
@@ -421,15 +421,15 @@ export default function SalaryDashboard() {
               >
                 <View
                   style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 18,
+                    width: 46,
+                    height: 46,
+                    borderRadius: 16,
                     backgroundColor: "rgba(255,255,255,0.55)",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name={item.meta.icon} size={29} color={item.meta.color} />
+                  <Ionicons name={item.meta.icon} size={24} color={item.meta.color} />
                 </View>
                 <Text
                   numberOfLines={1}
@@ -442,7 +442,7 @@ export default function SalaryDashboard() {
                   adjustsFontSizeToFit
                   style={{
                     color: item.meta.color,
-                    fontSize: 19,
+                    fontSize: 17,
                     fontWeight: "900",
                     marginTop: 6,
                     maxWidth: 82,
@@ -489,16 +489,16 @@ export default function SalaryDashboard() {
               >
                 <View
                   style={{
-                    width: 54,
-                    height: 54,
-                    borderRadius: 20,
+                    width: 48,
+                    height: 48,
+                    borderRadius: 18,
                     backgroundColor: meta.tint,
                     alignItems: "center",
                     justifyContent: "center",
                     marginRight: 14,
                   }}
                 >
-                  <Ionicons name={meta.icon} size={27} color={meta.color} />
+                  <Ionicons name={meta.icon} size={23} color={meta.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text
@@ -530,7 +530,7 @@ export default function SalaryDashboard() {
                   adjustsFontSizeToFit
                   style={{
                     color: "#EF4444",
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: "900",
                     marginLeft: 10,
                     maxWidth: 116,
@@ -538,7 +538,7 @@ export default function SalaryDashboard() {
                 >
                   -{formatMoney(Number(item.amount))}
                 </Text>
-                <Ionicons name="chevron-forward" size={22} color={theme.subText} />
+                <Ionicons name="chevron-forward" size={20} color={theme.subText} />
               </View>
             );
           })
@@ -569,35 +569,35 @@ function MetricCard({
     <View
       style={{
         flex: 1,
-        minHeight: 164,
+        minHeight: 150,
         borderRadius: 26,
         backgroundColor,
-        padding: 22,
+        padding: 20,
       }}
     >
       <View
         style={{
-          width: 62,
-          height: 62,
-          borderRadius: 24,
+          width: 54,
+          height: 54,
+          borderRadius: 20,
           backgroundColor: iconBackground,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name={icon} size={30} color={iconColor} />
+        <Ionicons name={icon} size={25} color={iconColor} />
       </View>
-      <Text style={{ color: "rgba(255,255,255,0.86)", fontSize: 18, marginTop: 18 }}>
+      <Text style={{ color: "rgba(255,255,255,0.86)", fontSize: 16, marginTop: 16 }}>
         {title}
       </Text>
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
-        style={{ color: "#FFFFFF", fontSize: 32, fontWeight: "900", marginTop: 10 }}
+        style={{ color: "#FFFFFF", fontSize: 28, fontWeight: "900", marginTop: 8 }}
       >
         {amount}
       </Text>
-      <Text style={{ color: "rgba(255,255,255,0.66)", fontSize: 14, marginTop: 14 }}>
+      <Text style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 12 }}>
         {caption}
       </Text>
     </View>
@@ -624,16 +624,16 @@ function SectionHeader({
         marginBottom: 20,
       }}
     >
-      <Text style={{ color: theme.text, fontSize: 24, fontWeight: "900", flex: 1 }}>
+      <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}>
         {title}
       </Text>
       <Text
         onPress={onPress}
-        style={{ color: theme.primary, fontSize: 16, fontWeight: "700", marginRight: 6 }}
+        style={{ color: theme.primary, fontSize: 15, fontWeight: "700", marginRight: 6 }}
       >
         {action}
       </Text>
-      <Ionicons name="chevron-forward" size={21} color={theme.subText} />
+      <Ionicons name="chevron-forward" size={19} color={theme.subText} />
     </View>
   );
 }
@@ -643,7 +643,7 @@ function EmptyState({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; lab
 
   return (
     <View style={{ alignItems: "center", paddingVertical: 26 }}>
-      <Ionicons name={icon} size={44} color={theme.primary} />
+      <Ionicons name={icon} size={38} color={theme.primary} />
       <Text style={{ color: theme.subText, fontSize: 15, marginTop: 10 }}>{label}</Text>
     </View>
   );
