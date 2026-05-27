@@ -17,6 +17,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useTheme } from "@/context/ThemeContext";
+import { getCategoryMeta } from "@/components/categoryMeta";
+import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 
 import Svg, { Circle } from "react-native-svg";
@@ -173,15 +175,6 @@ export default function AnalyticsScreen() {
   const ranges = Object.entries(groupedCategories).sort(
     (a: any, b: any) => b[1] - a[1],
   );
-
-  const colors = [
-    "#22C55E",
-    "#3B82F6",
-    "#F59E0B",
-    "#EF4444",
-    "#8B5CF6",
-    "#EC4899",
-  ];
 
   const emptyCategoryData = [
     "Food",
@@ -408,7 +401,7 @@ export default function AnalyticsScreen() {
                     return (
                       <DonutSegment
                         key={key}
-                        color={colors[index % colors.length]}
+                        color={getCategoryMeta(key).color}
                         circumference={circumference}
                         dash={dash}
                         gap={gap}
@@ -494,17 +487,27 @@ export default function AnalyticsScreen() {
                     >
                       <View
                         style={{
-                          width: 12,
+                          width: 38,
 
-                          height: 12,
+                          height: 38,
 
-                          borderRadius: 999,
+                          borderRadius: 14,
 
-                          backgroundColor: colors[index % colors.length],
+                          backgroundColor: getCategoryMeta(key).tint,
 
                           marginRight: 12,
+
+                          alignItems: "center",
+
+                          justifyContent: "center",
                         }}
-                      />
+                      >
+                        <Ionicons
+                          name={getCategoryMeta(key).icon}
+                          size={20}
+                          color={getCategoryMeta(key).color}
+                        />
+                      </View>
 
                       <Text
                         style={{

@@ -13,21 +13,7 @@ import Animated, {
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-
-type CategoryMeta = {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  tint: string;
-};
-
-const categoryMeta: Record<string, CategoryMeta> = {
-  Food: { icon: "fast-food", color: "#159665", tint: "#EAF7F0" },
-  Travel: { icon: "airplane", color: "#2878E3", tint: "#EAF2FF" },
-  Shopping: { icon: "bag", color: "#C98200", tint: "#FFF5DF" },
-  Bills: { icon: "bulb", color: "#E5484D", tint: "#FFF0F0" },
-  Health: { icon: "medical", color: "#D9468E", tint: "#FFF0F7" },
-  Other: { icon: "ellipsis-horizontal", color: "#7152F3", tint: "#F4F0FF" },
-};
+import { getCategoryMeta } from "@/components/categoryMeta";
 
 const formatMoney = (value: number) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
@@ -114,7 +100,7 @@ export default function SalaryDashboard() {
       key,
       value,
       percent: spent > 0 ? ((value / spent) * 100).toFixed(1) : "0.0",
-      meta: categoryMeta[key] || categoryMeta.Other,
+      meta: getCategoryMeta(key),
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
@@ -473,7 +459,7 @@ export default function SalaryDashboard() {
           <EmptyState icon="receipt-outline" label="No transactions yet" />
         ) : (
           expenses.slice(0, 5).map((item, index) => {
-            const meta = categoryMeta[item.category || "Other"] || categoryMeta.Other;
+            const meta = getCategoryMeta(item.category || "Other");
 
             return (
               <View

@@ -187,7 +187,7 @@ export default function ProfileScreen() {
 
               borderRadius: 26,
 
-              backgroundColor: theme.border,
+              backgroundColor: "#FFFFFF",
 
               justifyContent: "center",
 
@@ -197,7 +197,7 @@ export default function ProfileScreen() {
 
               borderWidth: 1.5,
 
-              borderColor: theme.border + "22",
+              borderColor: "#FFFFFF",
             }}
           >
             <Text
@@ -217,7 +217,7 @@ export default function ProfileScreen() {
             <Text
               numberOfLines={1}
               style={{
-                color: theme.card,
+                color: "#FFFFFF",
 
                 fontSize: 30,
 
@@ -230,7 +230,7 @@ export default function ProfileScreen() {
             <Text
               numberOfLines={1}
               style={{
-                color: theme.card,
+                color: "#FFFFFF",
 
                 marginTop: 5,
 
@@ -251,7 +251,7 @@ export default function ProfileScreen() {
             >
               <View
                 style={{
-                  backgroundColor: theme.border + "22",
+                  backgroundColor: "#FFFFFF",
 
                   paddingHorizontal: 12,
 
@@ -262,7 +262,7 @@ export default function ProfileScreen() {
               >
                 <Text
                   style={{
-                    color: theme.card,
+                    color: theme.subText,
 
                     fontSize: 12,
 
@@ -275,7 +275,7 @@ export default function ProfileScreen() {
 
               <Text
                 style={{
-                  color: theme.border,
+                  color: "#FFFFFF",
 
                   marginLeft: 12,
 
@@ -305,13 +305,13 @@ export default function ProfileScreen() {
 
             borderTopWidth: 1,
 
-            borderTopColor: theme.border,
+            borderTopColor: "#FFFFFF",
           }}
         >
           <View>
             <Text
               style={{
-                color: theme.card,
+                color: "#FFFFFF",
 
                 fontSize: 13,
               }}
@@ -321,7 +321,7 @@ export default function ProfileScreen() {
 
             <Text
               style={{
-                color: theme.border,
+                color: "#FFFFFF",
 
                 fontSize: 24,
 

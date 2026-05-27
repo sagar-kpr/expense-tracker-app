@@ -13,26 +13,8 @@ import Animated, {
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
+import { getCategoryMeta } from "@/components/categoryMeta";
 
-type CategoryMeta = {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  tint: string;
-};
-
-const categoryMeta: Record<string, CategoryMeta> = {
-  Food: { icon: "fast-food", color: "#159665", tint: "#EAF7F0" },
-  Travel: { icon: "airplane", color: "#2878E3", tint: "#EAF2FF" },
-  Shopping: { icon: "bag", color: "#C98200", tint: "#FFF5DF" },
-  Bills: { icon: "bulb", color: "#E5484D", tint: "#FFF0F0" },
-  Health: { icon: "medical", color: "#D9468E", tint: "#FFF0F7" },
-  Freelance: { icon: "sparkles", color: "#159665", tint: "#EAF7F0" },
-  Client: { icon: "person", color: "#159665", tint: "#EAF7F0" },
-  Business: { icon: "briefcase", color: "#159665", tint: "#EAF7F0" },
-  Cash: { icon: "cash", color: "#159665", tint: "#EAF7F0" },
-  Commission: { icon: "trending-up", color: "#159665", tint: "#EAF7F0" },
-  Other: { icon: "ellipsis-horizontal", color: "#7152F3", tint: "#F4F0FF" },
-};
 
 const formatMoney = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
@@ -122,7 +104,7 @@ export default function SelfEmployedDashboard() {
       key,
       value,
       percent: expense > 0 ? ((value / expense) * 100).toFixed(1) : "0.0",
-      meta: categoryMeta[key] || categoryMeta.Other,
+      meta: getCategoryMeta(key),
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
@@ -485,9 +467,8 @@ export default function SelfEmployedDashboard() {
           expenses.slice(0, 5).map((item, index) => {
             const isIncome = (item.type || "expense") === "income";
             const meta = isIncome
-              ? categoryMeta[item.category || "Freelance"] ||
-                categoryMeta.Freelance
-              : categoryMeta[item.category || "Other"] || categoryMeta.Other;
+              ? getCategoryMeta(item.category || "Freelance")
+              : getCategoryMeta(item.category || "Other");
 
             return (
               <View

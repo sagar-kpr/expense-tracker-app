@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import { getCategoryMeta } from "@/components/categoryMeta";
 import { useExpense } from "@/context/ExpenseContext";
 
 type Expense = {
@@ -25,40 +26,8 @@ type Expense = {
   createdAt?: string | Date | { toDate?: () => Date };
 };
 
-type CategoryMeta = {
-  color: string;
-  icon: string;
-};
-
 const FILTERS = ["All", "Today", "Yesterday", "This Month"];
 const RUPEE = "\u20B9";
-
-const CATEGORY_META: Record<string, CategoryMeta> = {
-  Food: {
-    color: "#22C55E",
-    icon: "\uD83C\uDF54",
-  },
-  Travel: {
-    color: "#0EA5E9",
-    icon: "\uD83D\uDE97",
-  },
-  Shopping: {
-    color: "#F59E0B",
-    icon: "\uD83D\uDECD\uFE0F",
-  },
-  Bills: {
-    color: "#EF4444",
-    icon: "\uD83D\uDCA1",
-  },
-  Health: {
-    color: "#EC4899",
-    icon: "\uD83C\uDFE5",
-  },
-  Other: {
-    color: "#7C3AED",
-    icon: "\u2728",
-  },
-};
 
 const parseExpenseDate = (value: Expense["createdAt"]) => {
   if (!value) {
@@ -347,7 +316,7 @@ export default function HistoryScreen() {
 
             {items.map((item) => {
               const category = item.category || "Other";
-              const meta = CATEGORY_META[category] || CATEGORY_META.Other;
+              const meta = getCategoryMeta(category);
               const dateValue = parseExpenseDate(item.createdAt);
 
               return (
@@ -357,11 +326,11 @@ export default function HistoryScreen() {
                       style={[
                         styles.categoryIconBox,
                         {
-                          backgroundColor: `${meta.color}15`,
+                          backgroundColor: meta.tint,
                         },
                       ]}
                     >
-                      <Text style={styles.categoryIcon}>{meta.icon}</Text>
+                      <Ionicons name={meta.icon} size={24} color={meta.color} />
                     </View>
 
                     <View style={styles.transactionInfo}>
@@ -525,7 +494,7 @@ const getStyles = (theme: any) =>
       fontWeight: "700",
     },
     datePickerBox: {
-      backgroundColor: theme.border,
+      backgroundColor: theme.primary,
       borderRadius: 22,
       marginTop: 16,
       overflow: "hidden",

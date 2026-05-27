@@ -14,6 +14,7 @@ import Svg, { Circle } from "react-native-svg";
 
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
+import { getCategoryMeta } from "@/components/categoryMeta";
 import { useFocusEffect } from "@react-navigation/native";
 
 const screenWidth = Dimensions.get("window").width;
@@ -27,21 +28,6 @@ type Transaction = {
   description?: string;
   type?: "income" | "expense";
   createdAt?: string | Date | { toDate?: () => Date };
-};
-
-type CategoryMeta = {
-  color: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  tint: string;
-};
-
-const CATEGORY_META: Record<string, CategoryMeta> = {
-  Food: { icon: "fast-food", color: "#159665", tint: "#EAF7F0" },
-  Travel: { icon: "airplane", color: "#2878E3", tint: "#EAF2FF" },
-  Shopping: { icon: "bag", color: "#C98200", tint: "#FFF5DF" },
-  Bills: { icon: "bulb", color: "#E5484D", tint: "#FFF0F0" },
-  Health: { icon: "medical", color: "#D9468E", tint: "#FFF0F7" },
-  Other: { icon: "ellipsis-horizontal", color: "#7152F3", tint: "#F4F0FF" },
 };
 
 const parseDate = (value: Transaction["createdAt"]) => {
@@ -298,7 +284,7 @@ export default function SelfEmployedAnalyticsScreen() {
           <EmptyState icon="pie-chart" label="No expense categories yet" />
         ) : (
           categoryRows.map(([key, value]) => {
-            const meta = CATEGORY_META[key] || CATEGORY_META.Other;
+            const meta = getCategoryMeta(key);
             const percent =
               totals.expense > 0 ? ((value / totals.expense) * 100).toFixed(1) : "0.0";
 

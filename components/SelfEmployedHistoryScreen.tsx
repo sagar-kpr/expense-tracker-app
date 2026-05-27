@@ -16,6 +16,7 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
+import { getCategoryMeta } from "@/components/categoryMeta";
 
 type Transaction = {
   id: string;
@@ -26,27 +27,8 @@ type Transaction = {
   createdAt?: string | Date | { toDate?: () => Date };
 };
 
-type CategoryMeta = {
-  color: string;
-  icon: keyof typeof Ionicons.glyphMap;
-};
-
 const FILTERS = ["All", "Income", "Expense", "Today", "This Month"];
 const RUPEE = "\u20B9";
-
-const CATEGORY_META: Record<string, CategoryMeta> = {
-  Food: { color: "#159665", icon: "fast-food" },
-  Travel: { color: "#2878E3", icon: "airplane" },
-  Shopping: { color: "#C98200", icon: "bag" },
-  Bills: { color: "#E5484D", icon: "bulb" },
-  Health: { color: "#D9468E", icon: "medical" },
-  Freelance: { color: "#159665", icon: "sparkles" },
-  Client: { color: "#159665", icon: "person" },
-  Business: { color: "#159665", icon: "briefcase" },
-  Cash: { color: "#159665", icon: "cash" },
-  Commission: { color: "#159665", icon: "trending-up" },
-  Other: { color: "#7152F3", icon: "ellipsis-horizontal" },
-};
 
 const parseTransactionDate = (value: Transaction["createdAt"]) => {
   if (!value) return null;
@@ -356,7 +338,7 @@ export default function SelfEmployedHistoryScreen() {
             {items.map((item) => {
               const category = item.category || "Other";
               const isIncome = (item.type || "expense") === "income";
-              const meta = CATEGORY_META[category] || CATEGORY_META.Other;
+              const meta = getCategoryMeta(category);
               const dateValue = parseTransactionDate(item.createdAt);
 
               return (
@@ -366,7 +348,7 @@ export default function SelfEmployedHistoryScreen() {
                       style={[
                         styles.categoryIconBox,
                         {
-                          backgroundColor: `${isIncome ? "#159665" : meta.color}15`,
+                          backgroundColor: isIncome ? "#EAF7F0" : meta.tint,
                         },
                       ]}
                     >
