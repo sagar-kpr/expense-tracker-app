@@ -34,7 +34,8 @@ const categoryMeta: Record<string, CategoryMeta> = {
   Other: { icon: "ellipsis-horizontal", color: "#7152F3", tint: "#F4F0FF" },
 };
 
-const formatMoney = (value: number) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+const formatMoney = (value: number) =>
+  `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
 const getRelativeDate = (date: string) => {
   const expenseDate = new Date(date);
@@ -85,9 +86,14 @@ export default function SelfEmployedDashboard() {
   const ratio = income > 0 ? Math.round((expense / income) * 100) : 0;
   const cappedRatio = Math.min(ratio, netProfit < 0 ? 85 : 100);
   const firstName = userData?.name?.trim()?.split(" ")[0];
+
   const hour = new Date().getHours();
   const greeting =
-    hour < 12 ? "Good Morning ☀️" : hour < 18 ? "Good Afternoon 🌤️" : "Good Evening 🌙";
+    hour < 12
+      ? "Good Morning ☀️"
+      : hour < 18
+        ? "Good Afternoon 🌤️"
+        : "Good Evening 🌙";
 
   const progress = useSharedValue(0);
 
@@ -135,7 +141,11 @@ export default function SelfEmployedDashboard() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: 70, paddingBottom: 130 }}
+      contentContainerStyle={{
+        padding: 20,
+        paddingTop: 70,
+        paddingBottom: 130,
+      }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -151,6 +161,7 @@ export default function SelfEmployedDashboard() {
       <Text style={{ color: theme.text, fontSize: 16 }}>
         {firstName ? `${greeting}, ${firstName}` : greeting}
       </Text>
+
       <Text
         style={{
           color: theme.text,
@@ -163,7 +174,10 @@ export default function SelfEmployedDashboard() {
         Dashboard
       </Text>
 
-      <Animated.View entering={FadeInUp.delay(100).duration(650)} style={{ marginTop: 28 }}>
+      <Animated.View
+        entering={FadeInUp.delay(100).duration(650)}
+        style={{ marginTop: 28 }}
+      >
         <View style={{ flexDirection: "row", gap: 14 }}>
           <MetricCard
             title="Income"
@@ -238,7 +252,9 @@ export default function SelfEmployedDashboard() {
               marginTop: 22,
             }}
           >
-            <Text style={{ color: "rgba(255,255,255,0.66)", fontSize: 16, flex: 1 }}>
+            <Text
+              style={{ color: "rgba(255,255,255,0.66)", fontSize: 16, flex: 1 }}
+            >
               Income after all expenses
             </Text>
             <View
@@ -249,7 +265,9 @@ export default function SelfEmployedDashboard() {
                 paddingHorizontal: 16,
                 paddingVertical: 9,
                 backgroundColor:
-                  netProfit < 0 ? "rgba(248,113,113,0.25)" : "rgba(34,197,94,0.2)",
+                  netProfit < 0
+                    ? "rgba(248,113,113,0.25)"
+                    : "rgba(34,197,94,0.2)",
               }}
             >
               <Ionicons
@@ -285,8 +303,21 @@ export default function SelfEmployedDashboard() {
           elevation: 2,
         }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-          <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.text,
+              fontSize: 21,
+              fontWeight: "900",
+              flex: 1,
+            }}
+          >
             Monthly Cash Flow
           </Text>
           <View
@@ -340,7 +371,9 @@ export default function SelfEmployedDashboard() {
             gap: 16,
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 15 }}>Expense Ratio: {ratio}%</Text>
+          <Text style={{ color: theme.text, fontSize: 15 }}>
+            Expense Ratio: {ratio}%
+          </Text>
           <Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>
             <Text style={{ color: "#EF4444", fontWeight: "900" }}>
               {formatMoney(expense)}
@@ -352,9 +385,18 @@ export default function SelfEmployedDashboard() {
 
       <Animated.View
         entering={FadeInUp.delay(300).duration(650)}
-        style={{ backgroundColor: theme.card, borderRadius: 24, padding: 22, marginTop: 24 }}
+        style={{
+          backgroundColor: theme.card,
+          borderRadius: 24,
+          padding: 22,
+          marginTop: 24,
+        }}
       >
-        <SectionHeader title="By Category" action="See All" onPress={() => router.push("/analytics")} />
+        <SectionHeader
+          title="By Category"
+          action="See All"
+          onPress={() => router.push("/analytics")}
+        />
 
         {categoryData.length === 0 ? (
           <EmptyState icon="pie-chart" label="No category data yet" />
@@ -383,11 +425,20 @@ export default function SelfEmployedDashboard() {
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name={item.meta.icon} size={24} color={item.meta.color} />
+                  <Ionicons
+                    name={item.meta.icon}
+                    size={24}
+                    color={item.meta.color}
+                  />
                 </View>
                 <Text
                   numberOfLines={1}
-                  style={{ color: "#5F6368", fontSize: 14, marginTop: 12, maxWidth: 82 }}
+                  style={{
+                    color: "#5F6368",
+                    fontSize: 14,
+                    marginTop: 12,
+                    maxWidth: 82,
+                  }}
                 >
                   {item.key}
                 </Text>
@@ -415,7 +466,12 @@ export default function SelfEmployedDashboard() {
 
       <Animated.View
         entering={FadeInUp.delay(400).duration(650)}
-        style={{ backgroundColor: theme.card, borderRadius: 24, padding: 22, marginTop: 24 }}
+        style={{
+          backgroundColor: theme.card,
+          borderRadius: 24,
+          padding: 22,
+          marginTop: 24,
+        }}
       >
         <SectionHeader
           title="Recent Transactions"
@@ -429,7 +485,8 @@ export default function SelfEmployedDashboard() {
           expenses.slice(0, 5).map((item, index) => {
             const isIncome = (item.type || "expense") === "income";
             const meta = isIncome
-              ? categoryMeta[item.category || "Freelance"] || categoryMeta.Freelance
+              ? categoryMeta[item.category || "Freelance"] ||
+                categoryMeta.Freelance
               : categoryMeta[item.category || "Other"] || categoryMeta.Other;
 
             return (
@@ -440,7 +497,8 @@ export default function SelfEmployedDashboard() {
                   alignItems: "center",
                   paddingTop: index === 0 ? 2 : 16,
                   paddingBottom: 16,
-                  borderBottomWidth: index === Math.min(expenses.length, 5) - 1 ? 0 : 1,
+                  borderBottomWidth:
+                    index === Math.min(expenses.length, 5) - 1 ? 0 : 1,
                   borderBottomColor: theme.border,
                 }}
               >
@@ -464,11 +522,22 @@ export default function SelfEmployedDashboard() {
                 <View style={{ flex: 1 }}>
                   <Text
                     numberOfLines={1}
-                    style={{ color: theme.text, fontSize: 16, fontWeight: "900" }}
+                    style={{
+                      color: theme.text,
+                      fontSize: 16,
+                      fontWeight: "900",
+                    }}
                   >
-                    {item.description || (isIncome ? "From customer" : item.category || "Other")}
+                    {item.description ||
+                      (isIncome ? "From customer" : item.category || "Other")}
                   </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 7 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginTop: 7,
+                    }}
+                  >
                     <View
                       style={{
                         backgroundColor: isIncome ? "#DCFCE7" : "#FEE2E2",
@@ -487,7 +556,13 @@ export default function SelfEmployedDashboard() {
                         {isIncome ? "Income" : "Expense"}
                       </Text>
                     </View>
-                    <Text style={{ color: theme.subText, fontSize: 13, marginLeft: 10 }}>
+                    <Text
+                      style={{
+                        color: theme.subText,
+                        fontSize: 13,
+                        marginLeft: 10,
+                      }}
+                    >
                       {getRelativeDate(item.createdAt)}
                     </Text>
                   </View>
@@ -506,7 +581,11 @@ export default function SelfEmployedDashboard() {
                   {isIncome ? "+" : "-"}
                   {formatMoney(Number(item.amount))}
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={theme.subText} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={theme.subText}
+                />
               </View>
             );
           })
@@ -555,17 +634,26 @@ function MetricCard({
       >
         <Ionicons name={icon} size={25} color={iconColor} />
       </View>
-      <Text style={{ color: "rgba(255,255,255,0.86)", fontSize: 16, marginTop: 16 }}>
+      <Text
+        style={{ color: "rgba(255,255,255,0.86)", fontSize: 16, marginTop: 16 }}
+      >
         {title}
       </Text>
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
-        style={{ color: "#FFFFFF", fontSize: 28, fontWeight: "900", marginTop: 8 }}
+        style={{
+          color: "#FFFFFF",
+          fontSize: 28,
+          fontWeight: "900",
+          marginTop: 8,
+        }}
       >
         {amount}
       </Text>
-      <Text style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 12 }}>
+      <Text
+        style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 12 }}
+      >
         {caption}
       </Text>
     </View>
@@ -592,12 +680,19 @@ function SectionHeader({
         marginBottom: 20,
       }}
     >
-      <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}>
+      <Text
+        style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}
+      >
         {title}
       </Text>
       <Text
         onPress={onPress}
-        style={{ color: theme.primary, fontSize: 15, fontWeight: "700", marginRight: 6 }}
+        style={{
+          color: theme.primary,
+          fontSize: 15,
+          fontWeight: "700",
+          marginRight: 6,
+        }}
       >
         {action}
       </Text>
@@ -606,13 +701,21 @@ function SectionHeader({
   );
 }
 
-function EmptyState({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+function EmptyState({
+  icon,
+  label,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+}) {
   const { theme } = useTheme();
 
   return (
     <View style={{ alignItems: "center", paddingVertical: 26 }}>
       <Ionicons name={icon} size={38} color={theme.primary} />
-      <Text style={{ color: theme.subText, fontSize: 15, marginTop: 10 }}>{label}</Text>
+      <Text style={{ color: theme.subText, fontSize: 15, marginTop: 10 }}>
+        {label}
+      </Text>
     </View>
   );
 }

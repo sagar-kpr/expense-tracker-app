@@ -116,7 +116,7 @@ export default function UserTypeScreen() {
 
                 borderWidth: 1.5,
 
-                borderColor: pressed ? "#6C63FF" : "#ECECEC",
+                borderColor: pressed ? "#159B7D" : "#ECECEC",
 
                 transform: [
                   {
@@ -195,14 +195,14 @@ export default function UserTypeScreen() {
                   style={{
                     marginTop: 16,
                   }}
-                  color="#6C63FF"
+                  color="#159B7D"
                 />
               ) : (
                 <Text
                   style={{
                     marginTop: 16,
 
-                    color: "#6C63FF",
+                    color: "#159B7D",
 
                     fontWeight: "700",
                   }}
@@ -225,7 +225,7 @@ export default function UserTypeScreen() {
 
                 borderWidth: 1.5,
 
-                borderColor: pressed ? "#6C63FF" : "#ECECEC",
+                borderColor: pressed ? "#159B7D" : "#ECECEC",
 
                 transform: [
                   {
@@ -304,14 +304,14 @@ export default function UserTypeScreen() {
                   style={{
                     marginTop: 16,
                   }}
-                  color="#6C63FF"
+                  color="#159B7D"
                 />
               ) : (
                 <Text
                   style={{
                     marginTop: 16,
 
-                    color: "#6C63FF",
+                    color: "#159B7D",
 
                     fontWeight: "700",
                   }}

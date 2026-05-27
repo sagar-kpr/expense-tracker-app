@@ -131,7 +131,7 @@ export default function LoginScreen() {
             {"\n"}
             <Text
               style={{
-                color: "#6C63FF",
+                color: "#159B7D",
               }}
             >
               Tracker
@@ -317,7 +317,7 @@ export default function LoginScreen() {
             style={{
               marginTop: 28,
 
-              backgroundColor: authLoading ? "#A5A1FF" : "#6C63FF",
+              backgroundColor: authLoading ? "#159B7D" : "#159B7D",
 
               paddingVertical: 18,
 
@@ -361,7 +361,7 @@ export default function LoginScreen() {
 
               borderWidth: 1,
 
-              borderColor: "#ECECEC",
+              borderColor: "#71c7b4",
             }}
           >
             {loading ? (
@@ -392,7 +392,7 @@ export default function LoginScreen() {
             >
               <Text
                 style={{
-                  color: "#6C63FF",
+                  color: "#159B7D",
 
                   fontWeight: "700",
                 }}

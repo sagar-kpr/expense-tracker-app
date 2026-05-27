@@ -131,7 +131,7 @@ export default function SalarySetupScreen() {
             Setup your{"\n"}
             <Text
               style={{
-                color: "#6C63FF",
+                color: "#159B7D",
               }}
             >
               salary
@@ -334,13 +334,13 @@ export default function SalarySetupScreen() {
             onPress={handleContinue}
             disabled={loading}
             style={{
-              backgroundColor: "#6C63FF",
+              backgroundColor: "#159B7D",
 
               paddingVertical: 18,
 
               borderRadius: 22,
 
-              shadowColor: "#6C63FF",
+              shadowColor: "#159B7D",
 
               shadowOpacity: 0.25,
 

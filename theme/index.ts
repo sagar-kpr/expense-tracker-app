@@ -9,7 +9,7 @@ export const lightTheme = {
 
   border: "#ECECEC",
 
-  primary: "#6C63FF",
+  primary: "#159B7D",
 
   danger: "#EF4444",
 };
@@ -25,7 +25,7 @@ export const darkTheme = {
 
   border: "#262A33",
 
-  primary: "#8B7FFF",
+  primary: "#11735E",
 
   danger: "#F87171",
 };

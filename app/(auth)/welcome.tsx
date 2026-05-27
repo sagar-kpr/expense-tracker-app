@@ -24,7 +24,7 @@
 //           Expense{"\n"}
 //           <Text
 //             style={{
-//               color: "#6C63FF",
+//               color: "#159B7D",
 //             }}
 //           >
 //             Tracker
@@ -78,7 +78,7 @@
 //                   width: 10,
 //                   height: 10,
 //                   borderRadius: 999,
-//                   backgroundColor: "#6C63FF",
+//                   backgroundColor: "#159B7D",
 //                   marginRight: 12,
 //                 }}
 //               />
@@ -100,7 +100,7 @@
 //       <Pressable
 //         onPress={() => router.push("/(auth)/login")}
 //         style={{
-//           backgroundColor: "#6C63FF",
+//           backgroundColor: "#159B7D",
 //           paddingVertical: 18,
 //           borderRadius: 20,
 //           marginTop: 60,
@@ -158,7 +158,7 @@ export default function WelcomeScreen() {
 
           borderRadius: 999,
 
-          backgroundColor: "#6C63FF10",
+          backgroundColor: "#159B7D10",
 
           top: -80,
 
@@ -176,7 +176,7 @@ export default function WelcomeScreen() {
 
           borderRadius: 999,
 
-          backgroundColor: "#6C63FF08",
+          backgroundColor: "#159B7D08",
 
           bottom: -50,
 
@@ -202,7 +202,7 @@ export default function WelcomeScreen() {
           Expense{"\n"}
           <Text
             style={{
-              color: "#6C63FF",
+              color: "#159B7D",
             }}
           >
             Tracker
@@ -272,7 +272,7 @@ export default function WelcomeScreen() {
 
                   borderRadius: 999,
 
-                  backgroundColor: "#6C63FF",
+                  backgroundColor: "#159B7D",
 
                   marginRight: 14,
                 }}
@@ -302,7 +302,7 @@ export default function WelcomeScreen() {
             router.push("/(auth)/login");
           }}
           style={{
-            backgroundColor: "#6C63FF",
+            backgroundColor: "#159B7D",
 
             paddingVertical: 18,
 
@@ -310,7 +310,7 @@ export default function WelcomeScreen() {
 
             marginTop: 65,
 
-            shadowColor: "#6C63FF",
+            shadowColor: "#159B7D",
 
             shadowOpacity: 0.28,
 
