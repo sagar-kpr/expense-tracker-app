@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 
+import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
@@ -15,6 +16,7 @@ export default function BottomNavbar({
   navigation,
   openModal,
 }: Props) {
+  const { theme, dark } = useTheme();
   return (
     <View
       style={{
@@ -23,7 +25,7 @@ export default function BottomNavbar({
         left: 20,
         right: 20,
         height: 85,
-        backgroundColor: "white",
+        backgroundColor: theme.card,
         borderRadius: 25,
         flexDirection: "row",
         justifyContent: "space-around",
@@ -54,7 +56,7 @@ export default function BottomNavbar({
                 width: 65,
                 height: 65,
                 borderRadius: 40,
-                backgroundColor: "#6C63FF",
+                backgroundColor: theme.primary,
                 justifyContent: "center",
                 alignItems: "center",
                 top: -28,
@@ -76,14 +78,14 @@ export default function BottomNavbar({
             <Ionicons
               name={icons[route.name]}
               size={24}
-              color={isFocused ? "#6C63FF" : "#999"}
+              color={isFocused ? theme.primary : theme.text}
             />
 
             <Text
               style={{
                 fontSize: 12,
                 marginTop: 4,
-                color: isFocused ? "#6C63FF" : "#999",
+                color: isFocused ? theme.primary : theme.text,
               }}
             >
               {route.name === "index"

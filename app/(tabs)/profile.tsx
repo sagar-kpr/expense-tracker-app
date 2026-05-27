@@ -9,6 +9,7 @@ import {
 
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import { useTheme } from "@/context/ThemeContext";
 import { useMemo, useState } from "react";
 
 import { router } from "expo-router";
@@ -27,6 +28,8 @@ export default function ProfileScreen() {
   const { expenses } = useExpense();
 
   const { userData, logout } = useAuth();
+
+  const { theme } = useTheme();
 
   const [notifications, setNotifications] = useState(true);
 
@@ -96,7 +99,7 @@ export default function ProfileScreen() {
       style={{
         flex: 1,
 
-        backgroundColor: "#F7F7F7",
+        backgroundColor: theme.background,
       }}
       contentContainerStyle={{
         padding: 20,
@@ -113,7 +116,7 @@ export default function ProfileScreen() {
 
           fontWeight: "800",
 
-          color: "#111",
+          color: theme.text,
 
           marginBottom: 28,
         }}
@@ -124,7 +127,7 @@ export default function ProfileScreen() {
       <Animated.View
         entering={FadeInUp.delay(100).duration(700)}
         style={{
-          backgroundColor: "#6C63FF",
+          backgroundColor: theme.primary,
 
           borderRadius: 34,
 
@@ -135,7 +138,7 @@ export default function ProfileScreen() {
           position: "relative",
         }}
       >
-        <View
+        {/* <View
           style={{
             position: "absolute",
 
@@ -145,7 +148,7 @@ export default function ProfileScreen() {
 
             borderRadius: 999,
 
-            backgroundColor: "rgba(255,255,255,0.08)",
+            backgroundColor: theme.border + "22",
 
             top: -100,
 
@@ -163,13 +166,13 @@ export default function ProfileScreen() {
 
             borderRadius: 999,
 
-            backgroundColor: "rgba(255,255,255,0.05)",
+            backgroundColor: theme.border + "05",
 
             bottom: -40,
 
             left: -35,
           }}
-        />
+        /> */}
 
         <View
           style={{
@@ -186,7 +189,7 @@ export default function ProfileScreen() {
 
               borderRadius: 26,
 
-              backgroundColor: "rgba(255,255,255,0.18)",
+              backgroundColor: theme.border,
 
               justifyContent: "center",
 
@@ -196,7 +199,7 @@ export default function ProfileScreen() {
 
               borderWidth: 1.5,
 
-              borderColor: "rgba(255,255,255,0.18)",
+              borderColor: theme.border + "22",
             }}
           >
             <Text
@@ -216,7 +219,7 @@ export default function ProfileScreen() {
             <Text
               numberOfLines={1}
               style={{
-                color: "white",
+                color: theme.card,
 
                 fontSize: 30,
 
@@ -229,7 +232,7 @@ export default function ProfileScreen() {
             <Text
               numberOfLines={1}
               style={{
-                color: "rgba(255,255,255,0.82)",
+                color: theme.card,
 
                 marginTop: 5,
 
@@ -250,7 +253,7 @@ export default function ProfileScreen() {
             >
               <View
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.14)",
+                  backgroundColor: theme.border + "22",
 
                   paddingHorizontal: 12,
 
@@ -261,7 +264,7 @@ export default function ProfileScreen() {
               >
                 <Text
                   style={{
-                    color: "white",
+                    color: theme.card,
 
                     fontSize: 12,
 
@@ -274,7 +277,7 @@ export default function ProfileScreen() {
 
               <Text
                 style={{
-                  color: "rgba(255,255,255,0.72)",
+                  color: theme.border,
 
                   marginLeft: 12,
 
@@ -304,13 +307,13 @@ export default function ProfileScreen() {
 
             borderTopWidth: 1,
 
-            borderTopColor: "rgba(255,255,255,0.12)",
+            borderTopColor: theme.border,
           }}
         >
           <View>
             <Text
               style={{
-                color: "rgba(255,255,255,0.72)",
+                color: theme.card,
 
                 fontSize: 13,
               }}
@@ -320,7 +323,7 @@ export default function ProfileScreen() {
 
             <Text
               style={{
-                color: "white",
+                color: theme.border,
 
                 fontSize: 24,
 
@@ -368,7 +371,7 @@ export default function ProfileScreen() {
       <Animated.View
         entering={FadeInUp.delay(200).duration(700)}
         style={{
-          backgroundColor: "white",
+          backgroundColor: theme.card,
 
           borderRadius: 30,
 
@@ -379,7 +382,7 @@ export default function ProfileScreen() {
           overflow: "hidden",
         }}
       >
-        <View
+        {/* <View
           style={{
             position: "absolute",
 
@@ -389,13 +392,13 @@ export default function ProfileScreen() {
 
             borderRadius: 999,
 
-            backgroundColor: "#6C63FF08",
+            backgroundColor: theme.primary,
 
             top: -60,
 
             right: -40,
           }}
-        />
+        /> */}
 
         <View
           style={{
@@ -413,7 +416,7 @@ export default function ProfileScreen() {
 
                 fontWeight: "800",
 
-                color: "#111",
+                color: theme.text,
               }}
             >
               Salary
@@ -421,7 +424,7 @@ export default function ProfileScreen() {
 
             <Text
               style={{
-                color: "#777",
+                color: theme.text,
 
                 marginTop: 6,
 
@@ -440,7 +443,7 @@ export default function ProfileScreen() {
 
               borderRadius: 18,
 
-              backgroundColor: "#6C63FF12",
+              backgroundColor: "#6C63FF15",
 
               justifyContent: "center",
 
@@ -464,7 +467,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "#777",
+              color: theme.subText,
 
               fontSize: 14,
             }}
@@ -478,7 +481,7 @@ export default function ProfileScreen() {
 
               fontWeight: "800",
 
-              color: "#111",
+              color: theme.text,
 
               marginTop: 10,
             }}
@@ -500,7 +503,7 @@ export default function ProfileScreen() {
             style={{
               flex: 1,
 
-              backgroundColor: "#F7F7F7",
+              backgroundColor: theme.border,
 
               borderRadius: 22,
 
@@ -511,7 +514,7 @@ export default function ProfileScreen() {
           >
             <Text
               style={{
-                color: "#777",
+                color: theme.subText,
 
                 fontSize: 13,
               }}
@@ -521,7 +524,7 @@ export default function ProfileScreen() {
 
             <Text
               style={{
-                color: "#111",
+                color: theme.text,
 
                 fontSize: 20,
 
@@ -538,7 +541,7 @@ export default function ProfileScreen() {
             style={{
               flex: 1,
 
-              backgroundColor: "#F7F7F7",
+              backgroundColor: theme.border,
 
               borderRadius: 22,
 
@@ -549,7 +552,7 @@ export default function ProfileScreen() {
           >
             <Text
               style={{
-                color: "#777",
+                color: theme.subText,
 
                 fontSize: 13,
               }}
@@ -559,7 +562,7 @@ export default function ProfileScreen() {
 
             <Text
               style={{
-                color: "#111",
+                color: theme.text,
 
                 fontSize: 20,
 
@@ -586,7 +589,7 @@ export default function ProfileScreen() {
             style={{
               flex: 1,
 
-              backgroundColor: "#6C63FF",
+              backgroundColor: theme.primary,
 
               paddingVertical: 16,
 
@@ -652,7 +655,7 @@ export default function ProfileScreen() {
             style={{
               flex: 1,
 
-              backgroundColor: "#F3F2FF",
+              backgroundColor: theme.border,
 
               paddingVertical: 16,
 
@@ -665,7 +668,7 @@ export default function ProfileScreen() {
           >
             <Text
               style={{
-                color: "#6C63FF",
+                color: theme.primary,
 
                 fontWeight: "800",
 
@@ -690,7 +693,7 @@ export default function ProfileScreen() {
       >
         <View
           style={{
-            backgroundColor: "white",
+            backgroundColor: theme.card,
 
             width: "48%",
 
@@ -701,7 +704,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "#777",
+              color: theme.subText,
 
               marginBottom: 10,
             }}
@@ -715,7 +718,7 @@ export default function ProfileScreen() {
 
               fontWeight: "800",
 
-              color: "#111",
+              color: theme.text,
             }}
           >
             ₹{totalSpent.toLocaleString()}
@@ -724,7 +727,7 @@ export default function ProfileScreen() {
 
         <View
           style={{
-            backgroundColor: "white",
+            backgroundColor: theme.card,
 
             width: "48%",
 
@@ -735,7 +738,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "#777",
+              color: theme.subText,
 
               marginBottom: 10,
             }}
@@ -760,7 +763,7 @@ export default function ProfileScreen() {
       <Animated.View
         entering={FadeInUp.delay(400).duration(700)}
         style={{
-          backgroundColor: "white",
+          backgroundColor: theme.card,
 
           borderRadius: 28,
 
@@ -775,7 +778,7 @@ export default function ProfileScreen() {
 
             fontWeight: "700",
 
-            color: "#111",
+            color: theme.text,
 
             marginBottom: 24,
           }}
@@ -794,7 +797,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "#666",
+              color: theme.subText,
 
               fontSize: 16,
             }}
@@ -804,7 +807,7 @@ export default function ProfileScreen() {
 
           <Text
             style={{
-              color: "#111",
+              color: theme.text,
 
               fontWeight: "700",
 
@@ -826,7 +829,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "#666",
+              color: theme.subText,
 
               fontSize: 16,
             }}
@@ -836,7 +839,7 @@ export default function ProfileScreen() {
 
           <Text
             style={{
-              color: "#111",
+              color: theme.text,
 
               fontWeight: "700",
 
@@ -856,7 +859,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "#666",
+              color: theme.subText,
 
               fontSize: 16,
             }}
@@ -866,7 +869,7 @@ export default function ProfileScreen() {
 
           <Text
             style={{
-              color: "#111",
+              color: theme.text,
 
               fontWeight: "700",
 
@@ -881,7 +884,7 @@ export default function ProfileScreen() {
       <Animated.View
         entering={FadeInUp.delay(500).duration(700)}
         style={{
-          backgroundColor: "white",
+          backgroundColor: theme.card,
 
           borderRadius: 28,
 
@@ -896,7 +899,7 @@ export default function ProfileScreen() {
 
             fontWeight: "700",
 
-            color: "#111",
+            color: theme.text,
 
             marginBottom: 24,
           }}
@@ -919,7 +922,7 @@ export default function ProfileScreen() {
             style={{
               fontSize: 16,
 
-              color: "#111",
+              color: theme.text,
             }}
           >
             Notifications
@@ -929,11 +932,11 @@ export default function ProfileScreen() {
             value={notifications}
             onValueChange={setNotifications}
             trackColor={{
-              false: "#D1D5DB",
+              false: theme.card,
 
-              true: "#6C63FF",
+              true: theme.primary,
             }}
-            thumbColor="#FFFFFF"
+            thumbColor={theme.background}
           />
         </View>
 
@@ -950,7 +953,7 @@ export default function ProfileScreen() {
             style={{
               fontSize: 16,
 
-              color: "#111",
+              color: theme.text,
             }}
           >
             Dark Mode
@@ -960,11 +963,11 @@ export default function ProfileScreen() {
             value={darkMode}
             onValueChange={setDarkMode}
             trackColor={{
-              false: "#D1D5DB",
+              false: theme.card,
 
-              true: "#6C63FF",
+              true: theme.primary,
             }}
-            thumbColor="#FFFFFF"
+            thumbColor={theme.background}
           />
         </View>
       </Animated.View>
@@ -985,7 +988,7 @@ export default function ProfileScreen() {
             );
           }}
           style={{
-            backgroundColor: "white",
+            backgroundColor: theme.card,
 
             paddingVertical: 18,
 
@@ -996,7 +999,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "#111",
+              color: theme.text,
 
               fontSize: 16,
 
@@ -1026,7 +1029,7 @@ export default function ProfileScreen() {
           }}
           activeOpacity={0.8}
           style={{
-            backgroundColor: "#111",
+            backgroundColor: theme.card,
 
             paddingVertical: 18,
 
@@ -1037,7 +1040,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: "white",
+              color: theme.text,
 
               fontSize: 16,
 

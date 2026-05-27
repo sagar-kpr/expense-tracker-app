@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
+import { ThemeProvider } from "@/context/ThemeContext";
 import { ExpenseProvider } from "../context/ExpenseContext";
 
 function RootNavigator() {
@@ -37,11 +38,7 @@ function RootNavigator() {
     if (user && userData) {
       // ONBOARDING COMPLETE
       if (userData.onboarding) {
-        const blockedScreens = [
-          "welcome",
-          "login",
-          "user-type",
-        ];
+        const blockedScreens = ["welcome", "login", "user-type"];
 
         if (inAuthGroup && blockedScreens.includes(currentScreen || "")) {
           router.replace("/(tabs)" as any);
@@ -95,11 +92,13 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <ExpenseProvider>
-          <RootNavigator />
-        </ExpenseProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ExpenseProvider>
+            <RootNavigator />
+          </ExpenseProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

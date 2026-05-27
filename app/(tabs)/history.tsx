@@ -1,3 +1,4 @@
+import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
@@ -108,7 +109,8 @@ const getExpenseTime = (date: Date | null) => {
 
 export default function HistoryScreen() {
   const { expenses } = useExpense();
-
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("All");
@@ -205,9 +207,9 @@ export default function HistoryScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={handleRefresh}
-          tintColor="#6C63FF"
-          colors={["#6C63FF"]}
-          progressBackgroundColor="white"
+          tintColor={theme.primary}
+          colors={[theme.primary]}
+          progressBackgroundColor={theme.card}
           progressViewOffset={70}
         />
       }
@@ -216,12 +218,12 @@ export default function HistoryScreen() {
         <Text style={styles.title}>History</Text>
 
         <View style={styles.searchBox}>
-          <Ionicons name="search" size={25} color="#686873" />
+          <Ionicons name="search" size={25} color={theme.subText} />
           <TextInput
             placeholder="Search expenses..."
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor="#8E8E98"
+            placeholderTextColor={theme.subText}
             style={styles.searchInput}
           />
         </View>
@@ -262,11 +264,11 @@ export default function HistoryScreen() {
             }}
             style={styles.dateButton}
           >
-            <Ionicons name="calendar-outline" size={22} color="#54545C" />
+            <Ionicons name="calendar-outline" size={22} color={theme.subText} />
             <Text style={styles.dateText}>
               {formattedSelectedDate || "Select Date"}
             </Text>
-            <Ionicons name="chevron-down" size={18} color="#151526" />
+            <Ionicons name="chevron-down" size={18} color={theme.text} />
           </Pressable>
 
           <Pressable
@@ -303,7 +305,7 @@ export default function HistoryScreen() {
         <View style={styles.totalCard}>
           <View style={styles.totalLeft}>
             <View style={styles.totalIconBox}>
-              <Ionicons name="wallet" size={30} color="#5D4CFF" />
+              <Ionicons name="wallet" size={30} color={theme.primary} />
             </View>
 
             <View>
@@ -316,14 +318,14 @@ export default function HistoryScreen() {
           </View>
 
           <View style={styles.chartIconBox}>
-            <Ionicons name="bar-chart" size={32} color="#5D4CFF" />
+            <Ionicons name="bar-chart" size={32} color={theme.primary} />
           </View>
         </View>
       </Animated.View>
 
       {filteredExpenses.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Ionicons name="receipt-outline" size={58} color="#6C63FF" />
+          <Ionicons name="receipt-outline" size={58} color={theme.primary} />
           <Text style={styles.emptyTitle}>No expenses found</Text>
           <Text style={styles.emptyText}>
             Your expense history will appear here once you start tracking.
@@ -409,284 +411,285 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#FAF9FF",
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 64,
-    paddingBottom: 140,
-  },
-  title: {
-    color: "#111",
-    fontSize: 32,
-    fontWeight: "800",
-    marginBottom: 24,
-  },
-  searchBox: {
-    alignItems: "center",
-    backgroundColor: "white",
-    borderColor: "#F0EEF7",
-    borderRadius: 22,
-    borderWidth: 1,
-    elevation: 4,
-    flexDirection: "row",
-    minHeight: 66,
-    paddingHorizontal: 18,
-    shadowColor: "#151526",
-    shadowOffset: {
-      width: 0,
-      height: 8,
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: theme.background,
     },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-  },
-  searchInput: {
-    color: "#111",
-    flex: 1,
-    fontSize: 16,
-    marginLeft: 14,
-    paddingVertical: 0,
-  },
-  filterScroll: {
-    marginTop: 28,
-  },
-  filterContent: {
-    gap: 12,
-    paddingRight: 20,
-  },
-  filterButton: {
-    alignItems: "center",
-    backgroundColor: "transparent",
-    borderColor: "#4A3E8F",
-    borderRadius: 24,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: 50,
-    paddingHorizontal: 27,
-  },
-  filterActive: {
-    backgroundColor: "#5E4BFF",
-    borderColor: "#5E4BFF",
-    shadowColor: "#5E4BFF",
-    shadowOffset: {
-      width: 0,
-      height: 8,
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 64,
+      paddingBottom: 140,
     },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-  },
-  filterText: {
-    color: "#4A3E8F",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  filterTextActive: {
-    color: "white",
-  },
-  dateRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 22,
-    marginTop: 24,
-  },
-  dateButton: {
-    alignItems: "center",
-    backgroundColor: "white",
-    borderColor: "#F0EEF7",
-    borderRadius: 24,
-    borderWidth: 1,
-    elevation: 3,
-    flexDirection: "row",
-    minHeight: 56,
-    paddingHorizontal: 18,
-    shadowColor: "#151526",
-    shadowOffset: {
-      width: 0,
-      height: 7,
+    title: {
+      color: theme.text,
+      fontSize: 32,
+      fontWeight: "800",
+      marginBottom: 24,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-  },
-  dateText: {
-    color: "#696872",
-    fontSize: 14,
-    fontWeight: "700",
-    marginHorizontal: 16,
-  },
-  clearText: {
-    color: "#C84F6A",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  datePickerBox: {
-    backgroundColor: "white",
-    borderRadius: 22,
-    marginTop: 16,
-    overflow: "hidden",
-  },
-  totalCard: {
-    alignItems: "center",
-    backgroundColor: "white",
-    borderColor: "#F0EEF7",
-    borderRadius: 22,
-    borderWidth: 1,
-    elevation: 4,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 28,
-    minHeight: 104,
-    paddingHorizontal: 24,
-    shadowColor: "#151526",
-    shadowOffset: {
-      width: 0,
-      height: 8,
+    searchBox: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      borderRadius: 22,
+      borderWidth: 1,
+      elevation: 4,
+      flexDirection: "row",
+      minHeight: 66,
+      paddingHorizontal: 18,
+      shadowColor: "#151526",
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.06,
+      shadowRadius: 18,
     },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-  },
-  totalLeft: {
-    alignItems: "center",
-    flexDirection: "row",
-  },
-  totalIconBox: {
-    alignItems: "center",
-    backgroundColor: "#F0ECFF",
-    borderRadius: 20,
-    height: 64,
-    justifyContent: "center",
-    marginRight: 22,
-    width: 64,
-  },
-  totalLabel: {
-    color: "#6B6A75",
-    fontSize: 15,
-  },
-  totalAmount: {
-    color: "#111",
-    fontSize: 32,
-    fontWeight: "800",
-    marginTop: 6,
-  },
-  chartIconBox: {
-    alignItems: "center",
-    backgroundColor: "#F0ECFF",
-    borderRadius: 16,
-    height: 56,
-    justifyContent: "center",
-    width: 56,
-  },
-  emptyCard: {
-    alignItems: "center",
-    backgroundColor: "white",
-    borderRadius: 24,
-    marginTop: 28,
-    paddingHorizontal: 36,
-    paddingVertical: 52,
-  },
-  emptyTitle: {
-    color: "#111",
-    fontSize: 18,
-    fontWeight: "800",
-    marginTop: 16,
-  },
-  emptyText: {
-    color: "#7D7C86",
-    fontSize: 14,
-    lineHeight: 22,
-    marginTop: 10,
-    textAlign: "center",
-  },
-  group: {
-    marginTop: 30,
-  },
-  groupHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  groupTitle: {
-    color: "#111",
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  groupCount: {
-    color: "#686873",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  transactionCard: {
-    alignItems: "center",
-    backgroundColor: "white",
-    borderColor: "#F3F1FA",
-    borderRadius: 20,
-    borderWidth: 1,
-    elevation: 2,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-    minHeight: 90,
-    paddingHorizontal: 18,
-    shadowColor: "#151526",
-    shadowOffset: {
-      width: 0,
-      height: 6,
+    searchInput: {
+      color: theme.text,
+      flex: 1,
+      fontSize: 16,
+      marginLeft: 14,
+      paddingVertical: 0,
     },
-    shadowOpacity: 0.04,
-    shadowRadius: 14,
-  },
-  transactionLeft: {
-    alignItems: "center",
-    flex: 1,
-    flexDirection: "row",
-    minWidth: 0,
-  },
-  categoryIconBox: {
-    alignItems: "center",
-    borderRadius: 16,
-    height: 58,
-    justifyContent: "center",
-    marginRight: 18,
-    width: 58,
-  },
-  categoryIcon: {
-    fontSize: 27,
-  },
-  transactionInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  transactionTitle: {
-    color: "#111",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  transactionMeta: {
-    alignItems: "center",
-    flexDirection: "row",
-    marginTop: 9,
-  },
-  categoryPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  transactionTime: {
-    color: "#6E6D78",
-    fontSize: 13,
-    marginLeft: 18,
-  },
-  transactionAmount: {
-    color: "#111",
-    fontSize: 18,
-    fontWeight: "800",
-    marginLeft: 14,
-  },
-});
+    filterScroll: {
+      marginTop: 28,
+    },
+    filterContent: {
+      gap: 12,
+      paddingRight: 20,
+    },
+    filterButton: {
+      alignItems: "center",
+      backgroundColor: "transparent",
+      borderColor: theme.border,
+      borderRadius: 24,
+      borderWidth: 1,
+      justifyContent: "center",
+      minHeight: 50,
+      paddingHorizontal: 27,
+    },
+    filterActive: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+      shadowColor: theme.primary,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.28,
+      shadowRadius: 14,
+    },
+    filterText: {
+      color: theme.primary,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    filterTextActive: {
+      color: theme.card,
+    },
+    dateRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 22,
+      marginTop: 24,
+    },
+    dateButton: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      borderRadius: 24,
+      borderWidth: 1,
+      elevation: 3,
+      flexDirection: "row",
+      minHeight: 56,
+      paddingHorizontal: 18,
+      shadowColor: theme.text,
+      shadowOffset: {
+        width: 0,
+        height: 7,
+      },
+      shadowOpacity: 0.05,
+      shadowRadius: 16,
+    },
+    dateText: {
+      color: theme.subText,
+      fontSize: 14,
+      fontWeight: "700",
+      marginHorizontal: 16,
+    },
+    clearText: {
+      color: theme.danger,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    datePickerBox: {
+      backgroundColor: theme.border,
+      borderRadius: 22,
+      marginTop: 16,
+      overflow: "hidden",
+    },
+    totalCard: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      borderRadius: 22,
+      borderWidth: 1,
+      elevation: 4,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 28,
+      minHeight: 104,
+      paddingHorizontal: 24,
+      shadowColor: theme.text,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+      shadowOpacity: 0.06,
+      shadowRadius: 18,
+    },
+    totalLeft: {
+      alignItems: "center",
+      flexDirection: "row",
+    },
+    totalIconBox: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderRadius: 20,
+      height: 64,
+      justifyContent: "center",
+      marginRight: 22,
+      width: 64,
+    },
+    totalLabel: {
+      color: theme.subText,
+      fontSize: 15,
+    },
+    totalAmount: {
+      color: theme.text,
+      fontSize: 32,
+      fontWeight: "800",
+      marginTop: 6,
+    },
+    chartIconBox: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderRadius: 16,
+      height: 56,
+      justifyContent: "center",
+      width: 56,
+    },
+    emptyCard: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderRadius: 24,
+      marginTop: 28,
+      paddingHorizontal: 36,
+      paddingVertical: 52,
+    },
+    emptyTitle: {
+      color: theme.text,
+      fontSize: 18,
+      fontWeight: "800",
+      marginTop: 16,
+    },
+    emptyText: {
+      color: theme.subText,
+      fontSize: 14,
+      lineHeight: 22,
+      marginTop: 10,
+      textAlign: "center",
+    },
+    group: {
+      marginTop: 30,
+    },
+    groupHeader: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 16,
+    },
+    groupTitle: {
+      color: theme.text,
+      fontSize: 22,
+      fontWeight: "700",
+    },
+    groupCount: {
+      color: theme.subText,
+      fontSize: 14,
+      fontWeight: "500",
+    },
+    transactionCard: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      borderRadius: 20,
+      borderWidth: 1,
+      elevation: 2,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 12,
+      minHeight: 90,
+      paddingHorizontal: 18,
+      shadowColor: theme.text,
+      shadowOffset: {
+        width: 0,
+        height: 6,
+      },
+      shadowOpacity: 0.04,
+      shadowRadius: 14,
+    },
+    transactionLeft: {
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      minWidth: 0,
+    },
+    categoryIconBox: {
+      alignItems: "center",
+      borderRadius: 16,
+      height: 58,
+      justifyContent: "center",
+      marginRight: 18,
+      width: 58,
+    },
+    categoryIcon: {
+      fontSize: 27,
+    },
+    transactionInfo: {
+      flex: 1,
+      minWidth: 0,
+    },
+    transactionTitle: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    transactionMeta: {
+      alignItems: "center",
+      flexDirection: "row",
+      marginTop: 9,
+    },
+    categoryPill: {
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    categoryText: {
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    transactionTime: {
+      color: theme.subText,
+      fontSize: 13,
+      marginLeft: 18,
+    },
+    transactionAmount: {
+      color: theme.text,
+      fontSize: 18,
+      fontWeight: "800",
+      marginLeft: 14,
+    },
+  });

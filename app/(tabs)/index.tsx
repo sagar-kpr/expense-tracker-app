@@ -24,9 +24,13 @@ import ExpenseModal from "@/components/ExpenseModal";
 import { useExpense } from "@/context/ExpenseContext";
 
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function HomeScreen() {
   const bottomSheetRef = useRef<BottomSheet>(null);
+
+  const { theme, dark } = useTheme();
+  console.log("Current theme:", dark ? "Dark" : "Light", theme);
 
   const { expenses, addExpense } = useExpense();
 
@@ -258,7 +262,7 @@ export default function HomeScreen() {
       <ScrollView
         style={{
           flex: 1,
-          backgroundColor: "#F7F7F7",
+          backgroundColor: theme.background,
         }}
         // contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{
@@ -271,9 +275,9 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#6C63FF"
-            colors={["#6C63FF"]}
-            progressBackgroundColor="white"
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressBackgroundColor={theme.card}
             progressViewOffset={70}
           />
         }
@@ -281,7 +285,7 @@ export default function HomeScreen() {
         <Text
           style={{
             fontSize: 16,
-            color: "#777",
+            color: theme.text,
           }}
         >
           {firstName ? `${greeting}, ${firstName}` : `${greeting}`}
@@ -291,7 +295,7 @@ export default function HomeScreen() {
           style={{
             fontSize: 32,
             fontWeight: "800",
-            color: "#111",
+            color: theme.text,
             marginTop: 8,
           }}
         >
@@ -301,7 +305,7 @@ export default function HomeScreen() {
         <Animated.View
           entering={FadeInUp.delay(100).duration(700)}
           style={{
-            backgroundColor: "#6C63FF",
+            backgroundColor: theme.primary,
 
             borderRadius: 30,
 
@@ -312,7 +316,7 @@ export default function HomeScreen() {
         >
           <Text
             style={{
-              color: "rgba(255,255,255,0.8)",
+              color: theme.border,
 
               fontSize: 15,
             }}
@@ -322,7 +326,7 @@ export default function HomeScreen() {
 
           <Text
             style={{
-              color: "white",
+              color: theme.card,
 
               fontSize: 38,
 
@@ -338,7 +342,7 @@ export default function HomeScreen() {
             style={{
               height: 1,
 
-              backgroundColor: "rgba(255,255,255,0.15)",
+              backgroundColor: theme.border,
 
               marginVertical: 22,
             }}
@@ -354,7 +358,7 @@ export default function HomeScreen() {
             <View>
               <Text
                 style={{
-                  color: "rgba(255,255,255,0.7)",
+                  color: theme.border,
 
                   fontSize: 14,
                 }}
@@ -364,7 +368,7 @@ export default function HomeScreen() {
 
               <Text
                 style={{
-                  color: "white",
+                  color: theme.card,
 
                   fontSize: 22,
 
@@ -380,7 +384,7 @@ export default function HomeScreen() {
             <View>
               <Text
                 style={{
-                  color: "rgba(255,255,255,0.7)",
+                  color: theme.border,
 
                   fontSize: 14,
                 }}
@@ -390,7 +394,7 @@ export default function HomeScreen() {
 
               <Text
                 style={{
-                  color: "white",
+                  color: theme.card,
 
                   fontSize: 22,
 
@@ -408,7 +412,7 @@ export default function HomeScreen() {
         <Animated.View
           entering={FadeInUp.delay(200).duration(700)}
           style={{
-            backgroundColor: "white",
+            backgroundColor: theme.card,
 
             borderRadius: 26,
 
@@ -423,7 +427,7 @@ export default function HomeScreen() {
 
               fontWeight: "700",
 
-              color: "#111",
+              color: theme.text,
 
               marginBottom: 22,
             }}
@@ -435,7 +439,7 @@ export default function HomeScreen() {
             style={{
               height: 18,
 
-              backgroundColor: "#ECECEC",
+              backgroundColor: theme.border,
 
               borderRadius: 999,
 
@@ -447,7 +451,8 @@ export default function HomeScreen() {
                 {
                   height: "100%",
 
-                  backgroundColor: remainingSalary > 0 ? "#6C63FF" : "#EF4444",
+                  backgroundColor:
+                    remainingSalary > 0 ? theme.primary : theme.danger,
 
                   borderRadius: 999,
                 },
@@ -468,7 +473,7 @@ export default function HomeScreen() {
           >
             <Text
               style={{
-                color: "#666",
+                color: theme.subText,
 
                 fontSize: 15,
               }}
@@ -478,7 +483,7 @@ export default function HomeScreen() {
 
             <Text
               style={{
-                color: "#111",
+                color: theme.text,
 
                 fontWeight: "700",
 
@@ -493,7 +498,7 @@ export default function HomeScreen() {
         <Animated.View
           entering={FadeInUp.delay(250).duration(700)}
           style={{
-            backgroundColor: "white",
+            backgroundColor: theme.card,
 
             borderRadius: 26,
 
@@ -517,7 +522,7 @@ export default function HomeScreen() {
               style={{
                 fontSize: 15,
 
-                color: "#777",
+                color: theme.subText,
 
                 fontWeight: "600",
               }}
@@ -531,7 +536,7 @@ export default function HomeScreen() {
 
                 fontWeight: "800",
 
-                color: dailyAverage > 0 ? "#111" : "#EF4444",
+                color: dailyAverage > 0 ? theme.text : theme.danger,
 
                 marginTop: 10,
               }}
@@ -541,7 +546,7 @@ export default function HomeScreen() {
                 style={{
                   fontSize: 16,
 
-                  color: "#777",
+                  color: theme.subText,
 
                   fontWeight: "600",
                 }}
@@ -556,7 +561,7 @@ export default function HomeScreen() {
 
                 fontSize: 13,
 
-                color: "#999",
+                color: theme.subText,
 
                 lineHeight: 20,
               }}
@@ -595,7 +600,7 @@ export default function HomeScreen() {
         <Animated.View
           entering={FadeInUp.delay(300).duration(700)}
           style={{
-            backgroundColor: "white",
+            backgroundColor: theme.card,
 
             borderRadius: 26,
 
@@ -610,7 +615,7 @@ export default function HomeScreen() {
 
               fontWeight: "700",
 
-              color: "#111",
+              color: theme.text,
 
               marginBottom: 20,
             }}
@@ -638,7 +643,7 @@ export default function HomeScreen() {
                 style={{
                   marginTop: 12,
 
-                  color: "#777",
+                  color: theme.subText,
 
                   fontSize: 15,
                 }}
@@ -665,7 +670,7 @@ export default function HomeScreen() {
 
                     marginBottom: 14,
 
-                    backgroundColor: "#F8F8F8",
+                    backgroundColor: theme.background,
 
                     paddingVertical: 16,
 
@@ -710,7 +715,7 @@ export default function HomeScreen() {
                     <View>
                       <Text
                         style={{
-                          color: "#111",
+                          color: theme.text,
 
                           fontSize: 16,
 
@@ -722,7 +727,7 @@ export default function HomeScreen() {
 
                       <Text
                         style={{
-                          color: "#888",
+                          color: theme.subText,
 
                           fontSize: 13,
 
@@ -740,7 +745,7 @@ export default function HomeScreen() {
 
                       fontSize: 18,
 
-                      color: "#111",
+                      color: theme.text,
                     }}
                   >
                     ₹{Number(value).toLocaleString()}
@@ -762,7 +767,7 @@ export default function HomeScreen() {
 
               fontWeight: "700",
 
-              color: "#111",
+              color: theme.text,
 
               marginBottom: 18,
             }}
@@ -773,7 +778,7 @@ export default function HomeScreen() {
           {expenses.length === 0 ? (
             <View
               style={{
-                backgroundColor: "white",
+                backgroundColor: theme.card,
 
                 borderRadius: 26,
 
@@ -800,7 +805,7 @@ export default function HomeScreen() {
 
                   fontWeight: "800",
 
-                  color: "#111",
+                  color: theme.text,
                 }}
               >
                 No transactions yet
@@ -810,7 +815,7 @@ export default function HomeScreen() {
                 style={{
                   marginTop: 10,
 
-                  color: "#888",
+                  color: theme.subText,
 
                   fontSize: 14,
 
@@ -834,7 +839,7 @@ export default function HomeScreen() {
                 <View
                   key={item.id}
                   style={{
-                    backgroundColor: "white",
+                    backgroundColor: theme.card,
 
                     borderRadius: 24,
 
@@ -892,7 +897,7 @@ export default function HomeScreen() {
                       <Text
                         numberOfLines={1}
                         style={{
-                          color: "#111",
+                          color: theme.text,
 
                           fontSize: 16,
 
@@ -937,7 +942,7 @@ export default function HomeScreen() {
 
                         <Text
                           style={{
-                            color: "#999",
+                            color: theme.subText,
 
                             fontSize: 13,
 
@@ -960,7 +965,7 @@ export default function HomeScreen() {
 
                       fontWeight: "800",
 
-                      color: "#111",
+                      color: theme.text,
 
                       marginLeft: 12,
                     }}
@@ -1000,13 +1005,13 @@ export default function HomeScreen() {
 
             borderRadius: 999,
 
-            backgroundColor: "#6C63FF",
+            backgroundColor: theme.primary,
 
             justifyContent: "center",
 
             alignItems: "center",
 
-            shadowColor: "#000",
+            shadowColor: theme.text,
 
             shadowOpacity: 0.15,
 
@@ -1017,7 +1022,7 @@ export default function HomeScreen() {
         >
           <Text
             style={{
-              color: "white",
+              color: theme.card,
 
               fontSize: 34,
 

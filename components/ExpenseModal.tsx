@@ -1,3 +1,4 @@
+import { useTheme } from "@/context/ThemeContext";
 import * as Haptics from "expo-haptics";
 import { forwardRef, useCallback, useMemo, useRef, useState } from "react";
 
@@ -31,7 +32,7 @@ const categories = ["Food", "Travel", "Bills", "Shopping", "Health", "Other"];
 
 const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
   const snapPoints = useMemo(() => ["95%"], []);
-
+  const { theme } = useTheme();
   const [amount, setAmount] = useState("");
 
   const [description, setDescription] = useState("");
@@ -130,7 +131,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
         }
       }}
       backgroundStyle={{
-        backgroundColor: "white",
+        backgroundColor: theme.card,
 
         borderTopLeftRadius: 35,
 
@@ -160,7 +161,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
               fontSize: 18,
 
-              color: "#555",
+              color: theme.subText,
 
               fontWeight: "600",
             }}
@@ -185,7 +186,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
                 fontWeight: "600",
 
-                color: amount.length === 0 ? "#BDBDBD" : "#444",
+                color: amount.length === 0 ? theme.subText : theme.text,
 
                 marginRight: 4,
 
@@ -213,15 +214,15 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                 setAmount(cleaned);
               }}
               keyboardType="decimal-pad"
-              selectionColor="#6C63FF"
+              selectionColor={theme.primary}
               placeholder="0"
-              placeholderTextColor="#BDBDBD"
+              placeholderTextColor={theme.subText}
               style={{
                 fontSize: 42,
 
                 fontWeight: "600",
 
-                color: "#444",
+                color: theme.text,
 
                 textAlign: "center",
 
@@ -250,9 +251,9 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                 style={({ pressed }) => ({
                   borderWidth: 1,
 
-                  borderColor: "#E8E8E8",
+                  borderColor: theme.border,
 
-                  backgroundColor: pressed ? "#F5F4FF" : "white",
+                  backgroundColor: pressed ? theme.border : theme.card,
 
                   paddingVertical: 12,
 
@@ -273,7 +274,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
                     fontWeight: "600",
 
-                    color: "#444",
+                    color: theme.text,
                   }}
                 >
                   + ₹{value}
@@ -292,7 +293,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
               fontWeight: "700",
 
-              color: "#555",
+              color: theme.subText,
             }}
           >
             Category
@@ -324,16 +325,16 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
                     alignItems: "center",
 
-                    backgroundColor: active ? "#6963FF" : "#F7F7F7",
+                    backgroundColor: active ? theme.primary : theme.card,
 
                     borderWidth: 1,
 
-                    borderColor: active ? "#6C63FF" : "#ECECEC",
+                    borderColor: active ? theme.primary : theme.border,
                   }}
                 >
                   <Text
                     style={{
-                      color: active ? "white" : "#555",
+                      color: active ? "white" : theme.subText,
 
                       fontWeight: "700",
 
@@ -355,9 +356,9 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
             onFocus={scrollToActions}
             returnKeyType="done"
             submitBehavior="blurAndSubmit"
-            placeholderTextColor="#A3A3A3"
+            placeholderTextColor={theme.subText}
             style={{
-              backgroundColor: "#F8F8F8",
+              backgroundColor: theme.card,
 
               borderRadius: 20,
 
@@ -371,11 +372,11 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
               fontSize: 16,
 
-              color: "#222",
+              color: theme.text,
 
               borderWidth: 1,
 
-              borderColor: "#EFEFEF",
+              borderColor: theme.border,
             }}
           />
 
@@ -390,14 +391,14 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
               disabled={!amount || loading}
               onPress={onSave}
               android_ripple={{
-                color: "#8B84FF",
+                color: theme.primary,
               }}
               style={{
                 backgroundColor: !amount
                   ? "#CFCDFE"
                   : loading
-                    ? "#B9C9EE"
-                    : "#6C63FF",
+                    ? theme.border
+                    : theme.primary,
 
                 paddingVertical: 18,
 
@@ -417,11 +418,13 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                   gap: 10,
                 }}
               >
-                {loading && <ActivityIndicator size="small" color="white" />}
+                {loading && (
+                  <ActivityIndicator size="small" color={theme.card} />
+                )}
 
                 <Text
                   style={{
-                    color: "white",
+                    color: theme.card,
 
                     textAlign: "center",
 
@@ -441,11 +444,11 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
           <InputAccessoryView nativeID={inputAccessoryViewID}>
             <View
               style={{
-                backgroundColor: "white",
+                backgroundColor: theme.card,
 
                 borderTopWidth: 1,
 
-                borderColor: "#ECECEC",
+                borderColor: theme.border,
 
                 padding: 12,
 
@@ -455,7 +458,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
               <Pressable onPress={() => Keyboard.dismiss()}>
                 <Text
                   style={{
-                    color: "#6C63FF",
+                    color: theme.primary,
 
                     fontSize: 16,
 

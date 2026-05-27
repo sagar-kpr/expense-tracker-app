@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { useTheme } from "@/context/ThemeContext";
 import { LineChart } from "react-native-chart-kit";
 
 import Svg, { Circle } from "react-native-svg";
@@ -77,7 +78,7 @@ function DonutSegment({
 
 export default function AnalyticsScreen() {
   const { expenses } = useExpense();
-
+  const { theme } = useTheme();
   const { salary: onboardingSalary } = useOnboardingStore();
 
   const { userData } = useAuth();
@@ -271,13 +272,13 @@ export default function AnalyticsScreen() {
     <ScrollView
       style={{
         flex: 1,
-        backgroundColor: "#F7F7F7",
+        backgroundColor: theme.background,
       }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#6C63FF"
+          tintColor={theme.primary}
           progressViewOffset={60}
         />
       }
@@ -293,7 +294,7 @@ export default function AnalyticsScreen() {
         style={{
           fontSize: 32,
           fontWeight: "800",
-          color: "#111",
+          color: theme.text,
         }}
       >
         Analytics
@@ -319,9 +320,9 @@ export default function AnalyticsScreen() {
                 setSelectedDate(new Date(selectedDate.getFullYear(), index, 1));
               }}
               style={{
-                backgroundColor: active ? "#6C63FF" : "white",
+                backgroundColor: active ? theme.primary : theme.card,
 
-                color: active ? "white" : "#555",
+                color: active ? theme.card : theme.subText,
 
                 paddingVertical: 12,
 
@@ -345,7 +346,7 @@ export default function AnalyticsScreen() {
       <Animated.View
         entering={FadeInUp.delay(100).duration(700)}
         style={{
-          backgroundColor: "white",
+          backgroundColor: theme.card,
 
           borderRadius: 28,
 
@@ -362,7 +363,7 @@ export default function AnalyticsScreen() {
 
             fontWeight: "700",
 
-            color: "#111",
+            color: theme.text,
 
             marginBottom: 26,
           }}
@@ -385,7 +386,7 @@ export default function AnalyticsScreen() {
                   cx="90"
                   cy="90"
                   r={radius}
-                  stroke="#ECECEC"
+                  stroke={theme.border}
                   strokeWidth={strokeWidth}
                   fill="none"
                 />
@@ -434,7 +435,7 @@ export default function AnalyticsScreen() {
 
                     fontWeight: "800",
 
-                    color: "#111",
+                    color: theme.text,
                   }}
                 >
                   {Math.round(salaryUsed)}%
@@ -442,7 +443,7 @@ export default function AnalyticsScreen() {
 
                 <Text
                   style={{
-                    color: "#777",
+                    color: theme.subText,
 
                     marginTop: 4,
                   }}
@@ -477,7 +478,7 @@ export default function AnalyticsScreen() {
 
                       marginBottom: 18,
 
-                      backgroundColor: "#F5F5F5",
+                      backgroundColor: theme.border,
 
                       padding: 16,
 
@@ -511,7 +512,7 @@ export default function AnalyticsScreen() {
 
                           fontWeight: "700",
 
-                          color: "#222",
+                          color: theme.text,
                         }}
                       >
                         {key}
@@ -527,7 +528,7 @@ export default function AnalyticsScreen() {
                         style={{
                           fontWeight: "700",
 
-                          color: "#111",
+                          color: theme.text,
 
                           fontSize: 16,
                         }}
@@ -537,7 +538,7 @@ export default function AnalyticsScreen() {
 
                       <Text
                         style={{
-                          color: "#777",
+                          color: theme.subText,
 
                           marginTop: 2,
                         }}
@@ -574,7 +575,7 @@ export default function AnalyticsScreen() {
 
                 fontWeight: "800",
 
-                color: "#111",
+                color: theme.text,
               }}
             >
               No spending data
@@ -584,7 +585,7 @@ export default function AnalyticsScreen() {
               style={{
                 marginTop: 8,
 
-                color: "#888",
+                color: theme.subText,
 
                 textAlign: "center",
 
@@ -600,7 +601,7 @@ export default function AnalyticsScreen() {
       <Animated.View
         entering={FadeInUp.delay(100).duration(700)}
         style={{
-          backgroundColor: "white",
+          backgroundColor: theme.card,
 
           borderRadius: 28,
 
@@ -615,7 +616,7 @@ export default function AnalyticsScreen() {
 
             fontWeight: "700",
 
-            color: "#111",
+            color: theme.text,
 
             marginBottom: 22,
           }}
@@ -633,19 +634,19 @@ export default function AnalyticsScreen() {
             withOuterLines={false}
             withVerticalLines={false}
             chartConfig={{
-              backgroundColor: "#fff",
+              backgroundColor: theme.card,
 
-              backgroundGradientFrom: "#fff",
+              backgroundGradientFrom: theme.card,
 
-              backgroundGradientTo: "#fff",
+              backgroundGradientTo: theme.card,
 
               decimalPlaces: 0,
 
-              color: () => "#6C63FF",
+              color: () => theme.primary,
 
-              labelColor: () => "#777",
+              labelColor: () => theme.subText,
 
-              fillShadowGradient: "#6C63FF",
+              fillShadowGradient: theme.primary,
 
               fillShadowGradientOpacity: 0.12,
 
@@ -658,7 +659,7 @@ export default function AnalyticsScreen() {
 
                 strokeWidth: "2",
 
-                stroke: "#6C63FF",
+                stroke: theme.primary,
               },
 
               propsForLabels: {
@@ -721,7 +722,7 @@ export default function AnalyticsScreen() {
 
       <View
         style={{
-          backgroundColor: "white",
+          backgroundColor: theme.card,
 
           borderRadius: 28,
 
@@ -736,7 +737,7 @@ export default function AnalyticsScreen() {
 
             fontWeight: "700",
 
-            color: "#111",
+            color: theme.text,
 
             marginBottom: 24,
           }}
@@ -746,7 +747,7 @@ export default function AnalyticsScreen() {
 
         <View
           style={{
-            backgroundColor: "#6C63FF10",
+            backgroundColor: theme.primary + "10",
 
             padding: 18,
 
@@ -757,7 +758,7 @@ export default function AnalyticsScreen() {
         >
           <Text
             style={{
-              color: "#6C63FF",
+              color: theme.primary,
 
               fontWeight: "700",
 
@@ -783,7 +784,7 @@ export default function AnalyticsScreen() {
         >
           <Text
             style={{
-              color: "#666",
+              color: theme.subText,
 
               fontSize: 16,
             }}
@@ -797,7 +798,7 @@ export default function AnalyticsScreen() {
 
               fontSize: 16,
 
-              color: "#111",
+              color: theme.text,
             }}
           >
             {totalTransactions}
@@ -815,7 +816,7 @@ export default function AnalyticsScreen() {
         >
           <Text
             style={{
-              color: "#666",
+              color: theme.subText,
 
               fontSize: 16,
             }}
@@ -829,7 +830,7 @@ export default function AnalyticsScreen() {
 
               fontSize: 16,
 
-              color: "#111",
+              color: theme.text,
             }}
           >
             ₹
@@ -850,7 +851,7 @@ export default function AnalyticsScreen() {
         >
           <Text
             style={{
-              color: "#666",
+              color: theme.subText,
 
               fontSize: 16,
             }}
@@ -864,7 +865,7 @@ export default function AnalyticsScreen() {
 
               fontSize: 16,
 
-              color: "#111",
+              color: theme.text,
             }}
           >
             ₹{Math.round(averagePerDay).toLocaleString()}
@@ -880,7 +881,7 @@ export default function AnalyticsScreen() {
         >
           <Text
             style={{
-              color: "#666",
+              color: theme.subText,
 
               fontSize: 16,
             }}
@@ -894,7 +895,7 @@ export default function AnalyticsScreen() {
 
               fontSize: 16,
 
-              color: "#111",
+              color: theme.text,
             }}
           >
             {highestDay
