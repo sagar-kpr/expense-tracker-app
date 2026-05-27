@@ -29,11 +29,9 @@ export default function ProfileScreen() {
 
   const { userData, logout } = useAuth();
 
-  const { theme } = useTheme();
+  const { theme, dark, setDark } = useTheme();
 
   const [notifications, setNotifications] = useState(true);
-
-  const [darkMode, setDarkMode] = useState(false);
 
   const totalSpent = useMemo(() => {
     return expenses.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -960,8 +958,8 @@ export default function ProfileScreen() {
           </Text>
 
           <Switch
-            value={darkMode}
-            onValueChange={setDarkMode}
+            value={dark}
+            onValueChange={(value) => setDark(value)}
             trackColor={{
               false: theme.card,
 

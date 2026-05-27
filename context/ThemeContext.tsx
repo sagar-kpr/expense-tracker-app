@@ -5,7 +5,7 @@ import { darkTheme, lightTheme } from "@/theme";
 const ThemeContext = createContext<any>(null);
 
 export const ThemeProvider = ({ children }: any) => {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
 
   const theme = dark ? darkTheme : lightTheme;
 

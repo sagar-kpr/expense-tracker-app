@@ -30,7 +30,6 @@ export default function HomeScreen() {
   const bottomSheetRef = useRef<BottomSheet>(null);
 
   const { theme, dark } = useTheme();
-  console.log("Current theme:", dark ? "Dark" : "Light", theme);
 
   const { expenses, addExpense } = useExpense();
 
