@@ -959,9 +959,27 @@ export default function ProfileScreen() {
 
           <Switch
             value={dark}
-            onValueChange={(value) => setDark(value)}
+            onValueChange={async (value) => {
+              setDark(value);
+
+              const user = auth.currentUser;
+
+              if (!user) return;
+
+              try {
+                await updateDoc(
+                  doc(db, "users", user.uid),
+
+                  {
+                    darkMode: value,
+                  },
+                );
+              } catch (error) {
+                console.log("Theme update error:", error);
+              }
+            }}
             trackColor={{
-              false: theme.card,
+              false: theme.border,
 
               true: theme.primary,
             }}

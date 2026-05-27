@@ -35,6 +35,8 @@ type UserData = {
   salaryDate?: number | null;
 
   name?: string;
+
+  darkMode?: boolean;
 };
 
 type AuthContextType = {
@@ -153,13 +155,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
             onboarding: false,
 
-            type: "salary",
+            type: "",
 
             salary: null,
 
-            salaryDate: 1,
+            salaryDate: null,
 
             name: result.user.displayName || "",
+            darkMode: false,
           };
 
           await setDoc(docRef, newUserData);
@@ -188,7 +191,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       salaryDate: null,
 
-      name: email.split("@")[0],
+      name: "",
+      darkMode: false,
     };
 
     setUser(result.user);

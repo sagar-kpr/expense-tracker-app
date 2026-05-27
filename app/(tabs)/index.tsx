@@ -153,21 +153,45 @@ export default function HomeScreen() {
   };
 
   const getRelativeDate = (date: string) => {
-    const now = new Date();
-
     const expenseDate = new Date(date);
 
-    const diff = now.getTime() - expenseDate.getTime();
+    const today = new Date();
+
+    const yesterday = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    yesterday.setHours(0, 0, 0, 0);
+
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const compareDate = new Date(expenseDate);
+
+    compareDate.setHours(0, 0, 0, 0);
+
+    if (compareDate.getTime() === today.getTime()) {
+      return "Today";
+    }
+
+    if (compareDate.getTime() === yesterday.getTime()) {
+      return "Yesterday";
+    }
+
+    const diff = today.getTime() - compareDate.getTime();
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (days === 0) return "Today";
+    if (days < 7) {
+      return `${days} days ago`;
+    }
 
-    if (days === 1) return "Yesterday";
+    return expenseDate.toLocaleDateString("en-IN", {
+      day: "numeric",
 
-    if (days < 7) return `${days} days ago`;
+      month: "short",
 
-    return expenseDate.toLocaleDateString();
+      year: "numeric",
+    });
   };
 
   const today = new Date();
