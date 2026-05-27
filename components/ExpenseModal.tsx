@@ -1099,4 +1099,6 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
   );
 });
 
+ExpenseModal.displayName = "ExpenseModal";
+
 export default ExpenseModal;
