@@ -722,7 +722,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                   flex: 1,
 
                   backgroundColor:
-                    type === "income" ? "#22C55E" : "transparent",
+                    type === "income" ? "#11735E" : "transparent",
 
                   paddingVertical: 14,
 
@@ -754,7 +754,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                   flex: 1,
 
                   backgroundColor:
-                    type === "expense" ? theme.primary : "transparent",
+                    type === "expense" ? "#172033" : "transparent",
 
                   paddingVertical: 14,
 
@@ -939,16 +939,16 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
                     backgroundColor: active
                       ? type === "income"
-                        ? "#22C55E"
-                        : theme.primary
+                        ? "#11735E"
+                        : "#172033"
                       : theme.card,
 
                     borderWidth: 1,
 
                     borderColor: active
                       ? type === "income"
-                        ? "#22C55E"
-                        : theme.primary
+                        ? "#11735E"
+                        : "#172033"
                       : theme.border,
                   }}
                 >
@@ -1012,16 +1012,18 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
               disabled={!amount || loading}
               onPress={onSave}
               android_ripple={{
-                color: type === "income" ? "#22C55E" : theme.primary,
+                color: type === "income" ? "#11735E" : "#172033",
               }}
               style={{
                 backgroundColor: !amount
-                  ? "#CFCDFE"
+                  ? type === "income"
+                    ? "#6bc0ae"
+                    : "#50596d"
                   : loading
                     ? theme.border
                     : type === "income"
-                      ? "#22C55E"
-                      : theme.primary,
+                      ? "#11735E"
+                      : "#172033",
 
                 paddingVertical: 18,
 

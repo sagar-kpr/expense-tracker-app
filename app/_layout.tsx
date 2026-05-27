@@ -68,8 +68,8 @@ function RootNavigator() {
       }
 
       // SELF EMPLOYED
-      if (currentScreen !== "success") {
-        router.replace("/(auth)/success" as any);
+      if (currentScreen !== "business-setup") {
+        router.replace("/(auth)/business-setup" as any);
       }
     }
   }, [user, userData, loading, segments]);

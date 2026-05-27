@@ -38,11 +38,9 @@ export default function UserTypeScreen() {
       } else {
         await updateDoc(doc(db, "users", user.uid), {
           type,
-
-          onboarding: true,
         });
 
-        router.replace("/(auth)/success" as any);
+        router.replace("/(auth)/business-setup" as any);
       }
     } finally {
       setLoadingType("");

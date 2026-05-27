@@ -31,7 +31,7 @@ export default function Index() {
     }
 
     // SELF EMPLOYED
-    return <Redirect href="/(auth)/success" />;
+    return <Redirect href="/(auth)/business-setup" />;
   }
 
   return null;

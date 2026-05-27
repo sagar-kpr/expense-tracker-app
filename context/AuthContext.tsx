@@ -36,6 +36,8 @@ type UserData = {
 
   name?: string;
 
+  businessName?: string;
+
   darkMode?: boolean;
 };
 

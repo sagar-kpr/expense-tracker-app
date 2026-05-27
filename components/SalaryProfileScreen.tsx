@@ -934,7 +934,7 @@ export default function ProfileScreen() {
 
               true: theme.primary,
             }}
-            thumbColor={theme.background}
+            thumbColor={dark ? theme.background : "#FFFFFF"}
           />
         </View>
 
@@ -1004,7 +1004,7 @@ export default function ProfileScreen() {
             );
           }}
           style={{
-            backgroundColor: theme.card,
+            backgroundColor: theme.primary,
 
             paddingVertical: 18,
 
@@ -1015,7 +1015,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: theme.text,
+              color: "#FFFFFF",
 
               fontSize: 16,
 
@@ -1045,7 +1045,7 @@ export default function ProfileScreen() {
           }}
           activeOpacity={0.8}
           style={{
-            backgroundColor: theme.card,
+            backgroundColor: theme.primary,
 
             paddingVertical: 18,
 
@@ -1056,7 +1056,7 @@ export default function ProfileScreen() {
         >
           <Text
             style={{
-              color: theme.text,
+              color: "#FFFFFF",
 
               fontSize: 16,
 

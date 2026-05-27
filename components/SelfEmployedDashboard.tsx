@@ -10,11 +10,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { getCategoryMeta } from "@/components/categoryMeta";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-import { getCategoryMeta } from "@/components/categoryMeta";
-
 
 const formatMoney = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;

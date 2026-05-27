@@ -14,9 +14,9 @@ import {
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import { getCategoryMeta } from "@/components/categoryMeta";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-import { getCategoryMeta } from "@/components/categoryMeta";
 
 type Transaction = {
   id: string;
@@ -70,7 +70,7 @@ const getTransactionTime = (date: Date | null) => {
 
 export default function SelfEmployedHistoryScreen() {
   const { expenses } = useExpense();
-  const { theme } = useTheme();
+  const { theme, dark } = useTheme();
   const styles = getStyles(theme);
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -260,6 +260,8 @@ export default function SelfEmployedHistoryScreen() {
               value={selectedDate || new Date()}
               mode="date"
               display={Platform.OS === "ios" ? "inline" : "default"}
+              accentColor="#FFFFFF"
+              textColor={theme.primary}
               onChange={(_event, date) => {
                 if (Platform.OS !== "ios") {
                   setShowDatePicker(false);
@@ -487,7 +489,7 @@ const getStyles = (theme: any) =>
     filterButton: {
       alignItems: "center",
       backgroundColor: "transparent",
-      borderColor: theme.border,
+      borderColor: theme.primary,
       borderRadius: 22,
       borderWidth: 1,
       justifyContent: "center",
@@ -497,6 +499,7 @@ const getStyles = (theme: any) =>
     filterActive: {
       backgroundColor: theme.primary,
       borderColor: theme.primary,
+      shadowColor: theme.primary,
     },
     filterText: {
       color: theme.primary,
@@ -534,7 +537,7 @@ const getStyles = (theme: any) =>
       fontWeight: "700",
     },
     datePickerBox: {
-      backgroundColor: theme.border,
+      backgroundColor: theme.primary,
       borderRadius: 22,
       marginTop: 16,
       overflow: "hidden",

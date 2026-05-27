@@ -78,7 +78,7 @@ const getExpenseTime = (date: Date | null) => {
 
 export default function HistoryScreen() {
   const { expenses } = useExpense();
-  const { theme } = useTheme();
+  const { theme, dark } = useTheme();
   const styles = getStyles(theme);
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -257,6 +257,8 @@ export default function HistoryScreen() {
               value={selectedDate || new Date()}
               mode="date"
               display={Platform.OS === "ios" ? "inline" : "default"}
+              accentColor="#FFFFFF"
+              textColor={theme.primary}
               onChange={(_event, date) => {
                 if (Platform.OS !== "ios") {
                   setShowDatePicker(false);
@@ -432,7 +434,7 @@ const getStyles = (theme: any) =>
     filterButton: {
       alignItems: "center",
       backgroundColor: "transparent",
-      borderColor: theme.border,
+      borderColor: theme.primary,
       borderRadius: 24,
       borderWidth: 1,
       justifyContent: "center",

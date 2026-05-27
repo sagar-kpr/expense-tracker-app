@@ -3,7 +3,14 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import { useMemo, useState } from "react";
-import { Alert, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  ScrollView,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { useAuth } from "@/context/AuthContext";
@@ -56,12 +63,12 @@ export default function SelfEmployedProfileScreen() {
     }),
   ).size;
 
-  const handleEditName = () => {
+  const handleEditBusinessName = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     Alert.prompt(
       "Edit Business Name",
-      "Enter your name or business display name",
+      "Enter your business display name",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -73,20 +80,24 @@ export default function SelfEmployedProfileScreen() {
             if (!user) return;
 
             await updateDoc(doc(db, "users", user.uid), {
-              name: value,
+              businessName: value,
             });
           },
         },
       ],
       "plain-text",
-      String(userData?.name || ""),
+      String(userData?.businessName || ""),
     );
   };
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: 70, paddingBottom: 120 }}
+      contentContainerStyle={{
+        padding: 20,
+        paddingTop: 70,
+        paddingBottom: 120,
+      }}
       showsVerticalScrollIndicator={false}
     >
       <Text
@@ -114,13 +125,22 @@ export default function SelfEmployedProfileScreen() {
               width: 68,
               height: 68,
               borderRadius: 24,
-              backgroundColor: "rgba(255,255,255,0.16)",
+              backgroundColor: "#FFFFFF",
+              borderColor: "#FFFFFF",
               justifyContent: "center",
               alignItems: "center",
               marginRight: 16,
+              borderWidth: 1.5,
             }}
           >
-            <Ionicons name="briefcase" size={30} color="#FFFFFF" />
+            {/* <Ionicons name="briefcase" size={30} color="#FFFFFF" /> */}
+            <Text
+              style={{
+                fontSize: 32,
+              }}
+            >
+              👤
+            </Text>
           </View>
 
           <View style={{ flex: 1 }}>
@@ -128,16 +148,36 @@ export default function SelfEmployedProfileScreen() {
               numberOfLines={1}
               style={{ color: "#FFFFFF", fontSize: 27, fontWeight: "900" }}
             >
-              {userData?.name || "Business User"}
+              {userData?.name}
             </Text>
             <Text
               numberOfLines={1}
-              style={{ color: "rgba(255,255,255,0.78)", marginTop: 5, fontSize: 14 }}
+              style={{
+                color: "rgba(255,255,255,0.78)",
+                marginTop: 5,
+                fontSize: 14,
+              }}
+            >
+              {userData?.businessName || "My Business"}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: "rgba(255,255,255,0.78)",
+                marginTop: 5,
+                fontSize: 14,
+              }}
             >
               {userData?.email}
             </Text>
 
-            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 13 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginTop: 13,
+              }}
+            >
               <View
                 style={{
                   backgroundColor: "rgba(255,255,255,0.16)",
@@ -146,11 +186,19 @@ export default function SelfEmployedProfileScreen() {
                   borderRadius: 999,
                 }}
               >
-                <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>
+                <Text
+                  style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}
+                >
                   Self Employed
                 </Text>
               </View>
-              <Text style={{ color: "rgba(255,255,255,0.72)", marginLeft: 10, fontSize: 12 }}>
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.72)",
+                  marginLeft: 10,
+                  fontSize: 12,
+                }}
+              >
                 Business profile
               </Text>
             </View>
@@ -167,18 +215,38 @@ export default function SelfEmployedProfileScreen() {
             borderTopColor: "rgba(255,255,255,0.22)",
           }}
         >
-          <ProfileHeaderStat label="Income" value={formatMoney(totals.income)} />
-          <ProfileHeaderStat label="Expense" value={formatMoney(totals.expense)} alignRight />
+          <ProfileHeaderStat
+            label="Income"
+            value={formatMoney(totals.income)}
+          />
+          <ProfileHeaderStat
+            label="Expense"
+            value={formatMoney(totals.expense)}
+            alignRight
+          />
         </View>
       </Animated.View>
 
       <Animated.View
         entering={FadeInUp.delay(200).duration(700)}
-        style={{ backgroundColor: theme.card, borderRadius: 28, padding: 22, marginTop: 24 }}
+        style={{
+          backgroundColor: theme.card,
+          borderRadius: 28,
+          padding: 22,
+          marginTop: 24,
+        }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <View>
-            <Text style={{ fontSize: 20, fontWeight: "900", color: theme.text }}>
+            <Text
+              style={{ fontSize: 20, fontWeight: "900", color: theme.text }}
+            >
               Business Overview
             </Text>
             <Text style={{ color: theme.subText, marginTop: 6, fontSize: 14 }}>
@@ -217,14 +285,23 @@ export default function SelfEmployedProfileScreen() {
           </Text>
         </View>
 
-        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 26 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginTop: 26,
+          }}
+        >
           <MiniStat label="Income Entries" value={String(incomeTransactions)} />
-          <MiniStat label="Expense Entries" value={String(expenseTransactions)} />
+          <MiniStat
+            label="Expense Entries"
+            value={String(expenseTransactions)}
+          />
         </View>
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           activeOpacity={0.85}
-          onPress={handleEditName}
+          onPress={handleEditBusinessName}
           style={{
             backgroundColor: theme.primary,
             paddingVertical: 16,
@@ -236,26 +313,53 @@ export default function SelfEmployedProfileScreen() {
           <Text style={{ color: "white", fontWeight: "800", fontSize: 15 }}>
             Edit Business Name
           </Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </Animated.View>
 
       <Animated.View
         entering={FadeInUp.delay(300).duration(700)}
-        style={{ marginTop: 24, flexDirection: "row", justifyContent: "space-between" }}
+        style={{
+          marginTop: 24,
+          flexDirection: "row",
+          justifyContent: "space-between",
+        }}
       >
-        <StatCard label="Total Income" value={formatMoney(totals.income)} color="#159665" />
-        <StatCard label="Total Expense" value={formatMoney(totals.expense)} color="#EF4444" />
+        <StatCard
+          label="Total Income"
+          value={formatMoney(totals.income)}
+          color="#159665"
+        />
+        <StatCard
+          label="Total Expense"
+          value={formatMoney(totals.expense)}
+          color="#EF4444"
+        />
       </Animated.View>
 
       <Animated.View
         entering={FadeInUp.delay(400).duration(700)}
-        style={{ backgroundColor: theme.card, borderRadius: 28, padding: 22, marginTop: 24 }}
+        style={{
+          backgroundColor: theme.card,
+          borderRadius: 28,
+          padding: 22,
+          marginTop: 24,
+        }}
       >
-        <Text style={{ fontSize: 20, fontWeight: "900", color: theme.text, marginBottom: 22 }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "900",
+            color: theme.text,
+            marginBottom: 22,
+          }}
+        >
           Statistics
         </Text>
 
-        <SettingsRow label="Total Transactions" value={String(totalTransactions)} />
+        <SettingsRow
+          label="Total Transactions"
+          value={String(totalTransactions)}
+        />
         <SettingsRow label="Active Days" value={String(activeDays)} />
         <SettingsRow
           label="Business Status"
@@ -272,20 +376,23 @@ export default function SelfEmployedProfileScreen() {
         theme={theme}
       />
 
-      <Animated.View entering={FadeInUp.delay(650).duration(700)} style={{ marginTop: 24 }}>
+      <Animated.View
+        entering={FadeInUp.delay(650).duration(700)}
+        style={{ marginTop: 24 }}
+      >
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => {
             Alert.alert("Coming Soon", "Export feature will be added soon.");
           }}
           style={{
-            backgroundColor: theme.card,
+            backgroundColor: theme.primary,
             paddingVertical: 18,
             borderRadius: 22,
             alignItems: "center",
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>
+          <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}>
             Export Business Data
           </Text>
         </TouchableOpacity>
@@ -303,13 +410,13 @@ export default function SelfEmployedProfileScreen() {
           }}
           activeOpacity={0.8}
           style={{
-            backgroundColor: theme.card,
+            backgroundColor: theme.primary,
             paddingVertical: 18,
             borderRadius: 22,
             alignItems: "center",
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>
+          <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}>
             Logout
           </Text>
         </TouchableOpacity>
@@ -328,12 +435,21 @@ function ProfileHeaderStat({
   alignRight?: boolean;
 }) {
   return (
-    <View style={{ alignItems: alignRight ? "flex-end" : "flex-start", flex: 1 }}>
-      <Text style={{ color: "rgba(255,255,255,0.74)", fontSize: 13 }}>{label}</Text>
+    <View
+      style={{ alignItems: alignRight ? "flex-end" : "flex-start", flex: 1 }}
+    >
+      <Text style={{ color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
+        {label}
+      </Text>
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
-        style={{ color: "#FFFFFF", fontSize: 21, fontWeight: "900", marginTop: 7 }}
+        style={{
+          color: "#FFFFFF",
+          fontSize: 21,
+          fontWeight: "900",
+          marginTop: 7,
+        }}
       >
         {value}
       </Text>
@@ -356,19 +472,43 @@ function MiniStat({ label, value }: { label: string; value: string }) {
       }}
     >
       <Text style={{ color: theme.subText, fontSize: 13 }}>{label}</Text>
-      <Text style={{ color: theme.text, fontSize: 20, fontWeight: "900", marginTop: 7 }}>
+      <Text
+        style={{
+          color: theme.text,
+          fontSize: 20,
+          fontWeight: "900",
+          marginTop: 7,
+        }}
+      >
         {value}
       </Text>
     </View>
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
+function StatCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color: string;
+}) {
   const { theme } = useTheme();
 
   return (
-    <View style={{ backgroundColor: theme.card, width: "48%", borderRadius: 24, padding: 18 }}>
-      <Text style={{ color: theme.subText, marginBottom: 9, fontSize: 13 }}>{label}</Text>
+    <View
+      style={{
+        backgroundColor: theme.card,
+        width: "48%",
+        borderRadius: 24,
+        padding: 18,
+      }}
+    >
+      <Text style={{ color: theme.subText, marginBottom: 9, fontSize: 13 }}>
+        {label}
+      </Text>
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
@@ -404,7 +544,12 @@ function SettingsRow({
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
-        style={{ color: theme.text, fontWeight: "800", fontSize: 15, maxWidth: 150 }}
+        style={{
+          color: theme.text,
+          fontWeight: "800",
+          fontSize: 15,
+          maxWidth: 150,
+        }}
       >
         {value}
       </Text>
@@ -428,9 +573,21 @@ function SettingsSection({
   return (
     <Animated.View
       entering={FadeInUp.delay(500).duration(700)}
-      style={{ backgroundColor: theme.card, borderRadius: 28, padding: 22, marginTop: 24 }}
+      style={{
+        backgroundColor: theme.card,
+        borderRadius: 28,
+        padding: 22,
+        marginTop: 24,
+      }}
     >
-      <Text style={{ fontSize: 20, fontWeight: "900", color: theme.text, marginBottom: 22 }}>
+      <Text
+        style={{
+          fontSize: 20,
+          fontWeight: "900",
+          color: theme.text,
+          marginBottom: 22,
+        }}
+      >
         Settings
       </Text>
 
@@ -476,7 +633,7 @@ function SettingsSection({
             }
           }}
           trackColor={{ false: theme.border, true: theme.primary }}
-          thumbColor={theme.background}
+          thumbColor={dark ? theme.background : "#FFFFFF"}
         />
       </View>
     </Animated.View>
