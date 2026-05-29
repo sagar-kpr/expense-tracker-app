@@ -67,7 +67,9 @@ export default function SalaryDashboard() {
   const remaining = salary - spent;
   const usagePercent = salary > 0 ? (spent / salary) * 100 : 0;
   const usageLabel =
-    spent > 0 && usagePercent < 1 ? "<1" : String(Math.round(usagePercent));
+    spent > 0 && usagePercent < 1
+      ? String(usagePercent)
+      : String(Math.round(usagePercent));
   const cappedRatio =
     spent > 0 && usagePercent < 1
       ? 2

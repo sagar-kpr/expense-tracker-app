@@ -22,7 +22,7 @@
       "package": "com.sagarkpr.expensetracker",
 
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo.png",
+        "foregroundImage": "./assets/images/adaptive.png",
         "backgroundColor": "#ffffff"
       },
 
