@@ -4,6 +4,8 @@ import { Stack, router, useSegments } from "expo-router";
 
 import { useEffect } from "react";
 
+// import * as SplashScreen from "expo-splash-screen";
+
 import "react-native-reanimated";
 
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -12,6 +14,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ExpenseProvider } from "../context/ExpenseContext";
+// SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { user, userData, loading } = useAuth();
