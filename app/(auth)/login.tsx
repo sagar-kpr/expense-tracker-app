@@ -347,7 +347,7 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             onPress={login}
             activeOpacity={0.85}
             style={{
@@ -381,7 +381,7 @@ export default function LoginScreen() {
                 Continue with Google
               </Text>
             )}
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {!isSignup && (
             <TouchableOpacity
