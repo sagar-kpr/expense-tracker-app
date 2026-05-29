@@ -25,7 +25,7 @@ import { useExpense } from "@/context/ExpenseContext";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ProfileScreen() {
-  const { expenses } = useExpense();
+  const { expenses, salaryCycleExpenses } = useExpense();
 
   const { userData, logout } = useAuth();
 
@@ -37,7 +37,14 @@ export default function ProfileScreen() {
     return expenses.reduce((sum, item) => sum + Number(item.amount), 0);
   }, [expenses]);
 
-  const remaining = Number(userData?.salary || 0) - totalSpent;
+  const currentCycleSpent = useMemo(() => {
+    return salaryCycleExpenses.reduce(
+      (sum, item) => sum + Number(item.amount),
+      0,
+    );
+  }, [salaryCycleExpenses]);
+
+  const remaining = Number(userData?.salary || 0) - currentCycleSpent;
 
   const totalTransactions = expenses.length;
 
@@ -136,42 +143,6 @@ export default function ProfileScreen() {
           position: "relative",
         }}
       >
-        {/* <View
-          style={{
-            position: "absolute",
-
-            width: 240,
-
-            height: 240,
-
-            borderRadius: 999,
-
-            backgroundColor: theme.border + "22",
-
-            top: -100,
-
-            right: -80,
-          }}
-        />
-
-        <View
-          style={{
-            position: "absolute",
-
-            width: 130,
-
-            height: 130,
-
-            borderRadius: 999,
-
-            backgroundColor: theme.border + "05",
-
-            bottom: -40,
-
-            left: -35,
-          }}
-        /> */}
-
         <View
           style={{
             flexDirection: "row",
@@ -283,11 +254,14 @@ export default function ProfileScreen() {
                 }}
               >
                 Joined{" "}
-                {new Date().toLocaleDateString("en-IN", {
-                  month: "short",
-
-                  year: "numeric",
-                })}
+                {auth.currentUser?.metadata?.creationTime
+                  ? new Date(
+                      auth.currentUser.metadata.creationTime,
+                    ).toLocaleDateString("en-IN", {
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "--"}
               </Text>
             </View>
           </View>
@@ -634,13 +608,50 @@ export default function ProfileScreen() {
                     onPress: async (value: any) => {
                       if (!value) return;
 
-                      const user = auth.currentUser;
+                      const parsedDate = Number(value);
 
-                      if (!user) return;
+                      if (
+                        Number.isNaN(parsedDate) ||
+                        parsedDate < 1 ||
+                        parsedDate > 31
+                      ) {
+                        Alert.alert(
+                          "Invalid Date",
+                          "Please enter a date between 1 and 31.",
+                        );
 
-                      await updateDoc(doc(db, "users", user.uid), {
-                        salaryDate: Number(value),
-                      });
+                        return;
+                      }
+
+                      Alert.alert(
+                        "Recalculate Salary Cycle",
+                        "Changing salary date will recalculate your current salary cycle.",
+
+                        [
+                          {
+                            text: "Cancel",
+                            style: "cancel",
+                          },
+
+                          {
+                            text: "Continue",
+
+                            onPress: async () => {
+                              const user = auth.currentUser;
+
+                              if (!user) return;
+
+                              await updateDoc(
+                                doc(db, "users", user.uid),
+
+                                {
+                                  salaryDate: parsedDate,
+                                },
+                              );
+                            },
+                          },
+                        ],
+                      );
                     },
                   },
                 ],
@@ -707,7 +718,7 @@ export default function ProfileScreen() {
               marginBottom: 10,
             }}
           >
-            Total Spent
+            Salary Used
           </Text>
 
           <Text
@@ -719,7 +730,7 @@ export default function ProfileScreen() {
               color: theme.text,
             }}
           >
-            ₹{totalSpent.toLocaleString()}
+            ₹{currentCycleSpent.toLocaleString()}
           </Text>
         </View>
 
@@ -741,7 +752,7 @@ export default function ProfileScreen() {
               marginBottom: 10,
             }}
           >
-            Remaining
+            Salary Remaining
           </Text>
 
           <Text
@@ -781,7 +792,7 @@ export default function ProfileScreen() {
             marginBottom: 24,
           }}
         >
-          Statistics
+          Lifetime Statistics
         </Text>
 
         <View
@@ -800,7 +811,7 @@ export default function ProfileScreen() {
               fontSize: 16,
             }}
           >
-            Total Transactions
+            Transactions
           </Text>
 
           <Text
@@ -832,7 +843,7 @@ export default function ProfileScreen() {
               fontSize: 16,
             }}
           >
-            Avg Expense
+            Avg Spend
           </Text>
 
           <Text
@@ -848,7 +859,7 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
-        <View
+        {/* <View
           style={{
             flexDirection: "row",
 
@@ -862,7 +873,7 @@ export default function ProfileScreen() {
               fontSize: 16,
             }}
           >
-            Active Days
+            Spending Days
           </Text>
 
           <Text
@@ -876,7 +887,7 @@ export default function ProfileScreen() {
           >
             {activeDays}
           </Text>
-        </View>
+        </View> */}
       </Animated.View>
 
       <Animated.View

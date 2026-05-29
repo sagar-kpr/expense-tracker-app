@@ -149,7 +149,7 @@ export default function LoginScreen() {
               lineHeight: 24,
             }}
           >
-            Track your money smarter and manage your salary better.
+            Track your money smarter and manage your finance better.
           </Text>
         </Animated.View>
 
@@ -222,6 +222,7 @@ export default function LoginScreen() {
                   paddingVertical: 18,
 
                   fontSize: 16,
+                  color: "#111",
                 }}
               />
 
@@ -274,6 +275,7 @@ export default function LoginScreen() {
                     paddingVertical: 18,
 
                     fontSize: 16,
+                    color: "#111",
                   }}
                 />
 

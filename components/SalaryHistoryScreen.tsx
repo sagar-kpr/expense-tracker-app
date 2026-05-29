@@ -26,7 +26,7 @@ type Expense = {
   createdAt?: string | Date | { toDate?: () => Date };
 };
 
-const FILTERS = ["All", "Today", "Yesterday", "This Month"];
+const FILTERS = ["All", "Today", "Yesterday", "Current Cycle"];
 const RUPEE = "\u20B9";
 
 const parseExpenseDate = (value: Expense["createdAt"]) => {
@@ -77,7 +77,7 @@ const getExpenseTime = (date: Date | null) => {
 };
 
 export default function HistoryScreen() {
-  const { expenses } = useExpense();
+  const { expenses, salaryCycleExpenses } = useExpense();
   const { theme, dark } = useTheme();
   const styles = getStyles(theme);
   const [search, setSearch] = useState("");
@@ -116,10 +116,10 @@ export default function HistoryScreen() {
           matchesFilter = isSameDay(date, today);
         } else if (date && selectedFilter === "Yesterday") {
           matchesFilter = isSameDay(date, yesterday);
-        } else if (date && selectedFilter === "This Month") {
-          matchesFilter =
-            date.getMonth() === today.getMonth() &&
-            date.getFullYear() === today.getFullYear();
+        } else if (selectedFilter === "Current Cycle") {
+          matchesFilter = salaryCycleExpenses.some(
+            (expense) => expense.id === item.id,
+          );
         } else if (!date && selectedFilter !== "All") {
           matchesFilter = false;
         }

@@ -27,7 +27,7 @@ type Transaction = {
   createdAt?: string | Date | { toDate?: () => Date };
 };
 
-const FILTERS = ["All", "Income", "Expense", "Today", "This Month"];
+const FILTERS = ["All", "Today", "This Month"];
 const RUPEE = "\u20B9";
 
 const parseTransactionDate = (value: Transaction["createdAt"]) => {
@@ -101,11 +101,7 @@ export default function SelfEmployedHistoryScreen() {
 
         let matchesFilter = true;
 
-        if (selectedFilter === "Income") {
-          matchesFilter = transactionType === "income";
-        } else if (selectedFilter === "Expense") {
-          matchesFilter = transactionType === "expense";
-        } else if (date && selectedFilter === "Today") {
+        if (date && selectedFilter === "Today") {
           matchesFilter = isSameDay(date, today);
         } else if (date && selectedFilter === "This Month") {
           matchesFilter =

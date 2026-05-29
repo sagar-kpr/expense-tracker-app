@@ -10,12 +10,13 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { getCategoryMeta } from "@/components/categoryMeta";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-import { getCategoryMeta } from "@/components/categoryMeta";
 
-const formatMoney = (value: number) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+const formatMoney = (value: number) =>
+  `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
 const getRelativeDate = (date: string) => {
   const expenseDate = new Date(date);
@@ -41,7 +42,7 @@ const getRelativeDate = (date: string) => {
 
 export default function SalaryDashboard() {
   const router = useRouter();
-  const { expenses } = useExpense();
+  const { salaryCycleExpenses } = useExpense();
   const { userData } = useAuth();
   const { theme, dark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
@@ -49,10 +50,10 @@ export default function SalaryDashboard() {
   const salary = Number(userData?.salary || 0);
   const spent = useMemo(
     () =>
-      expenses
+      salaryCycleExpenses
         .filter((item) => (item.type || "expense") === "expense")
         .reduce((sum, item) => sum + Number(item.amount), 0),
-    [expenses],
+    [salaryCycleExpenses],
   );
 
   const remaining = salary - spent;
@@ -61,12 +62,20 @@ export default function SalaryDashboard() {
   const firstName = userData?.name?.trim()?.split(" ")[0];
   const hour = new Date().getHours();
   const greeting =
-    hour < 12 ? "Good Morning ☀️" : hour < 18 ? "Good Afternoon 🌤️" : "Good Evening 🌙";
+    hour < 12
+      ? "Good Morning ☀️"
+      : hour < 18
+        ? "Good Afternoon 🌤️"
+        : "Good Evening 🌙";
 
   const today = new Date();
   const currentDay = today.getDate();
   const salaryDate = Number(userData?.salaryDate || 1);
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysInMonth = new Date(
+    today.getFullYear(),
+    today.getMonth() + 1,
+    0,
+  ).getDate();
   const daysLeft =
     currentDay <= salaryDate
       ? salaryDate - currentDay
@@ -85,14 +94,14 @@ export default function SalaryDashboard() {
 
   const grouped = useMemo(
     () =>
-      expenses
+      salaryCycleExpenses
         .filter((item) => (item.type || "expense") === "expense")
         .reduce((acc: Record<string, number>, item) => {
           const category = item.category || "Other";
           acc[category] = (acc[category] || 0) + Number(item.amount);
           return acc;
         }, {}),
-    [expenses],
+    [salaryCycleExpenses],
   );
 
   const categoryData = Object.entries(grouped)
@@ -119,7 +128,11 @@ export default function SalaryDashboard() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: 70, paddingBottom: 130 }}
+      contentContainerStyle={{
+        padding: 20,
+        paddingTop: 70,
+        paddingBottom: 130,
+      }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -147,7 +160,10 @@ export default function SalaryDashboard() {
         Dashboard
       </Text>
 
-      <Animated.View entering={FadeInUp.delay(100).duration(650)} style={{ marginTop: 28 }}>
+      <Animated.View
+        entering={FadeInUp.delay(100).duration(650)}
+        style={{ marginTop: 28 }}
+      >
         <View style={{ flexDirection: "row", gap: 14 }}>
           <MetricCard
             title="Salary"
@@ -221,8 +237,11 @@ export default function SalaryDashboard() {
               marginTop: 22,
             }}
           >
-            <Text style={{ color: "rgba(255,255,255,0.66)", fontSize: 16, flex: 1 }}>
-              Safe daily budget: {formatMoney(Math.max(0, Math.round(safeToSpend)))}
+            <Text
+              style={{ color: "rgba(255,255,255,0.66)", fontSize: 16, flex: 1 }}
+            >
+              Safe daily budget:{" "}
+              {formatMoney(Math.max(0, Math.round(safeToSpend)))}
             </Text>
             <View
               style={{
@@ -232,7 +251,9 @@ export default function SalaryDashboard() {
                 paddingHorizontal: 16,
                 paddingVertical: 9,
                 backgroundColor:
-                  remaining < 0 ? "rgba(248,113,113,0.25)" : "rgba(34,197,94,0.2)",
+                  remaining < 0
+                    ? "rgba(248,113,113,0.25)"
+                    : "rgba(34,197,94,0.2)",
               }}
             >
               <Ionicons
@@ -268,8 +289,21 @@ export default function SalaryDashboard() {
           elevation: 2,
         }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-          <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.text,
+              fontSize: 21,
+              fontWeight: "900",
+              flex: 1,
+            }}
+          >
             Monthly Usage
           </Text>
           <View
@@ -323,9 +357,13 @@ export default function SalaryDashboard() {
             gap: 16,
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 15 }}>Used: {usageRatio}%</Text>
+          <Text style={{ color: theme.text, fontSize: 15 }}>
+            Used: {usageRatio}%
+          </Text>
           <Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>
-            <Text style={{ color: "#EF4444", fontWeight: "900" }}>{formatMoney(spent)}</Text>{" "}
+            <Text style={{ color: "#EF4444", fontWeight: "900" }}>
+              {formatMoney(spent)}
+            </Text>{" "}
             of {formatMoney(salary)}
           </Text>
         </View>
@@ -360,7 +398,9 @@ export default function SalaryDashboard() {
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: theme.subText, fontSize: 15, fontWeight: "700" }}>
+          <Text
+            style={{ color: theme.subText, fontSize: 15, fontWeight: "700" }}
+          >
             Safe to Spend Today
           </Text>
           <Text
@@ -374,7 +414,11 @@ export default function SalaryDashboard() {
             }}
           >
             {formatMoney(Math.max(0, Math.round(safeToSpend)))}
-            <Text style={{ color: theme.subText, fontSize: 14, fontWeight: "700" }}>/day</Text>
+            <Text
+              style={{ color: theme.subText, fontSize: 14, fontWeight: "700" }}
+            >
+              /day
+            </Text>
           </Text>
           <Text style={{ color: theme.subText, fontSize: 13, marginTop: 6 }}>
             {daysLeft} days left till next salary.
@@ -384,9 +428,18 @@ export default function SalaryDashboard() {
 
       <Animated.View
         entering={FadeInUp.delay(300).duration(650)}
-        style={{ backgroundColor: theme.card, borderRadius: 24, padding: 22, marginTop: 24 }}
+        style={{
+          backgroundColor: theme.card,
+          borderRadius: 24,
+          padding: 22,
+          marginTop: 24,
+        }}
       >
-        <SectionHeader title="By Category" action="See All" onPress={() => router.push("/analytics")} />
+        <SectionHeader
+          title="By Category"
+          action="See All"
+          onPress={() => router.push("/analytics")}
+        />
 
         {categoryData.length === 0 ? (
           <EmptyState icon="pie-chart" label="No category data yet" />
@@ -415,11 +468,20 @@ export default function SalaryDashboard() {
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name={item.meta.icon} size={24} color={item.meta.color} />
+                  <Ionicons
+                    name={item.meta.icon}
+                    size={24}
+                    color={item.meta.color}
+                  />
                 </View>
                 <Text
                   numberOfLines={1}
-                  style={{ color: "#5F6368", fontSize: 14, marginTop: 12, maxWidth: 82 }}
+                  style={{
+                    color: "#5F6368",
+                    fontSize: 14,
+                    marginTop: 12,
+                    maxWidth: 82,
+                  }}
                 >
                   {item.key}
                 </Text>
@@ -447,7 +509,12 @@ export default function SalaryDashboard() {
 
       <Animated.View
         entering={FadeInUp.delay(400).duration(650)}
-        style={{ backgroundColor: theme.card, borderRadius: 24, padding: 22, marginTop: 24 }}
+        style={{
+          backgroundColor: theme.card,
+          borderRadius: 24,
+          padding: 22,
+          marginTop: 24,
+        }}
       >
         <SectionHeader
           title="Recent Transactions"
@@ -455,10 +522,10 @@ export default function SalaryDashboard() {
           onPress={() => router.push("/history")}
         />
 
-        {expenses.length === 0 ? (
+        {salaryCycleExpenses.length === 0 ? (
           <EmptyState icon="receipt-outline" label="No transactions yet" />
         ) : (
-          expenses.slice(0, 5).map((item, index) => {
+          salaryCycleExpenses.slice(0, 5).map((item, index) => {
             const meta = getCategoryMeta(item.category || "Other");
 
             return (
@@ -469,7 +536,10 @@ export default function SalaryDashboard() {
                   alignItems: "center",
                   paddingTop: index === 0 ? 2 : 16,
                   paddingBottom: 16,
-                  borderBottomWidth: index === Math.min(expenses.length, 5) - 1 ? 0 : 1,
+                  borderBottomWidth:
+                    index === Math.min(salaryCycleExpenses.length, 5) - 1
+                      ? 0
+                      : 1,
                   borderBottomColor: theme.border,
                 }}
               >
@@ -489,11 +559,21 @@ export default function SalaryDashboard() {
                 <View style={{ flex: 1 }}>
                   <Text
                     numberOfLines={1}
-                    style={{ color: theme.text, fontSize: 16, fontWeight: "900" }}
+                    style={{
+                      color: theme.text,
+                      fontSize: 16,
+                      fontWeight: "900",
+                    }}
                   >
                     {item.description || item.category || "Other"}
                   </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 7 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginTop: 7,
+                    }}
+                  >
                     <View
                       style={{
                         backgroundColor: "#FEE2E2",
@@ -502,11 +582,23 @@ export default function SalaryDashboard() {
                         paddingVertical: 4,
                       }}
                     >
-                      <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "800" }}>
+                      <Text
+                        style={{
+                          color: "#EF4444",
+                          fontSize: 12,
+                          fontWeight: "800",
+                        }}
+                      >
                         Expense
                       </Text>
                     </View>
-                    <Text style={{ color: theme.subText, fontSize: 13, marginLeft: 10 }}>
+                    <Text
+                      style={{
+                        color: theme.subText,
+                        fontSize: 13,
+                        marginLeft: 10,
+                      }}
+                    >
                       {getRelativeDate(item.createdAt)}
                     </Text>
                   </View>
@@ -524,7 +616,11 @@ export default function SalaryDashboard() {
                 >
                   -{formatMoney(Number(item.amount))}
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={theme.subText} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={theme.subText}
+                />
               </View>
             );
           })
@@ -573,17 +669,26 @@ function MetricCard({
       >
         <Ionicons name={icon} size={25} color={iconColor} />
       </View>
-      <Text style={{ color: "rgba(255,255,255,0.86)", fontSize: 16, marginTop: 16 }}>
+      <Text
+        style={{ color: "rgba(255,255,255,0.86)", fontSize: 16, marginTop: 16 }}
+      >
         {title}
       </Text>
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
-        style={{ color: "#FFFFFF", fontSize: 28, fontWeight: "900", marginTop: 8 }}
+        style={{
+          color: "#FFFFFF",
+          fontSize: 28,
+          fontWeight: "900",
+          marginTop: 8,
+        }}
       >
         {amount}
       </Text>
-      <Text style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 12 }}>
+      <Text
+        style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 12 }}
+      >
         {caption}
       </Text>
     </View>
@@ -610,12 +715,19 @@ function SectionHeader({
         marginBottom: 20,
       }}
     >
-      <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}>
+      <Text
+        style={{ color: theme.text, fontSize: 21, fontWeight: "900", flex: 1 }}
+      >
         {title}
       </Text>
       <Text
         onPress={onPress}
-        style={{ color: theme.primary, fontSize: 15, fontWeight: "700", marginRight: 6 }}
+        style={{
+          color: theme.primary,
+          fontSize: 15,
+          fontWeight: "700",
+          marginRight: 6,
+        }}
       >
         {action}
       </Text>
@@ -624,13 +736,21 @@ function SectionHeader({
   );
 }
 
-function EmptyState({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+function EmptyState({
+  icon,
+  label,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+}) {
   const { theme } = useTheme();
 
   return (
     <View style={{ alignItems: "center", paddingVertical: 26 }}>
       <Ionicons name={icon} size={38} color={theme.primary} />
-      <Text style={{ color: theme.subText, fontSize: 15, marginTop: 10 }}>{label}</Text>
+      <Text style={{ color: theme.subText, fontSize: 15, marginTop: 10 }}>
+        {label}
+      </Text>
     </View>
   );
 }

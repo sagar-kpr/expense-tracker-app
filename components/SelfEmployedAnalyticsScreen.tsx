@@ -1,7 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useMemo, useState } from "react";
-import { Dimensions, RefreshControl, ScrollView, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Dimensions,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { LineChart } from "react-native-chart-kit";
 import Animated, {
   FadeInUp,
@@ -12,9 +18,9 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
 
+import { getCategoryMeta } from "@/components/categoryMeta";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-import { getCategoryMeta } from "@/components/categoryMeta";
 import { useFocusEffect } from "@react-navigation/native";
 
 const screenWidth = Dimensions.get("window").width;
@@ -47,6 +53,7 @@ const formatMoney = (value: number) =>
 export default function SelfEmployedAnalyticsScreen() {
   const { expenses } = useExpense();
   const { theme } = useTheme();
+  const monthScrollRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
@@ -74,6 +81,13 @@ export default function SelfEmployedAnalyticsScreen() {
       );
     }, []),
   );
+
+  useEffect(() => {
+    monthScrollRef.current?.scrollTo({
+      x: Math.max(0, (selectedDate.getMonth() - 2) * 95),
+      animated: true,
+    });
+  }, [selectedDate]);
 
   const filteredTransactions = useMemo(() => {
     return (expenses as Transaction[]).filter((item) => {
@@ -131,7 +145,10 @@ export default function SelfEmployedAnalyticsScreen() {
     0,
   ).getDate();
 
-  const monthDays = Array.from({ length: daysInSelectedMonth }, (_value, index) => index + 1);
+  const monthDays = Array.from(
+    { length: daysInSelectedMonth },
+    (_value, index) => index + 1,
+  );
 
   const groupedByDay = filteredTransactions.reduce<Record<number, number>>(
     (acc, item) => {
@@ -139,7 +156,8 @@ export default function SelfEmployedAnalyticsScreen() {
       if (!date) return acc;
 
       const amount = Number(item.amount || 0);
-      const signedAmount = (item.type || "expense") === "income" ? amount : -amount;
+      const signedAmount =
+        (item.type || "expense") === "income" ? amount : -amount;
       const day = date.getDate();
 
       acc[day] = (acc[day] || 0) + signedAmount;
@@ -150,7 +168,9 @@ export default function SelfEmployedAnalyticsScreen() {
   );
 
   const chartLabels = monthDays.map((day) =>
-    day === 1 || day === daysInSelectedMonth || day % 5 === 0 ? String(day) : "",
+    day === 1 || day === daysInSelectedMonth || day % 5 === 0
+      ? String(day)
+      : "",
   );
   const chartValues = monthDays.map((day) => groupedByDay[day] || 0);
   const chartData = {
@@ -161,7 +181,8 @@ export default function SelfEmployedAnalyticsScreen() {
   const highestExpense = filteredTransactions
     .filter((item) => (item.type || "expense") === "expense")
     .reduce(
-      (max, item) => (Number(item.amount) > Number(max?.amount || 0) ? item : max),
+      (max, item) =>
+        Number(item.amount) > Number(max?.amount || 0) ? item : max,
       undefined as Transaction | undefined,
     );
   const totalTransactions = filteredTransactions.length;
@@ -170,7 +191,9 @@ export default function SelfEmployedAnalyticsScreen() {
   const onRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
-    setSelectedDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    setSelectedDate(
+      new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    );
 
     setTimeout(() => {
       setRefreshing(false);
@@ -203,6 +226,7 @@ export default function SelfEmployedAnalyticsScreen() {
       </Text>
 
       <ScrollView
+        ref={monthScrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ marginTop: 24, paddingRight: 20 }}
@@ -244,24 +268,39 @@ export default function SelfEmployedAnalyticsScreen() {
           alignItems: "center",
         }}
       >
-        <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", marginBottom: 20 }}>
+        <Text
+          style={{
+            color: theme.text,
+            fontSize: 21,
+            fontWeight: "900",
+            marginBottom: 20,
+          }}
+        >
           Income vs Expense
         </Text>
 
-        <FinanceDonut income={totals.income} expense={totals.expense} total={cashFlowTotal} />
+        <FinanceDonut
+          income={totals.income}
+          expense={totals.expense}
+          total={cashFlowTotal}
+        />
 
         <View style={{ width: "100%", marginTop: 24 }}>
           <DonutLegend
             color="#159665"
             label="Income"
             value={totals.income}
-            percent={cashFlowTotal > 0 ? (totals.income / cashFlowTotal) * 100 : 0}
+            percent={
+              cashFlowTotal > 0 ? (totals.income / cashFlowTotal) * 100 : 0
+            }
           />
           <DonutLegend
             color="#EF4444"
             label="Expense"
             value={totals.expense}
-            percent={cashFlowTotal > 0 ? (totals.expense / cashFlowTotal) * 100 : 0}
+            percent={
+              cashFlowTotal > 0 ? (totals.expense / cashFlowTotal) * 100 : 0
+            }
             last
           />
         </View>
@@ -276,7 +315,14 @@ export default function SelfEmployedAnalyticsScreen() {
           marginTop: 24,
         }}
       >
-        <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", marginBottom: 20 }}>
+        <Text
+          style={{
+            color: theme.text,
+            fontSize: 21,
+            fontWeight: "900",
+            marginBottom: 20,
+          }}
+        >
           Expense Categories
         </Text>
 
@@ -286,7 +332,9 @@ export default function SelfEmployedAnalyticsScreen() {
           categoryRows.map(([key, value]) => {
             const meta = getCategoryMeta(key);
             const percent =
-              totals.expense > 0 ? ((value / totals.expense) * 100).toFixed(1) : "0.0";
+              totals.expense > 0
+                ? ((value / totals.expense) * 100).toFixed(1)
+                : "0.0";
 
             return (
               <View
@@ -314,14 +362,24 @@ export default function SelfEmployedAnalyticsScreen() {
                   <Ionicons name={meta.icon} size={23} color={meta.color} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text, fontSize: 15, fontWeight: "800" }}>
+                  <Text
+                    style={{
+                      color: theme.text,
+                      fontSize: 15,
+                      fontWeight: "800",
+                    }}
+                  >
                     {key}
                   </Text>
-                  <Text style={{ color: theme.subText, fontSize: 13, marginTop: 4 }}>
+                  <Text
+                    style={{ color: theme.subText, fontSize: 13, marginTop: 4 }}
+                  >
                     {percent}% of spending
                   </Text>
                 </View>
-                <Text style={{ color: meta.color, fontSize: 17, fontWeight: "900" }}>
+                <Text
+                  style={{ color: meta.color, fontSize: 17, fontWeight: "900" }}
+                >
                   {formatMoney(value)}
                 </Text>
               </View>
@@ -339,7 +397,14 @@ export default function SelfEmployedAnalyticsScreen() {
           marginTop: 24,
         }}
       >
-        <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", marginBottom: 20 }}>
+        <Text
+          style={{
+            color: theme.text,
+            fontSize: 21,
+            fontWeight: "900",
+            marginBottom: 20,
+          }}
+        >
           Daily Cash Flow
         </Text>
 
@@ -385,7 +450,14 @@ export default function SelfEmployedAnalyticsScreen() {
           marginTop: 24,
         }}
       >
-        <Text style={{ color: theme.text, fontSize: 21, fontWeight: "900", marginBottom: 20 }}>
+        <Text
+          style={{
+            color: theme.text,
+            fontSize: 21,
+            fontWeight: "900",
+            marginBottom: 20,
+          }}
+        >
           Insights
         </Text>
 
@@ -411,13 +483,20 @@ export default function SelfEmployedAnalyticsScreen() {
           </Text>
         </View>
 
-        <InsightRow label="Total Transactions" value={String(totalTransactions)} />
+        <InsightRow
+          label="Total Transactions"
+          value={String(totalTransactions)}
+        />
         <InsightRow
           label="Highest Expense"
           value={formatMoney(Number(highestExpense?.amount || 0))}
         />
         <InsightRow label="Total Income" value={formatMoney(totals.income)} />
-        <InsightRow label="Total Expense" value={formatMoney(totals.expense)} last />
+        <InsightRow
+          label="Total Expense"
+          value={formatMoney(totals.expense)}
+          last
+        />
       </View>
     </ScrollView>
   );
@@ -557,12 +636,16 @@ function DonutLegend({
         }}
       />
       <View style={{ flex: 1 }}>
-        <Text style={{ color: theme.text, fontSize: 15, fontWeight: "800" }}>{label}</Text>
+        <Text style={{ color: theme.text, fontSize: 15, fontWeight: "800" }}>
+          {label}
+        </Text>
         <Text style={{ color: theme.subText, fontSize: 13, marginTop: 3 }}>
           {percent.toFixed(1)}% of cash flow
         </Text>
       </View>
-      <Text style={{ color, fontSize: 17, fontWeight: "900" }}>{formatMoney(value)}</Text>
+      <Text style={{ color, fontSize: 17, fontWeight: "900" }}>
+        {formatMoney(value)}
+      </Text>
     </View>
   );
 }
@@ -616,7 +699,9 @@ function EmptyState({
   return (
     <View style={{ alignItems: "center", paddingVertical: 34 }}>
       <Ionicons name={icon} size={38} color={theme.primary} />
-      <Text style={{ color: theme.subText, fontSize: 14, marginTop: 10 }}>{label}</Text>
+      <Text style={{ color: theme.subText, fontSize: 14, marginTop: 10 }}>
+        {label}
+      </Text>
     </View>
   );
 }

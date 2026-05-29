@@ -42,25 +42,25 @@ const getRelativeDate = (date: string) => {
 
 export default function SelfEmployedDashboard() {
   const router = useRouter();
-  const { expenses } = useExpense();
+  const { currentMonthExpenses } = useExpense();
   const { userData } = useAuth();
   const { theme, dark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   const income = useMemo(
     () =>
-      expenses
+      currentMonthExpenses
         .filter((item) => (item.type || "expense") === "income")
         .reduce((sum, item) => sum + Number(item.amount), 0),
-    [expenses],
+    [currentMonthExpenses],
   );
 
   const expense = useMemo(
     () =>
-      expenses
+      currentMonthExpenses
         .filter((item) => (item.type || "expense") === "expense")
         .reduce((sum, item) => sum + Number(item.amount), 0),
-    [expenses],
+    [currentMonthExpenses],
   );
 
   const netProfit = income - expense;
@@ -88,14 +88,14 @@ export default function SelfEmployedDashboard() {
 
   const grouped = useMemo(
     () =>
-      expenses
+      currentMonthExpenses
         .filter((item) => (item.type || "expense") === "expense")
         .reduce((acc: Record<string, number>, item) => {
           const category = item.category || "Other";
           acc[category] = (acc[category] || 0) + Number(item.amount);
           return acc;
         }, {}),
-    [expenses],
+    [currentMonthExpenses],
   );
 
   const categoryData = Object.entries(grouped)
@@ -236,7 +236,7 @@ export default function SelfEmployedDashboard() {
             <Text
               style={{ color: "rgba(255,255,255,0.66)", fontSize: 16, flex: 1 }}
             >
-              Income after all expenses
+              After business expenses
             </Text>
             <View
               style={{
@@ -460,10 +460,10 @@ export default function SelfEmployedDashboard() {
           onPress={() => router.push("/history")}
         />
 
-        {expenses.length === 0 ? (
+        {currentMonthExpenses.length === 0 ? (
           <EmptyState icon="receipt-outline" label="No transactions yet" />
         ) : (
-          expenses.slice(0, 5).map((item, index) => {
+          currentMonthExpenses.slice(0, 5).map((item, index) => {
             const isIncome = (item.type || "expense") === "income";
             const meta = isIncome
               ? getCategoryMeta(item.category || "Freelance")
@@ -478,7 +478,9 @@ export default function SelfEmployedDashboard() {
                   paddingTop: index === 0 ? 2 : 16,
                   paddingBottom: 16,
                   borderBottomWidth:
-                    index === Math.min(expenses.length, 5) - 1 ? 0 : 1,
+                    index === Math.min(currentMonthExpenses.length, 5) - 1
+                      ? 0
+                      : 1,
                   borderBottomColor: theme.border,
                 }}
               >

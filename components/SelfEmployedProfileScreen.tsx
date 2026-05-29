@@ -115,16 +115,22 @@ export default function SelfEmployedProfileScreen() {
         entering={FadeInUp.delay(100).duration(700)}
         style={{
           backgroundColor: "#159665",
-          borderRadius: 30,
-          padding: 24,
+
+          borderRadius: 34,
+
+          padding: 26,
+
+          overflow: "hidden",
+
+          position: "relative",
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View
             style={{
-              width: 68,
-              height: 68,
-              borderRadius: 24,
+              width: 76,
+              height: 76,
+              borderRadius: 26,
               backgroundColor: "#FFFFFF",
               borderColor: "#FFFFFF",
               justifyContent: "center",
@@ -146,7 +152,7 @@ export default function SelfEmployedProfileScreen() {
           <View style={{ flex: 1 }}>
             <Text
               numberOfLines={1}
-              style={{ color: "#FFFFFF", fontSize: 27, fontWeight: "900" }}
+              style={{ color: "#FFFFFF", fontSize: 30, fontWeight: "800" }}
             >
               {userData?.name}
             </Text>
@@ -209,8 +215,8 @@ export default function SelfEmployedProfileScreen() {
           style={{
             flexDirection: "row",
             justifyContent: "space-between",
-            marginTop: 26,
-            paddingTop: 20,
+            marginTop: 28,
+            paddingTop: 22,
             borderTopWidth: 1,
             borderTopColor: "rgba(255,255,255,0.22)",
           }}
@@ -316,7 +322,7 @@ export default function SelfEmployedProfileScreen() {
         </TouchableOpacity> */}
       </Animated.View>
 
-      <Animated.View
+      {/* <Animated.View
         entering={FadeInUp.delay(300).duration(700)}
         style={{
           marginTop: 24,
@@ -334,7 +340,7 @@ export default function SelfEmployedProfileScreen() {
           value={formatMoney(totals.expense)}
           color="#EF4444"
         />
-      </Animated.View>
+      </Animated.View> */}
 
       <Animated.View
         entering={FadeInUp.delay(400).duration(700)}
@@ -353,14 +359,14 @@ export default function SelfEmployedProfileScreen() {
             marginBottom: 22,
           }}
         >
-          Statistics
+          Business Insights
         </Text>
 
         <SettingsRow
           label="Total Transactions"
           value={String(totalTransactions)}
         />
-        <SettingsRow label="Active Days" value={String(activeDays)} />
+
         <SettingsRow
           label="Business Status"
           value={netProfit < 0 ? "Running Loss" : "Profit Running"}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Dimensions,
@@ -16,8 +16,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { useTheme } from "@/context/ThemeContext";
 import { getCategoryMeta } from "@/components/categoryMeta";
+import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 
@@ -80,6 +80,7 @@ function DonutSegment({
 
 export default function AnalyticsScreen() {
   const { expenses } = useExpense();
+  const monthScrollRef = useRef<any>(null);
   const { theme } = useTheme();
   const { salary: onboardingSalary } = useOnboardingStore();
 
@@ -137,6 +138,13 @@ export default function AnalyticsScreen() {
       );
     }, []),
   );
+
+  useEffect(() => {
+    monthScrollRef.current?.scrollTo({
+      x: Math.max(0, (selectedDate.getMonth() - 2) * 95),
+      animated: true,
+    });
+  }, [selectedDate]);
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((item) => {
@@ -294,6 +302,7 @@ export default function AnalyticsScreen() {
       </Text>
 
       <ScrollView
+        ref={monthScrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{
