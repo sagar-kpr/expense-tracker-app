@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Expense Tracker",
-    "slug": "expense-tracker",
+    "name": "Expense Tracker (Preview)",
+    "slug": "expense-tracker-preview",
     "version": "1.0.0",
     "orientation": "portrait",
 
@@ -15,11 +15,13 @@
 
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sagarkpr.expensetracker"
+      "bundleIdentifier": "com.sagarkpr.expensetracker.preview"
     },
 
     "android": {
-      "package": "com.sagarkpr.expensetracker",
+      "package": "com.sagarkpr.expensetracker.preview",
+
+      "permissions": ["READ_SMS", "RECEIVE_SMS"],
 
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive.png",
