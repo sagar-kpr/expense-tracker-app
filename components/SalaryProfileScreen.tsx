@@ -1,8 +1,13 @@
 import {
+  ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -32,6 +37,14 @@ export default function ProfileScreen() {
   const { theme, dark, setDark } = useTheme();
 
   const [notifications, setNotifications] = useState(true);
+
+  const [editModal, setEditModal] = useState<"salary" | "date" | null>(null);
+
+  const [editValue, setEditValue] = useState("");
+
+  const [editError, setEditError] = useState("");
+
+  const [editSaving, setEditSaving] = useState(false);
 
   const totalSpent = useMemo(() => {
     return expenses.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -64,39 +77,90 @@ export default function ProfileScreen() {
   const handleEditSalary = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    Alert.prompt(
-      "Edit Salary",
+    setEditValue(String(userData?.salary || ""));
 
-      "Enter your monthly salary",
+    setEditError("");
 
-      [
-        {
-          text: "Cancel",
+    setEditModal("salary");
+  };
 
-          style: "cancel",
-        },
+  const handleEditSalaryDate = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-        {
-          text: "Save",
+    setEditValue(String(userData?.salaryDate || "1"));
 
-          onPress: async (value: any) => {
-            if (!value) return;
+    setEditError("");
 
-            const user = auth.currentUser;
+    setEditModal("date");
+  };
 
-            if (!user) return;
+  const closeEditModal = () => {
+    if (editSaving) {
+      return;
+    }
 
-            await updateDoc(doc(db, "users", user.uid), {
-              salary: Number(value),
-            });
-          },
-        },
-      ],
+    setEditModal(null);
 
-      "plain-text",
+    setEditValue("");
 
-      String(userData?.salary || ""),
-    );
+    setEditError("");
+  };
+
+  const handleSaveEdit = async () => {
+    const value = editValue.trim();
+
+    if (!value) {
+      setEditError("Enter a value to continue.");
+
+      return;
+    }
+
+    const parsedValue = Number(value);
+
+    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+      setEditError(
+        editModal === "salary"
+          ? "Enter a valid salary amount."
+          : "Enter a valid salary date.",
+      );
+
+      return;
+    }
+
+    if (editModal === "date" && (parsedValue < 1 || parsedValue > 31)) {
+      setEditError("Salary date must be between 1 and 31.");
+
+      return;
+    }
+
+    const user = auth.currentUser;
+
+    if (!user || !editModal) {
+      return;
+    }
+
+    setEditSaving(true);
+
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        [editModal === "salary" ? "salary" : "salaryDate"]:
+          editModal === "salary" ? parsedValue : Math.round(parsedValue),
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      setEditModal(null);
+
+      setEditValue("");
+
+      setEditError("");
+    } catch (error) {
+      console.log("Salary profile update error:", error);
+
+      setEditError("Could not save right now. Please try again.");
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   return (
@@ -587,80 +651,7 @@ export default function ProfileScreen() {
 
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-              Alert.prompt(
-                "Edit Salary Date",
-
-                "Enter salary date (1-31)",
-
-                [
-                  {
-                    text: "Cancel",
-
-                    style: "cancel",
-                  },
-
-                  {
-                    text: "Save",
-
-                    onPress: async (value: any) => {
-                      if (!value) return;
-
-                      const parsedDate = Number(value);
-
-                      if (
-                        Number.isNaN(parsedDate) ||
-                        parsedDate < 1 ||
-                        parsedDate > 31
-                      ) {
-                        Alert.alert(
-                          "Invalid Date",
-                          "Please enter a date between 1 and 31.",
-                        );
-
-                        return;
-                      }
-
-                      Alert.alert(
-                        "Recalculate Salary Cycle",
-                        "Changing salary date will recalculate your current salary cycle.",
-
-                        [
-                          {
-                            text: "Cancel",
-                            style: "cancel",
-                          },
-
-                          {
-                            text: "Continue",
-
-                            onPress: async () => {
-                              const user = auth.currentUser;
-
-                              if (!user) return;
-
-                              await updateDoc(
-                                doc(db, "users", user.uid),
-
-                                {
-                                  salaryDate: parsedDate,
-                                },
-                              );
-                            },
-                          },
-                        ],
-                      );
-                    },
-                  },
-                ],
-
-                "plain-text",
-
-                String(userData?.salaryDate || "1"),
-              );
-            }}
+            onPress={handleEditSalaryDate}
             style={{
               flex: 1,
 
@@ -1078,6 +1069,153 @@ export default function ProfileScreen() {
           </Text>
         </TouchableOpacity>
       </Animated.View>
+
+      <Modal
+        transparent
+        visible={!!editModal}
+        animationType="fade"
+        onRequestClose={closeEditModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            padding: 20,
+            backgroundColor: "rgba(0,0,0,0.44)",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: theme.card,
+              borderRadius: 28,
+              padding: 24,
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <Text
+              style={{
+                color: theme.text,
+                fontSize: 22,
+                fontWeight: "800",
+              }}
+            >
+              {editModal === "salary" ? "Edit Salary" : "Edit Salary Date"}
+            </Text>
+
+            <Text
+              style={{
+                color: theme.subText,
+                fontSize: 14,
+                lineHeight: 22,
+                marginTop: 8,
+              }}
+            >
+              {editModal === "salary"
+                ? "Update your monthly income amount."
+                : "Changing this date recalculates your current salary cycle."}
+            </Text>
+
+            <TextInput
+              value={editValue}
+              onChangeText={(text) => {
+                setEditValue(text.replace(/[^0-9]/g, ""));
+                setEditError("");
+              }}
+              keyboardType="number-pad"
+              placeholder={editModal === "salary" ? "Monthly salary" : "1-31"}
+              placeholderTextColor={theme.subText}
+              autoFocus
+              style={{
+                backgroundColor: theme.background,
+                borderColor: editError ? theme.danger : theme.border,
+                borderRadius: 18,
+                borderWidth: 1,
+                color: theme.text,
+                fontSize: 18,
+                fontWeight: "700",
+                marginTop: 22,
+                minHeight: 58,
+                paddingHorizontal: 18,
+              }}
+            />
+
+            {!!editError && (
+              <Text
+                style={{
+                  color: theme.danger,
+                  fontSize: 13,
+                  fontWeight: "700",
+                  marginTop: 12,
+                }}
+              >
+                {editError}
+              </Text>
+            )}
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 12,
+                marginTop: 24,
+              }}
+            >
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={closeEditModal}
+                disabled={editSaving}
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  backgroundColor: theme.border,
+                  borderRadius: 18,
+                  paddingVertical: 16,
+                  opacity: editSaving ? 0.6 : 1,
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.text,
+                    fontSize: 15,
+                    fontWeight: "800",
+                  }}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleSaveEdit}
+                disabled={editSaving}
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  backgroundColor: theme.primary,
+                  borderRadius: 18,
+                  paddingVertical: 16,
+                  opacity: editSaving ? 0.75 : 1,
+                }}
+              >
+                {editSaving ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 15,
+                      fontWeight: "800",
+                    }}
+                  >
+                    Save
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }

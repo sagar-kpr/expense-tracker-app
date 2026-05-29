@@ -32,7 +32,7 @@ type Expense = {
 
   type?: "income" | "expense";
 
-  createdAt: string;
+  createdAt: string | Date | { toDate?: () => Date };
 };
 
 type ExpenseContextType = {
@@ -56,6 +56,15 @@ type ExpenseContextType = {
 };
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
+
+const getExpenseDate = (value: Expense["createdAt"]) => {
+  const date =
+    typeof value === "object" && "toDate" in value && value.toDate
+      ? value.toDate()
+      : new Date(value as string | Date);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const { userData } = useAuth();
@@ -155,7 +164,11 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     cycleEnd.setMonth(cycleEnd.getMonth() + 1);
 
     return expenses.filter((item) => {
-      const expenseDate = new Date(item.createdAt);
+      const expenseDate = getExpenseDate(item.createdAt);
+
+      if (!expenseDate || (item.type || "expense") !== "expense") {
+        return false;
+      }
 
       return expenseDate >= cycleStart && expenseDate < cycleEnd;
     });
@@ -174,7 +187,11 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     return expenses.filter((item) => {
-      const expenseDate = new Date(item.createdAt);
+      const expenseDate = getExpenseDate(item.createdAt);
+
+      if (!expenseDate) {
+        return false;
+      }
 
       return expenseDate >= monthStart && expenseDate < nextMonth;
     });

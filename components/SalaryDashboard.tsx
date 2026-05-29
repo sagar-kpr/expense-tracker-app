@@ -18,8 +18,16 @@ import { useTheme } from "@/context/ThemeContext";
 const formatMoney = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
-const getRelativeDate = (date: string) => {
-  const expenseDate = new Date(date);
+const getRelativeDate = (value: string | Date | { toDate?: () => Date }) => {
+  const expenseDate =
+    typeof value === "object" && "toDate" in value && value.toDate
+      ? value.toDate()
+      : new Date(value as string | Date);
+
+  if (Number.isNaN(expenseDate.getTime())) {
+    return "Unknown date";
+  }
+
   const today = new Date();
   const yesterday = new Date();
 
@@ -57,8 +65,13 @@ export default function SalaryDashboard() {
   );
 
   const remaining = salary - spent;
-  const usageRatio = salary > 0 ? Math.round((spent / salary) * 100) : 0;
-  const cappedRatio = Math.min(usageRatio, remaining < 0 ? 88 : 100);
+  const usagePercent = salary > 0 ? (spent / salary) * 100 : 0;
+  const usageLabel =
+    spent > 0 && usagePercent < 1 ? "<1" : String(Math.round(usagePercent));
+  const cappedRatio =
+    spent > 0 && usagePercent < 1
+      ? 2
+      : Math.min(usagePercent, remaining < 0 ? 88 : 100);
   const firstName = userData?.name?.trim()?.split(" ")[0];
   const hour = new Date().getHours();
   const greeting =
@@ -358,7 +371,7 @@ export default function SalaryDashboard() {
           }}
         >
           <Text style={{ color: theme.text, fontSize: 15 }}>
-            Used: {usageRatio}%
+            Used: {usageLabel}%
           </Text>
           <Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>
             <Text style={{ color: "#EF4444", fontWeight: "900" }}>

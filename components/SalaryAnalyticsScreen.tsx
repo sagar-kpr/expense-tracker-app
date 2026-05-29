@@ -79,7 +79,7 @@ function DonutSegment({
 }
 
 export default function AnalyticsScreen() {
-  const { expenses } = useExpense();
+  const { salaryCycleExpenses, expenses } = useExpense();
   const monthScrollRef = useRef<any>(null);
   const { theme } = useTheme();
   const { salary: onboardingSalary } = useOnboardingStore();
@@ -152,6 +152,13 @@ export default function AnalyticsScreen() {
 
       const date = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
 
+      if (
+        Number.isNaN(date.getTime()) ||
+        (item.type || "expense") !== "expense"
+      ) {
+        return false;
+      }
+
       return (
         date.getMonth() === selectedDate.getMonth() &&
         date.getFullYear() === selectedDate.getFullYear()
@@ -179,6 +186,8 @@ export default function AnalyticsScreen() {
 
   const salaryUsed =
     salaryAmount > 0 ? Math.min((totalSpent / salaryAmount) * 100, 100) : 0;
+  const salaryUsedLabel =
+    totalSpent > 0 && salaryUsed < 1 ? "<1" : String(Math.round(salaryUsed));
 
   const ranges = Object.entries(groupedCategories).sort(
     (a: any, b: any) => b[1] - a[1],
@@ -440,7 +449,7 @@ export default function AnalyticsScreen() {
                     color: theme.text,
                   }}
                 >
-                  {Math.round(salaryUsed)}%
+                  {salaryUsedLabel}%
                 </Text>
 
                 <Text

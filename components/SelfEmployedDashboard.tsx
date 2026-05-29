@@ -18,8 +18,16 @@ import { useTheme } from "@/context/ThemeContext";
 const formatMoney = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
-const getRelativeDate = (date: string) => {
-  const expenseDate = new Date(date);
+const getRelativeDate = (value: string | Date | { toDate?: () => Date }) => {
+  const expenseDate =
+    typeof value === "object" && "toDate" in value && value.toDate
+      ? value.toDate()
+      : new Date(value as string | Date);
+
+  if (Number.isNaN(expenseDate.getTime())) {
+    return "Unknown date";
+  }
+
   const today = new Date();
   const yesterday = new Date();
 
