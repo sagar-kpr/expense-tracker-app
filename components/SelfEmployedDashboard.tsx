@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import Animated, {
   FadeInUp,
   useAnimatedStyle,
@@ -13,6 +13,7 @@ import Animated, {
 import { getCategoryMeta } from "@/components/categoryMeta";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
+import { usePendingTransactions } from "@/context/PendingTransactionContext";
 import { useTheme } from "@/context/ThemeContext";
 
 const formatMoney = (value: number) =>
@@ -52,6 +53,7 @@ export default function SelfEmployedDashboard() {
   const router = useRouter();
   const { currentMonthExpenses } = useExpense();
   const { userData } = useAuth();
+  const { pendingCount } = usePendingTransactions();
   const { theme, dark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -162,6 +164,59 @@ export default function SelfEmployedDashboard() {
       >
         Dashboard
       </Text>
+
+      {pendingCount > 0 && (
+        <Pressable
+          onPress={() => router.push("/pending-transactions" as any)}
+          style={{
+            alignItems: "center",
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+            borderRadius: 20,
+            borderWidth: 1,
+            flexDirection: "row",
+            marginTop: 20,
+            minHeight: 64,
+            paddingHorizontal: 16,
+          }}
+        >
+          <View
+            style={{
+              alignItems: "center",
+              backgroundColor: `${theme.primary}18`,
+              borderRadius: 16,
+              height: 42,
+              justifyContent: "center",
+              marginRight: 12,
+              width: 42,
+            }}
+          >
+            <Ionicons name="receipt" size={21} color={theme.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                color: theme.text,
+                fontSize: 15,
+                fontWeight: "900",
+              }}
+            >
+              {pendingCount} transaction{pendingCount > 1 ? "s" : ""} need
+              review
+            </Text>
+            <Text
+              style={{
+                color: theme.subText,
+                fontSize: 12,
+                marginTop: 4,
+              }}
+            >
+              Add, edit, or ignore detected bank messages.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.subText} />
+        </Pressable>
+      )}
 
       <Animated.View
         entering={FadeInUp.delay(100).duration(650)}

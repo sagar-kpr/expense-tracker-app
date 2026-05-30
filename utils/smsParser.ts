@@ -1,0 +1,142 @@
+export type ParsedSmsTransaction = {
+  amount: number;
+  category: string;
+  description: string;
+  rawMessage: string;
+  source: "manual-paste" | "sms-auto";
+  transactionDate: string;
+  type: "expense" | "income";
+};
+
+const expenseKeywords = [
+  "debited",
+  "debit",
+  "spent",
+  "paid",
+  "withdrawn",
+  "purchase",
+  "sent",
+  "upi payment",
+];
+
+const incomeKeywords = [
+  "credited",
+  "credit",
+  "received",
+  "deposited",
+  "salary",
+  "refund",
+  "cashback",
+];
+
+const categoryRules = [
+  {
+    category: "Food",
+    keywords: ["swiggy", "zomato", "restaurant", "food", "cafe"],
+  },
+  {
+    category: "Travel",
+    keywords: ["uber", "ola", "metro", "irctc", "flight", "travel"],
+  },
+  {
+    category: "Shopping",
+    keywords: ["amazon", "flipkart", "myntra", "shopping", "store"],
+  },
+  {
+    category: "Bills",
+    keywords: ["electricity", "bill", "recharge", "broadband", "mobile"],
+  },
+  {
+    category: "Health",
+    keywords: ["pharmacy", "hospital", "clinic", "medical"],
+  },
+];
+
+const amountPatterns = [
+  /(?:inr|rs\.?|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+  /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:inr|rs\.?|₹)/i,
+];
+
+const cleanAmount = (value: string) => Number(value.replace(/,/g, ""));
+
+const includesAny = (message: string, keywords: string[]) =>
+  keywords.some((keyword) => message.includes(keyword));
+
+const getAmount = (message: string) => {
+  for (const pattern of amountPatterns) {
+    const match = message.match(pattern);
+
+    if (match?.[1]) {
+      const amount = cleanAmount(match[1]);
+
+      if (Number.isFinite(amount) && amount > 0) {
+        return amount;
+      }
+    }
+  }
+
+  return null;
+};
+
+const getCategory = (message: string, type: "expense" | "income") => {
+  if (type === "income") {
+    if (message.includes("salary")) {
+      return "Salary";
+    }
+
+    if (message.includes("refund") || message.includes("cashback")) {
+      return "Other";
+    }
+
+    return "Cash";
+  }
+
+  return (
+    categoryRules.find((rule) =>
+      rule.keywords.some((keyword) => message.includes(keyword)),
+    )?.category || "Other"
+  );
+};
+
+const getDescription = (rawMessage: string, type: "expense" | "income") => {
+  const normalized = rawMessage.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return type === "income" ? "Detected income" : "Detected expense";
+  }
+
+  return normalized.length > 72
+    ? `${normalized.slice(0, 69).trim()}...`
+    : normalized;
+};
+
+export const parseSmsMessage = (
+  rawMessage: string,
+  source: "manual-paste" | "sms-auto" = "manual-paste",
+): ParsedSmsTransaction | null => {
+  const message = rawMessage.toLowerCase();
+  const amount = getAmount(rawMessage);
+
+  if (!amount) {
+    return null;
+  }
+
+  const isExpense = includesAny(message, expenseKeywords);
+  const isIncome = includesAny(message, incomeKeywords);
+
+  if (!isExpense && !isIncome) {
+    return null;
+  }
+
+  const type = isExpense && !isIncome ? "expense" : "income";
+
+  return {
+    amount,
+    category: getCategory(message, type),
+    description: getDescription(rawMessage, type),
+    rawMessage,
+    source,
+    transactionDate: new Date().toISOString(),
+    type,
+  };
+};

@@ -79,7 +79,7 @@ function DonutSegment({
 }
 
 export default function AnalyticsScreen() {
-  const { salaryCycleExpenses, expenses } = useExpense();
+  const { expenses } = useExpense();
   const monthScrollRef = useRef<any>(null);
   const { theme } = useTheme();
   const { salary: onboardingSalary } = useOnboardingStore();

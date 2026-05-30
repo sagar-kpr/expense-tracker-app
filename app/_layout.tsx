@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ExpenseProvider } from "../context/ExpenseContext";
+import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
 // SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
@@ -98,7 +99,9 @@ export default function RootLayout() {
       <AuthProvider>
         <ThemeProvider>
           <ExpenseProvider>
-            <RootNavigator />
+            <PendingTransactionProvider>
+              <RootNavigator />
+            </PendingTransactionProvider>
           </ExpenseProvider>
         </ThemeProvider>
       </AuthProvider>
