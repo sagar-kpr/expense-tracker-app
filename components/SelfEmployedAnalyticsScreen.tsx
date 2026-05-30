@@ -518,6 +518,23 @@ function FinanceDonut({
   const incomeDash = total > 0 ? circumference * (income / total) : 0;
   const expenseDash = total > 0 ? circumference * (expense / total) : 0;
   const expenseRatio = income > 0 ? Math.round((expense / income) * 100) : 0;
+
+  const isNoIncome = income <= 0;
+  const isOverBudget = income > 0 && expense > income;
+
+  let centerTitle = `${expenseRatio}%`;
+  let centerSubtitle = "Expense Ratio";
+
+  if (isNoIncome && expense > 0) {
+    centerTitle = "No Income";
+    centerSubtitle = "Add income to track";
+  } else if (isOverBudget) {
+    centerTitle = "Over Spent";
+    centerSubtitle = `${expenseRatio}% expense ratio`;
+  } else if (income === 0 && expense === 0) {
+    centerTitle = "No Data";
+    centerSubtitle = "No transactions";
+  }
   const progress = useSharedValue(0);
 
   React.useEffect(() => {
@@ -536,7 +553,7 @@ function FinanceDonut({
           strokeWidth={strokeWidth}
           fill="none"
         />
-        {total > 0 && (
+        {(total > 0 || expense > 0) && (
           <>
             <DonutArc
               circumference={circumference}
@@ -546,22 +563,65 @@ function FinanceDonut({
             />
             <DonutArc
               circumference={circumference}
-              dash={expenseDash}
-              offset={-incomeDash}
+              dash={isNoIncome || isOverBudget ? circumference : expenseDash}
+              offset={isNoIncome || isOverBudget ? 0 : -incomeDash}
               progress={progress}
               stroke="#EF4444"
             />
           </>
         )}
       </Svg>
-
       <View style={{ position: "absolute", alignItems: "center" }}>
-        <Text style={{ color: theme.text, fontSize: 28, fontWeight: "900" }}>
-          {expenseRatio}%
+        <Text
+          style={{
+            color: isNoIncome || isOverBudget ? "#EF4444" : theme.text,
+            fontSize: centerTitle.length > 10 ? 16 : isOverBudget ? 18 : 20,
+            fontWeight: "900",
+            textAlign: "center",
+            paddingHorizontal: 20,
+            lineHeight: 22,
+          }}
+        >
+          {centerTitle}
         </Text>
-        <Text style={{ color: theme.subText, fontSize: 13, marginTop: 4 }}>
-          Expense Ratio
+
+        <Text
+          style={{
+            color: theme.subText,
+            fontSize: 10,
+            marginTop: 4,
+            textAlign: "center",
+            paddingHorizontal: 16,
+          }}
+        >
+          {centerSubtitle}
         </Text>
+
+        {isOverBudget && (
+          <Text
+            style={{
+              color: "#EF4444",
+              fontSize: 9,
+              fontWeight: "700",
+              marginTop: 6,
+            }}
+          >
+            {formatMoney(expense - income)} over income
+          </Text>
+        )}
+
+        {isNoIncome && expense > 0 && (
+          <Text
+            style={{
+              color: "#EF4444",
+              fontSize: 9,
+              fontWeight: "700",
+              marginTop: 6,
+            }}
+          >
+            {formatMoney(expense)} spent
+          </Text>
+        )}
       </View>
     </View>
   );
