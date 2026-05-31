@@ -77,7 +77,7 @@ const getExpenseTime = (date: Date | null) => {
 };
 
 export default function HistoryScreen() {
-  const { expenses, salaryCycleExpenses } = useExpense();
+  const { expenses, salaryCycleExpenses, deleteExpense } = useExpense();
   const { theme, dark } = useTheme();
   const styles = getStyles(theme);
   const [search, setSearch] = useState("");
@@ -85,6 +85,9 @@ export default function HistoryScreen() {
   const [selectedFilter, setSelectedFilter] = useState("All");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const [deleteItem, setDeleteItem] = useState<Expense | null>(null);
 
   const handleRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -406,15 +409,200 @@ export default function HistoryScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.transactionAmount}>
-                    {RUPEE}
-                    {Number(item.amount || 0).toLocaleString("en-IN")}
-                  </Text>
+                  {/* RIGHT */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginLeft: 10,
+                    }}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                      style={[
+                        styles.transactionAmount,
+                        {
+                          maxWidth: 100,
+                          textAlign: "right",
+                        },
+                      ]}
+                    >
+                      {RUPEE}
+                      {Number(item.amount || 0).toLocaleString("en-IN")}
+                    </Text>
+
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+                        setDeleteItem(item);
+                        setShowDeleteModal(true);
+                      }}
+                      hitSlop={10}
+                      style={{
+                        marginLeft: 12,
+
+                        width: 25,
+                        height: 25,
+
+                        borderRadius: 12,
+
+                        backgroundColor: dark
+                          ? "rgba(239,68,68,0.12)"
+                          : "#FEE2E2",
+
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={18}
+                        color="#EF4444"
+                      />
+                    </Pressable>
+                  </View>
                 </View>
               );
             })}
           </Animated.View>
         ))
+      )}
+      {showDeleteModal && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 24,
+          }}
+        >
+          <Animated.View
+            entering={FadeInUp.duration(250)}
+            style={{
+              width: "100%",
+              backgroundColor: theme.card,
+              borderRadius: 30,
+              padding: 24,
+            }}
+          >
+            <View
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: 24,
+                backgroundColor: "#FEE2E2",
+                justifyContent: "center",
+                alignItems: "center",
+                alignSelf: "center",
+              }}
+            >
+              <Ionicons name="trash-outline" size={32} color="#EF4444" />
+            </View>
+
+            <Text
+              style={{
+                color: theme.text,
+                fontSize: 22,
+                fontWeight: "900",
+                textAlign: "center",
+                marginTop: 20,
+              }}
+            >
+              Delete Transaction?
+            </Text>
+
+            <Text
+              style={{
+                color: theme.subText,
+                fontSize: 15,
+                lineHeight: 24,
+                textAlign: "center",
+                marginTop: 10,
+              }}
+            >
+              This transaction will be removed permanently from your history.
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 12,
+                marginTop: 28,
+              }}
+            >
+              <Pressable
+                onPress={() => {
+                  setShowDeleteModal(false);
+                  setDeleteItem(null);
+                }}
+                style={{
+                  flex: 1,
+                  height: 54,
+                  borderRadius: 18,
+                  backgroundColor: theme.background,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.text,
+                    fontSize: 15,
+                    fontWeight: "800",
+                  }}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={async () => {
+                  if (!deleteItem) return;
+
+                  try {
+                    await deleteExpense(deleteItem.id);
+
+                    Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Success,
+                    );
+
+                    setShowDeleteModal(false);
+
+                    setDeleteItem(null);
+                  } catch (error) {
+                    console.log(error);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  height: 54,
+                  borderRadius: 18,
+                  backgroundColor: "#EF4444",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 15,
+                    fontWeight: "900",
+                  }}
+                >
+                  Delete
+                </Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
       )}
     </ScrollView>
   );
