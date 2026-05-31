@@ -274,21 +274,54 @@ export default function HistoryScreen() {
         )}
 
         <View style={styles.totalCard}>
-          <View style={styles.totalLeft}>
+          <View
+            style={[
+              styles.totalLeft,
+              {
+                flex: 1,
+                minWidth: 0,
+                marginRight: 12,
+              },
+            ]}
+          >
             <View style={styles.totalIconBox}>
               <Ionicons name="wallet" size={30} color={theme.primary} />
             </View>
 
-            <View>
-              <Text style={styles.totalLabel}>Total Spent</Text>
-              <Text style={styles.totalAmount}>
+            <View
+              style={{
+                flex: 1,
+              }}
+            >
+              <Text style={[styles.totalLabel]}>Total Spent</Text>
+
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+                ellipsizeMode="tail"
+                style={[
+                  styles.totalAmount,
+                  {
+                    width: "100%",
+                    flexShrink: 1,
+                  },
+                ]}
+              >
                 {RUPEE}
                 {totalSpent.toLocaleString("en-IN")}
               </Text>
             </View>
           </View>
 
-          <View style={styles.chartIconBox}>
+          <View
+            style={[
+              styles.chartIconBox,
+              {
+                marginLeft: 8,
+              },
+            ]}
+          >
             <Ionicons name="bar-chart" size={32} color={theme.primary} />
           </View>
         </View>
@@ -340,7 +373,7 @@ export default function HistoryScreen() {
                         {item.description || category}
                       </Text>
 
-                      <View style={styles.transactionMeta}>
+                      <View style={[styles.transactionMeta]}>
                         <View
                           style={[
                             styles.categoryPill,
@@ -361,7 +394,12 @@ export default function HistoryScreen() {
                           </Text>
                         </View>
 
-                        <Text style={styles.transactionTime}>
+                        <Text
+                          style={[
+                            styles.transactionTime,
+                            { fontSize: 12, marginLeft: 7 },
+                          ]}
+                        >
                           {getExpenseTime(dateValue)}
                         </Text>
                       </View>

@@ -707,21 +707,29 @@ export default function ProfileScreen() {
               color: theme.subText,
 
               marginBottom: 10,
+
+              fontSize: 13,
             }}
           >
             Salary Used
           </Text>
 
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            ellipsizeMode="tail"
             style={{
-              fontSize: 24,
+              fontSize: 20,
 
               fontWeight: "800",
 
               color: theme.text,
+
+              width: "100%",
             }}
           >
-            ₹{currentCycleSpent.toLocaleString()}
+            ₹{currentCycleSpent.toLocaleString("en-IN")}
           </Text>
         </View>
 
@@ -741,21 +749,29 @@ export default function ProfileScreen() {
               color: theme.subText,
 
               marginBottom: 10,
+
+              fontSize: 13,
             }}
           >
             Salary Remaining
           </Text>
 
           <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            ellipsizeMode="tail"
             style={{
-              fontSize: 24,
+              fontSize: 20,
 
               fontWeight: "800",
 
               color: remaining >= 0 ? "#22C55E" : "#EF4444",
+
+              width: "100%",
             }}
           >
-            ₹{remaining.toLocaleString()}
+            ₹{remaining.toLocaleString("en-IN")}
           </Text>
         </View>
       </Animated.View>

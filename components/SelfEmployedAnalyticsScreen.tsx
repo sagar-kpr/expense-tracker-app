@@ -8,7 +8,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { LineChart } from "react-native-chart-kit";
 import Animated, {
   FadeInUp,
   type SharedValue,
@@ -388,7 +387,7 @@ export default function SelfEmployedAnalyticsScreen() {
         )}
       </Animated.View>
 
-      <Animated.View
+      {/* <Animated.View
         entering={FadeInUp.delay(300).duration(650)}
         style={{
           backgroundColor: theme.card,
@@ -408,13 +407,15 @@ export default function SelfEmployedAnalyticsScreen() {
           Daily Cash Flow
         </Text>
 
-        <LineChart
+        <BarChart
           data={chartData}
           width={screenWidth - 84}
           height={230}
-          withDots={filteredTransactions.length < 12}
+          fromZero
+          showBarTops
+          yAxisLabel=""
+          yAxisSuffix=""
           withInnerLines
-          withOuterLines={false}
           withVerticalLines={false}
           chartConfig={{
             backgroundColor: theme.card,
@@ -428,18 +429,174 @@ export default function SelfEmployedAnalyticsScreen() {
             propsForBackgroundLines: {
               strokeWidth: 0.5,
             },
-            propsForDots: {
-              r: "4",
-              strokeWidth: "2",
-              stroke: theme.primary,
-            },
             propsForLabels: {
               fontSize: 11,
             },
           }}
-          bezier
           style={{ borderRadius: 18, marginLeft: -10 }}
         />
+      </Animated.View> */}
+      <Animated.View
+        entering={FadeInUp.delay(300).duration(650)}
+        style={{
+          backgroundColor: theme.card,
+          borderRadius: 26,
+          padding: 22,
+          marginTop: 24,
+        }}
+      >
+        {/* HEADER */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 22,
+          }}
+        >
+          <View>
+            <Text
+              style={{
+                color: theme.text,
+                fontSize: 21,
+                fontWeight: "900",
+              }}
+            >
+              Cash Flow Overview
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 4,
+                color: theme.subText,
+                fontSize: 14,
+              }}
+            >
+              Monthly business insights
+            </Text>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: theme.background,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 14,
+            }}
+          >
+            <Text
+              style={{
+                color: theme.text,
+                fontWeight: "700",
+                fontSize: 9,
+              }}
+            >
+              Monthly
+            </Text>
+          </View>
+        </View>
+
+        {/* CARDS */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+          }}
+        >
+          {/* TOTAL CASH FLOW */}
+          <View
+            style={{
+              width: "48%",
+              backgroundColor: "#F0FDF4",
+              borderRadius: 22,
+              padding: 18,
+            }}
+          >
+            <View
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 18,
+                backgroundColor: "#DCFCE7",
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <Ionicons name="wallet" size={26} color="#16A34A" />
+            </View>
+
+            <Text
+              style={{
+                color: "#666",
+                fontSize: 14,
+                marginBottom: 8,
+              }}
+            >
+              Total Expense
+            </Text>
+
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+              style={{
+                color: "#16A34A",
+                fontSize: 24,
+                fontWeight: "900",
+              }}
+            >
+              ₹{totals.expense.toLocaleString("en-IN")}
+            </Text>
+          </View>
+
+          {/* HIGHEST SPEND */}
+          <View
+            style={{
+              width: "48%",
+              backgroundColor: "#F5F7FF",
+              borderRadius: 22,
+              padding: 18,
+            }}
+          >
+            <View
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 18,
+                backgroundColor: "#E9EEFF",
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <Ionicons name="trending-up" size={26} color="#2563EB" />
+            </View>
+
+            <Text
+              style={{
+                color: "#666",
+                fontSize: 14,
+                marginBottom: 8,
+              }}
+            >
+              Highest Spend
+            </Text>
+
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+              style={{
+                color: "#2563EB",
+                fontSize: 22,
+                fontWeight: "900",
+              }}
+            >
+              ₹{highestExpense?.amount.toLocaleString("en-IN") || "0"}
+            </Text>
+          </View>
+        </View>
       </Animated.View>
 
       <View

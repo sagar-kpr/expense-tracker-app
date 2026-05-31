@@ -255,7 +255,7 @@ export default function SalaryDashboard() {
             <Text
               style={{ color: "rgba(255,255,255,0.66)", fontSize: 16, flex: 1 }}
             >
-              Safe daily budget:{" "}
+              Safe daily budget:
               {formatMoney(Math.max(0, Math.round(safeToSpend)))}
             </Text>
             <View
@@ -365,22 +365,42 @@ export default function SalaryDashboard() {
 
         <View
           style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
+            // flexDirection: "row",
+            // justifyContent: "space-between",
+            // alignItems: "center",
             marginTop: 18,
-            gap: 16,
+            // gap: 16,
           }}
         >
           <Text style={{ color: theme.text, fontSize: 15 }}>
             Used: {usageLabel}%
           </Text>
-          <Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>
-            <Text style={{ color: "#EF4444", fontWeight: "900" }}>
-              {formatMoney(spent)}
-            </Text>{" "}
-            of {formatMoney(salary)}
-          </Text>
+          <View
+            style={{
+              width: "100%",
+              alignItems: "flex-end",
+              marginTop: 6,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              ellipsizeMode="tail"
+              style={{
+                color: theme.text,
+                fontSize: 15,
+                fontWeight: "700",
+                textAlign: "right",
+                maxWidth: "100%",
+                marginTop: 8,
+              }}
+            >
+              <Text style={{ color: "#EF4444", fontWeight: "900" }}>
+                {formatMoney(spent)}{" "}
+              </Text>{" "}
+              of {formatMoney(salary)}
+            </Text>
+          </View>
         </View>
       </Animated.View>
 
@@ -549,93 +569,143 @@ export default function SalaryDashboard() {
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
+                  justifyContent: "space-between",
+
                   paddingTop: index === 0 ? 2 : 16,
                   paddingBottom: 16,
+
                   borderBottomWidth:
                     index === Math.min(salaryCycleExpenses.length, 5) - 1
                       ? 0
                       : 1,
+
                   borderBottomColor: theme.border,
                 }}
               >
+                {/* LEFT SIDE */}
                 <View
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 18,
-                    backgroundColor: meta.tint,
+                    flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: 14,
+                    flex: 1,
+                    minWidth: 0,
+                    marginRight: 12,
                   }}
                 >
-                  <Ionicons name={meta.icon} size={23} color={meta.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      color: theme.text,
-                      fontSize: 16,
-                      fontWeight: "900",
-                    }}
-                  >
-                    {item.description || item.category || "Other"}
-                  </Text>
+                  {/* ICON */}
                   <View
                     style={{
-                      flexDirection: "row",
+                      width: 52,
+                      height: 52,
+                      borderRadius: 18,
+                      backgroundColor: meta.tint,
+
                       alignItems: "center",
-                      marginTop: 7,
+                      justifyContent: "center",
+
+                      marginRight: 14,
                     }}
                   >
+                    <Ionicons name={meta.icon} size={23} color={meta.color} />
+                  </View>
+
+                  {/* INFO */}
+                  <View
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    <Text
+                      numberOfLines={2}
+                      ellipsizeMode="tail"
+                      style={{
+                        color: theme.text,
+                        fontSize: 15,
+                        fontWeight: "800",
+                        lineHeight: 22,
+                      }}
+                    >
+                      {item.description || item.category || "Other"}
+                    </Text>
+
                     <View
                       style={{
-                        backgroundColor: "#FEE2E2",
-                        borderRadius: 999,
-                        paddingHorizontal: 9,
-                        paddingVertical: 4,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginTop: 8,
                       }}
                     >
-                      <Text
+                      <View
                         style={{
-                          color: "#EF4444",
-                          fontSize: 12,
-                          fontWeight: "800",
+                          backgroundColor: "#FEE2E2",
+
+                          borderRadius: 999,
+
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
                         }}
                       >
-                        Expense
+                        <Text
+                          style={{
+                            color: "#EF4444",
+
+                            fontSize: 11,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Expense
+                        </Text>
+                      </View>
+
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: theme.subText,
+                          fontSize: 12,
+                          marginLeft: 10,
+                        }}
+                      >
+                        {getRelativeDate(item.createdAt)}
                       </Text>
                     </View>
-                    <Text
-                      style={{
-                        color: theme.subText,
-                        fontSize: 13,
-                        marginLeft: 10,
-                      }}
-                    >
-                      {getRelativeDate(item.createdAt)}
-                    </Text>
                   </View>
                 </View>
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
+
+                {/* RIGHT SIDE */}
+                <View
                   style={{
-                    color: "#EF4444",
-                    fontSize: 18,
-                    fontWeight: "900",
+                    flexDirection: "row",
+                    alignItems: "center",
                     marginLeft: 10,
-                    maxWidth: 116,
                   }}
                 >
-                  -{formatMoney(Number(item.amount))}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={theme.subText}
-                />
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                    style={{
+                      color: "#EF4444",
+
+                      fontSize: 14,
+                      fontWeight: "900",
+
+                      textAlign: "right",
+                      maxWidth: 110,
+                    }}
+                  >
+                    -{formatMoney(Number(item.amount))}
+                  </Text>
+
+                  {/* <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={theme.subText}
+                    style={{
+                      marginLeft: 8,
+                    }}
+                  /> */}
+                </View>
               </View>
             );
           })

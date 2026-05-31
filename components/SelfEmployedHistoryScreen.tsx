@@ -393,7 +393,7 @@ export default function SelfEmployedHistoryScreen() {
                   <Text
                     style={[
                       styles.transactionAmount,
-                      { color: isIncome ? "#159665" : "#EF4444" },
+                      { color: isIncome ? "#159665" : "#EF4444", fontSize: 13 },
                     ]}
                   >
                     {isIncome ? "+" : "-"}

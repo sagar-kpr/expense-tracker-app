@@ -25,7 +25,7 @@ export default function SalarySetupScreen() {
   const [error, setError] = useState("");
 
   const [loading, setLoading] = useState(false);
-
+  console.log("auth.currentUser", auth);
   useEffect(() => {
     const user = auth.currentUser;
 
@@ -71,6 +71,8 @@ export default function SalarySetupScreen() {
           salary: Number(salary),
 
           salaryDate: Number(salaryDate),
+
+          type: "salary",
 
           onboarding: true,
         },
