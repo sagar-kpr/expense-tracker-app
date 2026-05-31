@@ -12,11 +12,7 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { router } from "expo-router";
 
-import { doc, updateDoc } from "firebase/firestore";
-
 import { SafeAreaView } from "react-native-safe-area-context";
-
-import { auth, db } from "@/firebase";
 
 export default function UserTypeScreen() {
   const [loadingType, setLoadingType] = useState("");
@@ -25,22 +21,10 @@ export default function UserTypeScreen() {
     try {
       setLoadingType(type);
 
-      const user = auth.currentUser;
-
-      if (!user) return;
-
       if (type === "salary") {
-        await updateDoc(doc(db, "users", user.uid), {
-          type,
-        });
-
-        router.replace("/(auth)/salary-setup" as any);
+        router.push("/(auth)/salary-setup" as any);
       } else {
-        await updateDoc(doc(db, "users", user.uid), {
-          type,
-        });
-
-        router.replace("/(auth)/business-setup" as any);
+        router.push("/(auth)/business-setup" as any);
       }
     } finally {
       setLoadingType("");

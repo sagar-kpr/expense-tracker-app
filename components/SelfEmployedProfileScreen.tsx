@@ -152,7 +152,7 @@ export default function SelfEmployedProfileScreen() {
           <View style={{ flex: 1 }}>
             <Text
               numberOfLines={1}
-              style={{ color: "#FFFFFF", fontSize: 30, fontWeight: "800" }}
+              style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "800" }}
             >
               {userData?.name}
             </Text>
@@ -161,7 +161,7 @@ export default function SelfEmployedProfileScreen() {
               style={{
                 color: "rgba(255,255,255,0.78)",
                 marginTop: 5,
-                fontSize: 14,
+                fontSize: 12,
               }}
             >
               {userData?.businessName || "My Business"}
@@ -171,7 +171,7 @@ export default function SelfEmployedProfileScreen() {
               style={{
                 color: "rgba(255,255,255,0.78)",
                 marginTop: 5,
-                fontSize: 14,
+                fontSize: 12,
               }}
             >
               {userData?.email}
@@ -279,11 +279,15 @@ export default function SelfEmployedProfileScreen() {
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
+            ellipsizeMode="tail"
             style={{
               fontSize: 38,
               fontWeight: "900",
               color: netProfit >= 0 ? theme.text : theme.danger,
               marginTop: 8,
+              width: "100%",
+              flexShrink: 1,
+              textAlign: "left",
             }}
           >
             {netProfit < 0 ? "-" : ""}
@@ -442,7 +446,11 @@ function ProfileHeaderStat({
 }) {
   return (
     <View
-      style={{ alignItems: alignRight ? "flex-end" : "flex-start", flex: 1 }}
+      style={{
+        alignItems: alignRight ? "flex-end" : "flex-start",
+        flex: 1,
+        paddingHorizontal: 6,
+      }}
     >
       <Text style={{ color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
         {label}
@@ -450,11 +458,15 @@ function ProfileHeaderStat({
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
+        ellipsizeMode="tail"
         style={{
           color: "#FFFFFF",
           fontSize: 21,
           fontWeight: "900",
           marginTop: 7,
+          width: "100%",
+          flexShrink: 1,
+          textAlign: alignRight ? "right" : "left",
         }}
       >
         {value}
@@ -479,11 +491,16 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     >
       <Text style={{ color: theme.subText, fontSize: 13 }}>{label}</Text>
       <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        ellipsizeMode="tail"
         style={{
           color: theme.text,
           fontSize: 20,
           fontWeight: "900",
           marginTop: 7,
+          width: "100%",
+          flexShrink: 1,
         }}
       >
         {value}

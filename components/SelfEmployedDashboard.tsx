@@ -2,7 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import Animated, {
   FadeInUp,
   useAnimatedStyle,
@@ -152,7 +158,6 @@ export default function SelfEmployedDashboard() {
       <Text style={{ color: theme.text, fontSize: 16 }}>
         {firstName ? `${greeting}, ${firstName}` : greeting}
       </Text>
-
       <Text
         style={{
           color: theme.text,
@@ -333,7 +338,6 @@ export default function SelfEmployedDashboard() {
           </View>
         </View>
       </Animated.View>
-
       <Animated.View
         entering={FadeInUp.delay(200).duration(650)}
         style={{
@@ -408,25 +412,45 @@ export default function SelfEmployedDashboard() {
 
         <View
           style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
             marginTop: 18,
-            gap: 16,
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 15 }}>
+          <Text
+            style={{
+              color: theme.text,
+              fontSize: 15,
+            }}
+          >
             Expense Ratio: {ratio}%
           </Text>
-          <Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>
-            <Text style={{ color: "#EF4444", fontWeight: "900" }}>
-              {formatMoney(expense)}
-            </Text>{" "}
-            of {formatMoney(income)}
-          </Text>
+          <View
+            style={{
+              width: "100%",
+              alignItems: "flex-end",
+              marginTop: 6,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              ellipsizeMode="tail"
+              style={{
+                color: theme.text,
+                fontSize: 15,
+                fontWeight: "700",
+                textAlign: "right",
+                maxWidth: "100%",
+                marginTop: 8,
+              }}
+            >
+              <Text style={{ color: "#EF4444", fontWeight: "900" }}>
+                {formatMoney(expense)}{" "}
+              </Text>{" "}
+              of {formatMoney(income)}
+            </Text>
+          </View>
         </View>
       </Animated.View>
-
       <Animated.View
         entering={FadeInUp.delay(300).duration(650)}
         style={{
@@ -507,7 +531,6 @@ export default function SelfEmployedDashboard() {
           </ScrollView>
         )}
       </Animated.View>
-
       <Animated.View
         entering={FadeInUp.delay(400).duration(650)}
         style={{
@@ -538,99 +561,150 @@ export default function SelfEmployedDashboard() {
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
+                  justifyContent: "space-between",
+
                   paddingTop: index === 0 ? 2 : 16,
                   paddingBottom: 16,
+
                   borderBottomWidth:
                     index === Math.min(currentMonthExpenses.length, 5) - 1
                       ? 0
                       : 1,
+
                   borderBottomColor: theme.border,
                 }}
               >
+                {/* LEFT SIDE */}
                 <View
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 18,
-                    backgroundColor: meta.tint,
+                    flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: 14,
+                    flex: 1,
+                    minWidth: 0,
+                    marginRight: 12,
                   }}
                 >
-                  <Ionicons
-                    name={isIncome ? "sparkles" : meta.icon}
-                    size={23}
-                    color={isIncome ? "#159665" : meta.color}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      color: theme.text,
-                      fontSize: 16,
-                      fontWeight: "900",
-                    }}
-                  >
-                    {item.description ||
-                      (isIncome ? "From customer" : item.category || "Other")}
-                  </Text>
+                  {/* ICON */}
                   <View
                     style={{
-                      flexDirection: "row",
+                      width: 52,
+                      height: 52,
+                      borderRadius: 18,
+                      backgroundColor: isIncome ? "#EAF7F0" : meta.tint,
+
                       alignItems: "center",
-                      marginTop: 7,
+                      justifyContent: "center",
+
+                      marginRight: 14,
                     }}
                   >
+                    <Ionicons
+                      name={isIncome ? "sparkles" : meta.icon}
+                      size={23}
+                      color={isIncome ? "#159665" : meta.color}
+                    />
+                  </View>
+
+                  {/* INFO */}
+                  <View
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    <Text
+                      numberOfLines={2}
+                      ellipsizeMode="tail"
+                      style={{
+                        color: theme.text,
+                        fontSize: 15,
+                        fontWeight: "800",
+                        lineHeight: 22,
+                      }}
+                    >
+                      {item.description ||
+                        (isIncome
+                          ? "Customer payment"
+                          : item.category || "Other")}
+                    </Text>
+
                     <View
                       style={{
-                        backgroundColor: isIncome ? "#DCFCE7" : "#FEE2E2",
-                        borderRadius: 999,
-                        paddingHorizontal: 9,
-                        paddingVertical: 4,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginTop: 8,
                       }}
                     >
-                      <Text
+                      <View
                         style={{
-                          color: isIncome ? "#159665" : "#EF4444",
-                          fontSize: 12,
-                          fontWeight: "800",
+                          backgroundColor: isIncome ? "#DCFCE7" : "#FEE2E2",
+
+                          borderRadius: 999,
+
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
                         }}
                       >
-                        {isIncome ? "Income" : "Expense"}
+                        <Text
+                          style={{
+                            color: isIncome ? "#159665" : "#EF4444",
+
+                            fontSize: 11,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {isIncome ? "Income" : "Expense"}
+                        </Text>
+                      </View>
+
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: theme.subText,
+                          fontSize: 12,
+                          marginLeft: 10,
+                        }}
+                      >
+                        {getRelativeDate(item.createdAt)}
                       </Text>
                     </View>
-                    <Text
-                      style={{
-                        color: theme.subText,
-                        fontSize: 13,
-                        marginLeft: 10,
-                      }}
-                    >
-                      {getRelativeDate(item.createdAt)}
-                    </Text>
                   </View>
                 </View>
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
+
+                {/* RIGHT SIDE */}
+                <View
                   style={{
-                    color: isIncome ? "#159665" : "#EF4444",
-                    fontSize: 18,
-                    fontWeight: "900",
+                    flexDirection: "row",
+                    alignItems: "center",
                     marginLeft: 10,
-                    maxWidth: 116,
                   }}
                 >
-                  {isIncome ? "+" : "-"}
-                  {formatMoney(Number(item.amount))}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={theme.subText}
-                />
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    style={{
+                      color: isIncome ? "#159665" : "#EF4444",
+
+                      fontSize: 14,
+                      fontWeight: "900",
+
+                      textAlign: "right",
+                      maxWidth: 110,
+                    }}
+                  >
+                    {isIncome ? "+" : "-"}
+                    {formatMoney(Number(item.amount))}
+                  </Text>
+
+                  {/* <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={theme.subText}
+                    style={{
+                      marginLeft: 8,
+                    }}
+                  /> */}
+                </View>
               </View>
             );
           })

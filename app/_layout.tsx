@@ -55,7 +55,15 @@ function RootNavigator() {
 
       // TYPE NOT SELECTED
       if (!userData.type) {
-        if (currentScreen !== "user-type") {
+        // Allow users to navigate to the setup screens even if `type` isn't
+        // persisted yet (so they can go back). Only block other screens.
+        const allowedWhenTypeMissing = [
+          "user-type",
+          "salary-setup",
+          "business-setup",
+        ];
+
+        if (!allowedWhenTypeMissing.includes(currentScreen || "")) {
           router.replace("/(auth)/user-type" as any);
         }
 

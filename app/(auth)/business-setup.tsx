@@ -52,6 +52,8 @@ export default function BusinessSetupScreen() {
 
         businessName: businessName.trim(),
 
+        type: "self-employed",
+
         onboarding: true,
       });
 

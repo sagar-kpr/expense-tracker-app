@@ -19,7 +19,6 @@ import Animated, {
 import { getCategoryMeta } from "@/components/categoryMeta";
 import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-import { LineChart } from "react-native-chart-kit";
 
 import Svg, { Circle } from "react-native-svg";
 
@@ -187,7 +186,9 @@ export default function AnalyticsScreen() {
   const salaryUsed =
     salaryAmount > 0 ? Math.min((totalSpent / salaryAmount) * 100, 100) : 0;
   const salaryUsedLabel =
-    totalSpent > 0 && salaryUsed < 1 ? "<1" : String(Math.round(salaryUsed));
+    totalSpent > 0 && salaryUsed < 1
+      ? String(salaryUsed.toFixed(2))
+      : String(Math.round(salaryUsed));
 
   const ranges = Object.entries(groupedCategories).sort(
     (a: any, b: any) => b[1] - a[1],
@@ -561,7 +562,7 @@ export default function AnalyticsScreen() {
                         style={{
                           color: theme.subText,
 
-                          marginTop: 2,
+                          marginTop: 6,
                         }}
                       >
                         {percent}%
@@ -623,82 +624,168 @@ export default function AnalyticsScreen() {
         entering={FadeInUp.delay(100).duration(700)}
         style={{
           backgroundColor: theme.card,
-
           borderRadius: 28,
-
           padding: 24,
-
           marginTop: 24,
         }}
       >
-        <Text
+        {/* HEADER */}
+        <View
           style={{
-            fontSize: 22,
-
-            fontWeight: "700",
-
-            color: theme.text,
-
-            marginBottom: 22,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 20,
           }}
         >
-          Daily Spending
-        </Text>
+          <View>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "800",
+                color: theme.text,
+              }}
+            >
+              Spending Overview
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 4,
+                color: theme.subText,
+                fontSize: 14,
+              }}
+            >
+              Monitor your spending insights
+            </Text>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: theme.background,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 14,
+            }}
+          >
+            <Text
+              style={{
+                color: theme.text,
+                fontWeight: "700",
+                fontSize: 9,
+              }}
+            >
+              Monthly
+            </Text>
+          </View>
+        </View>
 
         {chartValues.length > 0 ? (
-          <LineChart
-            data={chartData}
-            width={screenWidth - 88}
-            height={240}
-            withDots={sortedDays.length < 12}
-            withInnerLines
-            withOuterLines={false}
-            withVerticalLines={false}
-            chartConfig={{
-              backgroundColor: theme.card,
+          <>
+            {/* TOP CARDS */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginBottom: 28,
+              }}
+            >
+              {/* TOTAL */}
+              <View
+                style={{
+                  width: "48%",
+                  backgroundColor: "#F0FDF4",
+                  borderRadius: 22,
+                  padding: 18,
+                }}
+              >
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 18,
+                    backgroundColor: "#DCFCE7",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <Ionicons name="wallet" size={26} color="#16A34A" />
+                </View>
 
-              backgroundGradientFrom: theme.card,
+                <Text
+                  style={{
+                    color: "#666",
+                    fontSize: 14,
+                    marginBottom: 8,
+                  }}
+                >
+                  Total Spent
+                </Text>
 
-              backgroundGradientTo: theme.card,
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={{
+                    color: "#16A34A",
+                    fontSize: 28,
+                    fontWeight: "900",
+                  }}
+                >
+                  ₹{totalSpent.toLocaleString("en-IN")}
+                </Text>
+              </View>
 
-              decimalPlaces: 0,
+              {/* HIGHEST */}
+              <View
+                style={{
+                  width: "48%",
+                  backgroundColor: "#F5F7FF",
+                  borderRadius: 22,
+                  padding: 18,
+                }}
+              >
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 18,
+                    backgroundColor: "#E9EEFF",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <Ionicons name="trending-up" size={26} color="#2563EB" />
+                </View>
 
-              color: () => theme.primary,
-
-              labelColor: () => theme.subText,
-
-              fillShadowGradient: theme.primary,
-
-              fillShadowGradientOpacity: 0.12,
-
-              propsForBackgroundLines: {
-                strokeWidth: 0.5,
-              },
-
-              propsForDots: {
-                r: "5",
-
-                strokeWidth: "2",
-
-                stroke: theme.primary,
-              },
-
-              propsForLabels: {
-                fontSize: 11,
-              },
-            }}
-            bezier
-            style={{
-              borderRadius: 18,
-
-              marginLeft: -10,
-            }}
-          />
+                <Text
+                  style={{
+                    color: "#666",
+                    fontSize: 14,
+                    marginBottom: 8,
+                  }}
+                >
+                  Highest Spend
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={{
+                    color: "#2563EB",
+                    fontSize: 28,
+                    fontWeight: "900",
+                  }}
+                >
+                  ₹{highestExpense?.amount?.toLocaleString("en-IN") || "0"}
+                </Text>
+              </View>
+            </View>
+          </>
         ) : (
           <View
             style={{
-              paddingVertical: 50,
-
+              paddingVertical: 60,
               alignItems: "center",
             }}
           >
@@ -707,35 +794,31 @@ export default function AnalyticsScreen() {
                 fontSize: 52,
               }}
             >
-              📈
+              📊
             </Text>
 
             <Text
               style={{
-                marginTop: 14,
-
+                marginTop: 16,
                 fontSize: 18,
-
                 fontWeight: "800",
-
-                color: "#111",
+                color: theme.text,
               }}
             >
-              No chart data
+              No spending data
             </Text>
 
             <Text
               style={{
                 marginTop: 8,
-
-                color: "#888",
-
+                color: theme.subText,
                 textAlign: "center",
-
                 lineHeight: 22,
+                paddingHorizontal: 30,
               }}
             >
-              Daily spending trends will appear here.
+              Your daily expense analytics will appear here once transactions
+              are added.
             </Text>
           </View>
         )}
