@@ -47,6 +47,7 @@ type PendingTransactionContextType = {
   pendingCredits: PendingTransaction[];
   pendingDebits: PendingTransaction[];
   pendingTransactions: PendingTransaction[];
+  refreshPendingTransactions: () => Promise<void>;
   updatePendingTransaction: (
     id: string,
     data: Partial<PendingTransactionInput>,
@@ -229,6 +230,10 @@ export const PendingTransactionProvider = ({
     await SmsTransactionModule.clearPendingMessages();
   };
 
+  const refreshPendingTransactions = async () => {
+    await importNativeSmsMessages();
+  };
+
   useEffect(() => {
     importNativeSmsMessages().catch((error) => {
       console.log("Native SMS import error:", error);
@@ -300,6 +305,7 @@ export const PendingTransactionProvider = ({
         pendingCredits,
         pendingDebits,
         pendingTransactions,
+        refreshPendingTransactions,
         updatePendingTransaction,
       }}
     >

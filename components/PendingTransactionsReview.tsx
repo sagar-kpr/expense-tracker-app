@@ -35,6 +35,7 @@ export default function PendingTransactionsReview() {
     pendingCredits,
     pendingDebits,
     pendingTransactions,
+    refreshPendingTransactions,
   } = usePendingTransactions();
 
   const [message, setMessage] = useState("");
@@ -118,6 +119,7 @@ export default function PendingTransactionsReview() {
 
       if (allGranted) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await refreshPendingTransactions();
       }
 
       setShowPermissionModal(false);
@@ -134,10 +136,14 @@ export default function PendingTransactionsReview() {
 
   console.log("🚀Transactions:", pendingTransactions);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
 
-    setTimeout(() => setRefreshing(false), 700);
+    try {
+      await refreshPendingTransactions();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Append message passed via query param (e.g. /pending-transactions?message=...)

@@ -53,8 +53,9 @@ const categoryRules = [
 ];
 
 const amountPatterns = [
-  /(?:inr|rs\.?|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-  /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:inr|rs\.?|₹)/i,
+  /(?:inr|rs\.?|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/gi,
+  /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:inr|rs\.?|₹)/gi,
+  /([0-9,]+(?:\.[0-9]{1,2})?)/gi,
 ];
 
 const cleanAmount = (value: string) => Number(value.replace(/,/g, ""));
@@ -62,20 +63,39 @@ const cleanAmount = (value: string) => Number(value.replace(/,/g, ""));
 const includesAny = (message: string, keywords: string[]) =>
   keywords.some((keyword) => message.includes(keyword));
 
-const getAmount = (message: string) => {
-  for (const pattern of amountPatterns) {
-    const match = message.match(pattern);
+const isBalanceAmount = (message: string, startIndex: number) => {
+  const context = message.slice(Math.max(0, startIndex - 30), startIndex);
 
-    if (match?.[1]) {
+  return /\b(?:avl|available|bal|balance|closing|current)\b/i.test(context);
+};
+
+const getAmount = (message: string) => {
+  const matches: Array<{ amount: number; index: number }> = [];
+
+  for (const pattern of amountPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(message)) !== null) {
+      if (!match[1]) {
+        continue;
+      }
+
       const amount = cleanAmount(match[1]);
 
       if (Number.isFinite(amount) && amount > 0) {
-        return amount;
+        matches.push({ amount, index: match.index });
       }
     }
   }
 
-  return null;
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const nonBalanceMatch = matches.find(
+    (match) => !isBalanceAmount(message, match.index),
+  );
+
+  return nonBalanceMatch ? nonBalanceMatch.amount : matches[0].amount;
 };
 
 const getCategory = (message: string, type: "expense" | "income") => {
