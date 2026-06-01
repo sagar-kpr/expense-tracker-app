@@ -12,9 +12,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
+import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ExpenseProvider } from "../context/ExpenseContext";
-import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
 // SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
@@ -86,8 +86,6 @@ function RootNavigator() {
     }
   }, [user, userData, loading, segments]);
 
-  // IMPORTANT
-  // WAIT FOR AUTH RESTORE
   if (loading) {
     return null;
   }
