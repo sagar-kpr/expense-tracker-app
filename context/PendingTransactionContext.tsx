@@ -186,6 +186,18 @@ export const PendingTransactionProvider = ({
     return addPendingTransaction(parsed);
   };
 
+  const createFallbackPendingTransaction = (
+    rawMessage: string,
+  ): ParsedSmsTransaction => ({
+    amount: 100,
+    category: "Other",
+    description: "Unable to parse SMS. Edit details to save.",
+    rawMessage,
+    source: "sms-auto",
+    transactionDate: new Date().toISOString(),
+    type: "expense",
+  });
+
   const requestSmsPermissions = async () => {
     if (Platform.OS !== "android") {
       return true;
@@ -224,7 +236,10 @@ export const PendingTransactionProvider = ({
 
       if (parsed) {
         await addPendingTransaction(parsed);
+        continue;
       }
+
+      await addPendingTransaction(createFallbackPendingTransaction(message));
     }
 
     await SmsTransactionModule.clearPendingMessages();
