@@ -79,11 +79,14 @@ export default function PendingTransactionsReview() {
     }
 
     try {
-      const hasPermission = await PermissionsAndroid.check(
+      const hasReceiveSms = await PermissionsAndroid.check(
         PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
       );
+      const hasReadSms = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.READ_SMS,
+      );
 
-      if (!hasPermission) {
+      if (!hasReceiveSms || !hasReadSms) {
         setShowPermissionModal(true);
       }
 
@@ -102,11 +105,18 @@ export default function PendingTransactionsReview() {
     }
 
     try {
-      const result = await PermissionsAndroid.request(
+      const result = await PermissionsAndroid.requestMultiple([
         PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-      );
+        PermissionsAndroid.PERMISSIONS.READ_SMS,
+      ]);
 
-      if (result === PermissionsAndroid.RESULTS.GRANTED) {
+      const allGranted =
+        result[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] ===
+          PermissionsAndroid.RESULTS.GRANTED &&
+        result[PermissionsAndroid.PERMISSIONS.READ_SMS] ===
+          PermissionsAndroid.RESULTS.GRANTED;
+
+      if (allGranted) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 

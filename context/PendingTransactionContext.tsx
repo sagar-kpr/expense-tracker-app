@@ -17,13 +17,15 @@ import {
   useMemo,
   useState,
 } from "react";
-import { AppState, NativeModules, PermissionsAndroid, Platform } from "react-native";
+import {
+  AppState,
+  NativeModules,
+  PermissionsAndroid,
+  Platform,
+} from "react-native";
 
 import { auth, db } from "@/firebase";
-import {
-  ParsedSmsTransaction,
-  parseSmsMessage,
-} from "@/utils/smsParser";
+import { ParsedSmsTransaction, parseSmsMessage } from "@/utils/smsParser";
 
 export type PendingTransaction = ParsedSmsTransaction & {
   id: string;
@@ -183,16 +185,30 @@ export const PendingTransactionProvider = ({
     return addPendingTransaction(parsed);
   };
 
-  const importNativeSmsMessages = async () => {
-    if (Platform.OS !== "android" || !SmsTransactionModule) {
-      return;
+  const requestSmsPermissions = async () => {
+    if (Platform.OS !== "android") {
+      return true;
     }
 
-    const permission = await PermissionsAndroid.request(
+    const permissions = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-    );
+      PermissionsAndroid.PERMISSIONS.READ_SMS,
+    ]);
 
-    if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+    const hasReceiveSms =
+      permissions[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+    const hasReadSms =
+      permissions[PermissionsAndroid.PERMISSIONS.READ_SMS] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+
+    return hasReceiveSms && hasReadSms;
+  };
+
+  const importNativeSmsMessages = async () => {
+    const hasPermissions = await requestSmsPermissions();
+
+    if (!hasPermissions || Platform.OS !== "android" || !SmsTransactionModule) {
       return;
     }
 
@@ -231,9 +247,7 @@ export const PendingTransactionProvider = ({
     };
   }, []);
 
-  const approvePendingTransaction = async (
-    transaction: PendingTransaction,
-  ) => {
+  const approvePendingTransaction = async (transaction: PendingTransaction) => {
     const collections = getUserCollections();
 
     if (!collections) {
