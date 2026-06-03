@@ -170,58 +170,59 @@ export default function SelfEmployedDashboard() {
         Dashboard
       </Text>
 
-      {pendingCount > 0 && (
-        <Pressable
-          onPress={() => router.push("/pending-transactions" as any)}
+      <Pressable
+        onPress={() => router.push("/pending-transactions" as any)}
+        style={{
+          alignItems: "center",
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          borderRadius: 20,
+          borderWidth: 1,
+          flexDirection: "row",
+          marginTop: 20,
+          minHeight: 64,
+          paddingHorizontal: 16,
+        }}
+      >
+        <View
           style={{
             alignItems: "center",
-            backgroundColor: theme.card,
-            borderColor: theme.border,
-            borderRadius: 20,
-            borderWidth: 1,
-            flexDirection: "row",
-            marginTop: 20,
-            minHeight: 64,
-            paddingHorizontal: 16,
+            backgroundColor: `${theme.primary}18`,
+            borderRadius: 16,
+            height: 42,
+            justifyContent: "center",
+            marginRight: 12,
+            width: 42,
           }}
         >
-          <View
+          <Ionicons name="receipt" size={21} color={theme.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text
             style={{
-              alignItems: "center",
-              backgroundColor: `${theme.primary}18`,
-              borderRadius: 16,
-              height: 42,
-              justifyContent: "center",
-              marginRight: 12,
-              width: 42,
+              color: theme.text,
+              fontSize: 15,
+              fontWeight: "900",
             }}
           >
-            <Ionicons name="receipt" size={21} color={theme.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                color: theme.text,
-                fontSize: 15,
-                fontWeight: "900",
-              }}
-            >
-              {pendingCount} transaction{pendingCount > 1 ? "s" : ""} need
-              review
-            </Text>
-            <Text
-              style={{
-                color: theme.subText,
-                fontSize: 12,
-                marginTop: 4,
-              }}
-            >
-              Add, edit, or ignore detected bank messages.
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.subText} />
-        </Pressable>
-      )}
+            {pendingCount > 0
+              ? `${pendingCount} transaction${pendingCount > 1 ? "s" : ""} need review`
+              : "Detected transactions"}
+          </Text>
+          <Text
+            style={{
+              color: theme.subText,
+              fontSize: 12,
+              marginTop: 4,
+            }}
+          >
+            {pendingCount > 0
+              ? "Add, edit, or ignore detected bank messages."
+              : "Open to check SMS status or scan recent messages."}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={theme.subText} />
+      </Pressable>
 
       <Animated.View
         entering={FadeInUp.delay(100).duration(650)}

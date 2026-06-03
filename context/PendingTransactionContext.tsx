@@ -50,10 +50,22 @@ type PendingTransactionContextType = {
   pendingDebits: PendingTransaction[];
   pendingTransactions: PendingTransaction[];
   refreshPendingTransactions: () => Promise<void>;
+  smsDiagnostics: SmsDiagnostics;
   updatePendingTransaction: (
     id: string,
     data: Partial<PendingTransactionInput>,
   ) => Promise<void>;
+};
+
+type SmsDiagnostics = {
+  cachedMessageCount: number;
+  hasNativeModule: boolean;
+  lastError?: string;
+  lastEventAt?: string;
+  lastImportAt?: string;
+  lastInboxScanCount: number;
+  readPermission?: boolean;
+  receivePermission?: boolean;
 };
 
 const PendingTransactionContext = createContext<
@@ -64,6 +76,7 @@ const SmsTransactionModule = NativeModules.SmsTransactionModule as
   | {
       addListener: (eventName: string) => void;
       clearPendingMessages: () => Promise<void>;
+      getRecentInboxMessages: (limit: number) => Promise<string[]>;
       getPendingMessages: () => Promise<string[]>;
       removeListeners: (count: number) => void;
     }
@@ -92,7 +105,13 @@ export const PendingTransactionProvider = ({
   >([]);
 
   const [loading, setLoading] = useState(true);
+  const [smsDiagnostics, setSmsDiagnostics] = useState<SmsDiagnostics>({
+    cachedMessageCount: 0,
+    hasNativeModule: Platform.OS === "android" && !!SmsTransactionModule,
+    lastInboxScanCount: 0,
+  });
   const processedNativeMessagesRef = useRef<string[]>([]);
+  const seenRawMessagesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let unsubscribeSnapshot: (() => void) | undefined;
@@ -125,6 +144,13 @@ export const PendingTransactionProvider = ({
               id: item.id,
               ...item.data(),
             })) as PendingTransaction[],
+          );
+          seenRawMessagesRef.current = new Set(
+            snapshot.docs
+              .map((item) => item.data().rawMessage)
+              .filter((rawMessage): rawMessage is string =>
+                Boolean(rawMessage),
+              ),
           );
 
           setLoading(false);
@@ -192,14 +218,35 @@ export const PendingTransactionProvider = ({
   };
 
   const addNativeSmsMessage = async (rawMessage: string) => {
+    if (seenRawMessagesRef.current.has(rawMessage)) {
+      return;
+    }
+
     const parsed = parseSmsMessage(rawMessage, "sms-auto");
 
     if (parsed) {
+      seenRawMessagesRef.current.add(rawMessage);
       await addPendingTransaction(parsed);
       return;
     }
 
+    seenRawMessagesRef.current.add(rawMessage);
     await addPendingTransaction(createFallbackPendingTransaction(rawMessage));
+  };
+
+  const addParsedInboxMessage = async (rawMessage: string) => {
+    if (seenRawMessagesRef.current.has(rawMessage)) {
+      return;
+    }
+
+    const parsed = parseSmsMessage(rawMessage, "sms-auto");
+
+    if (!parsed) {
+      return;
+    }
+
+    seenRawMessagesRef.current.add(rawMessage);
+    await addPendingTransaction(parsed);
   };
 
   const createFallbackPendingTransaction = (
@@ -234,18 +281,38 @@ export const PendingTransactionProvider = ({
     return hasReceiveSms && hasReadSms;
   };
 
+  const updateSmsPermissionDiagnostics = async () => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    const [receivePermission, readPermission] = await Promise.all([
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS),
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS),
+    ]);
+
+    setSmsDiagnostics((current) => ({
+      ...current,
+      hasNativeModule: !!SmsTransactionModule,
+      readPermission,
+      receivePermission,
+    }));
+  };
+
   const importNativeSmsMessages = async () => {
     const hasPermissions = await requestSmsPermissions();
 
     if (!hasPermissions || Platform.OS !== "android" || !SmsTransactionModule) {
+      setSmsDiagnostics((current) => ({
+        ...current,
+        hasNativeModule: !!SmsTransactionModule,
+        lastImportAt: new Date().toISOString(),
+      }));
       return;
     }
 
     const messages = await SmsTransactionModule.getPendingMessages();
-
-    if (messages.length === 0) {
-      return;
-    }
+    const inboxMessages = await SmsTransactionModule.getRecentInboxMessages(25);
 
     const alreadyProcessed = new Set(processedNativeMessagesRef.current);
 
@@ -257,17 +324,48 @@ export const PendingTransactionProvider = ({
       await addNativeSmsMessage(message);
     }
 
+    for (const message of inboxMessages) {
+      await addParsedInboxMessage(message);
+    }
+
     processedNativeMessagesRef.current = [];
 
     await SmsTransactionModule.clearPendingMessages();
+
+    setSmsDiagnostics((current) => ({
+      ...current,
+      cachedMessageCount: messages.length,
+      hasNativeModule: true,
+      lastError: undefined,
+      lastImportAt: new Date().toISOString(),
+      lastInboxScanCount: inboxMessages.length,
+    }));
   };
 
   const refreshPendingTransactions = async () => {
-    await importNativeSmsMessages();
+    try {
+      await updateSmsPermissionDiagnostics();
+      await importNativeSmsMessages();
+    } catch (error) {
+      setSmsDiagnostics((current) => ({
+        ...current,
+        lastError: error instanceof Error ? error.message : String(error),
+      }));
+
+      throw error;
+    }
   };
 
   useEffect(() => {
+    updateSmsPermissionDiagnostics().catch((error) => {
+      console.log("Native SMS diagnostics error:", error);
+    });
+
     importNativeSmsMessages().catch((error) => {
+      setSmsDiagnostics((current) => ({
+        ...current,
+        lastError: error instanceof Error ? error.message : String(error),
+      }));
       console.log("Native SMS import error:", error);
     });
 
@@ -280,8 +378,17 @@ export const PendingTransactionProvider = ({
                 ...processedNativeMessagesRef.current,
                 message,
               ];
+              setSmsDiagnostics((current) => ({
+                ...current,
+                lastEventAt: new Date().toISOString(),
+              }));
 
               addNativeSmsMessage(message).catch((error) => {
+                setSmsDiagnostics((current) => ({
+                  ...current,
+                  lastError:
+                    error instanceof Error ? error.message : String(error),
+                }));
                 console.log("Native SMS event import error:", error);
               });
             },
@@ -291,6 +398,10 @@ export const PendingTransactionProvider = ({
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         importNativeSmsMessages().catch((error) => {
+          setSmsDiagnostics((current) => ({
+            ...current,
+            lastError: error instanceof Error ? error.message : String(error),
+          }));
           console.log("Native SMS import error:", error);
         });
       }
@@ -356,6 +467,7 @@ export const PendingTransactionProvider = ({
         pendingDebits,
         pendingTransactions,
         refreshPendingTransactions,
+        smsDiagnostics,
         updatePendingTransaction,
       }}
     >
