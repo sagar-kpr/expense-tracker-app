@@ -3,14 +3,12 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Modal,
   PermissionsAndroid,
   Platform,
   RefreshControl,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -328,7 +326,7 @@ export default function PendingTransactionsReview() {
           Review bank messages before they become real expense records.
         </Text>
 
-        <View
+        {/* <View
           style={{
             backgroundColor: theme.card,
             borderColor: theme.border,
@@ -456,7 +454,7 @@ export default function PendingTransactionsReview() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </View> */}
 
         <View
           style={{

@@ -15,10 +15,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
   AppState,
+  NativeEventEmitter,
   NativeModules,
   PermissionsAndroid,
   Platform,
@@ -60,8 +62,10 @@ const PendingTransactionContext = createContext<
 
 const SmsTransactionModule = NativeModules.SmsTransactionModule as
   | {
+      addListener: (eventName: string) => void;
       clearPendingMessages: () => Promise<void>;
       getPendingMessages: () => Promise<string[]>;
+      removeListeners: (count: number) => void;
     }
   | undefined;
 
@@ -88,6 +92,7 @@ export const PendingTransactionProvider = ({
   >([]);
 
   const [loading, setLoading] = useState(true);
+  const processedNativeMessagesRef = useRef<string[]>([]);
 
   useEffect(() => {
     let unsubscribeSnapshot: (() => void) | undefined;
@@ -186,6 +191,17 @@ export const PendingTransactionProvider = ({
     return addPendingTransaction(parsed);
   };
 
+  const addNativeSmsMessage = async (rawMessage: string) => {
+    const parsed = parseSmsMessage(rawMessage, "sms-auto");
+
+    if (parsed) {
+      await addPendingTransaction(parsed);
+      return;
+    }
+
+    await addPendingTransaction(createFallbackPendingTransaction(rawMessage));
+  };
+
   const createFallbackPendingTransaction = (
     rawMessage: string,
   ): ParsedSmsTransaction => ({
@@ -231,16 +247,17 @@ export const PendingTransactionProvider = ({
       return;
     }
 
-    for (const message of messages) {
-      const parsed = parseSmsMessage(message, "sms-auto");
+    const alreadyProcessed = new Set(processedNativeMessagesRef.current);
 
-      if (parsed) {
-        await addPendingTransaction(parsed);
+    for (const message of messages) {
+      if (alreadyProcessed.has(message)) {
         continue;
       }
 
-      await addPendingTransaction(createFallbackPendingTransaction(message));
+      await addNativeSmsMessage(message);
     }
+
+    processedNativeMessagesRef.current = [];
 
     await SmsTransactionModule.clearPendingMessages();
   };
@@ -254,6 +271,23 @@ export const PendingTransactionProvider = ({
       console.log("Native SMS import error:", error);
     });
 
+    const nativeSmsSubscription =
+      Platform.OS === "android" && SmsTransactionModule
+        ? new NativeEventEmitter(SmsTransactionModule).addListener(
+            "SmsTransactionReceived",
+            (message: string) => {
+              processedNativeMessagesRef.current = [
+                ...processedNativeMessagesRef.current,
+                message,
+              ];
+
+              addNativeSmsMessage(message).catch((error) => {
+                console.log("Native SMS event import error:", error);
+              });
+            },
+          )
+        : undefined;
+
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         importNativeSmsMessages().catch((error) => {
@@ -263,6 +297,7 @@ export const PendingTransactionProvider = ({
     });
 
     return () => {
+      nativeSmsSubscription?.remove();
       subscription.remove();
     };
   }, []);

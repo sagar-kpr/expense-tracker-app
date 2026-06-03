@@ -60,7 +60,9 @@
 
       "@react-native-community/datetimepicker",
 
-      "expo-web-browser"
+      "expo-web-browser",
+
+      "./plugins/with-sms-transactions"
     ],
 
     "experiments": {
