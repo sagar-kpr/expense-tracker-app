@@ -316,7 +316,7 @@ export default function SelfEmployedHistoryScreen() {
 
       {filteredTransactions.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Ionicons name="receipt-outline" size={46} color={theme.primary} />
+          <Ionicons name="receipt-outline" size={23} color={theme.primary} />
           <Text style={styles.emptyTitle}>No transactions found</Text>
           <Text style={styles.emptyText}>
             Income and business expenses will appear here.
@@ -351,6 +351,8 @@ export default function SelfEmployedHistoryScreen() {
                         styles.categoryIconBox,
                         {
                           backgroundColor: isIncome ? "#EAF7F0" : meta.tint,
+                          width: 45,
+                          height: 45,
                         },
                       ]}
                     >

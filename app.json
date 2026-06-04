@@ -35,7 +35,13 @@
 
     "web": {
       "output": "static",
-      "favicon": "./assets/images/adaptive.png"
+      "favicon": "./assets/images/adaptive.png",
+      "name": "Expense Tracker",
+      "shortName": "Expense",
+      "themeColor": "#16A34A",
+      "backgroundColor": "#ffffff",
+      "display": "standalone",
+      "startUrl": "/"
     },
 
     "plugins": [

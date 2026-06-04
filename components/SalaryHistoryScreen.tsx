@@ -308,6 +308,7 @@ export default function HistoryScreen() {
                   {
                     width: "100%",
                     flexShrink: 1,
+                    fontSize: 22,
                   },
                 ]}
               >
@@ -332,7 +333,7 @@ export default function HistoryScreen() {
 
       {filteredExpenses.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Ionicons name="receipt-outline" size={58} color={theme.primary} />
+          <Ionicons name="receipt-outline" size={23} color={theme.primary} />
           <Text style={styles.emptyTitle}>No expenses found</Text>
           <Text style={styles.emptyText}>
             Your expense history will appear here once you start tracking.
@@ -365,6 +366,8 @@ export default function HistoryScreen() {
                         styles.categoryIconBox,
                         {
                           backgroundColor: meta.tint,
+                          width: 45,
+                          height: 45,
                         },
                       ]}
                     >

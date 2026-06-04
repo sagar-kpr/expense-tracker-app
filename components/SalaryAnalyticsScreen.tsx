@@ -726,9 +726,10 @@ export default function AnalyticsScreen() {
                 <Text
                   numberOfLines={1}
                   adjustsFontSizeToFit
+                  minimumFontScale={0.7}
                   style={{
                     color: "#16A34A",
-                    fontSize: 28,
+                    fontSize: 20,
                     fontWeight: "900",
                   }}
                 >
@@ -771,9 +772,10 @@ export default function AnalyticsScreen() {
                 <Text
                   numberOfLines={1}
                   adjustsFontSizeToFit
+                  minimumFontScale={0.7}
                   style={{
                     color: "#2563EB",
-                    fontSize: 28,
+                    fontSize: 20,
                     fontWeight: "900",
                   }}
                 >

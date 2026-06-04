@@ -542,7 +542,7 @@ export default function SelfEmployedAnalyticsScreen() {
               minimumFontScale={0.7}
               style={{
                 color: "#16A34A",
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: "900",
               }}
             >
@@ -589,7 +589,7 @@ export default function SelfEmployedAnalyticsScreen() {
               minimumFontScale={0.7}
               style={{
                 color: "#2563EB",
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: "900",
               }}
             >
