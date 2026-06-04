@@ -2,6 +2,7 @@ export type ParsedSmsTransaction = {
   amount: number;
   category: string;
   description: string;
+  duplicateKey: string;
   rawMessage: string;
   source: "manual-paste" | "sms-auto";
   transactionDate: string;
@@ -130,6 +131,67 @@ const getDescription = (rawMessage: string, type: "expense" | "income") => {
     : normalized;
 };
 
+const getReferenceId = (rawMessage: string) => {
+  const match = rawMessage.match(
+    /\b(?:ref(?:erence)?\s*(?:no|num|number)?|rrn|utr|txn(?:\s*id)?|transaction\s*id)\s*[:#-]?\s*([a-z0-9]{6,})\b/i,
+  );
+
+  return match?.[1]?.toLowerCase() || null;
+};
+
+const getDuplicateKey = (
+  rawMessage: string,
+  amount: number,
+  type: "expense" | "income",
+) => {
+  const referenceId = getReferenceId(rawMessage);
+
+  if (referenceId) {
+    return `ref:${referenceId}`;
+  }
+
+  return `raw:${type}:${amount}:${rawMessage.toLowerCase().replace(/\s+/g, " ").trim()}`;
+};
+
+const hasDebitAccountContext = (message: string) =>
+  /\b(?:a\/c|account|acct|card|wallet)\b.{0,80}\b(?:debited|debit)\b/.test(
+    message,
+  ) ||
+  /\b(?:debited|debit)\b.{0,80}\b(?:from\s+)?(?:your\s+)?(?:a\/c|account|acct|card|wallet)\b/.test(
+    message,
+  );
+
+const hasCreditAccountContext = (message: string) =>
+  /\b(?:a\/c|account|acct|wallet)\b.{0,80}\b(?:credited|credit)\b/.test(
+    message,
+  ) ||
+  /\b(?:credited|credit)\b.{0,80}\b(?:to|in)\s+(?:your\s+)?(?:a\/c|account|acct|wallet)\b/.test(
+    message,
+  );
+
+const getTransactionType = (message: string) => {
+  const isExpense = includesAny(message, expenseKeywords);
+  const isIncome = includesAny(message, incomeKeywords);
+
+  if (!isExpense && !isIncome) {
+    return null;
+  }
+
+  if (isExpense && isIncome) {
+    if (hasDebitAccountContext(message)) {
+      return "expense";
+    }
+
+    if (hasCreditAccountContext(message)) {
+      return "income";
+    }
+
+    return "expense";
+  }
+
+  return isExpense ? "expense" : "income";
+};
+
 export const parseSmsMessage = (
   rawMessage: string,
   source: "manual-paste" | "sms-auto" = "manual-paste",
@@ -141,19 +203,17 @@ export const parseSmsMessage = (
     return null;
   }
 
-  const isExpense = includesAny(message, expenseKeywords);
-  const isIncome = includesAny(message, incomeKeywords);
+  const type = getTransactionType(message);
 
-  if (!isExpense && !isIncome) {
+  if (!type) {
     return null;
   }
-
-  const type = isExpense && !isIncome ? "expense" : "income";
 
   return {
     amount,
     category: getCategory(message, type),
     description: getDescription(rawMessage, type),
+    duplicateKey: getDuplicateKey(rawMessage, amount, type),
     rawMessage,
     source,
     transactionDate: new Date().toISOString(),

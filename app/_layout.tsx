@@ -4,23 +4,47 @@ import { Stack, router, useSegments } from "expo-router";
 
 import { useEffect } from "react";
 
-// import * as SplashScreen from "expo-splash-screen";
+import * as SplashScreen from "expo-splash-screen";
 
 import "react-native-reanimated";
 
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Image, Platform, StyleSheet, View } from "react-native";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
 import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ExpenseProvider } from "../context/ExpenseContext";
-// SplashScreen.preventAutoHideAsync();
+
+SplashScreen.preventAutoHideAsync();
+SplashScreen.setOptions({
+  duration: 400,
+  fade: true,
+});
+
+function LoadingSplash() {
+  return (
+    <View style={styles.splashContainer}>
+      <Image
+        source={require("../assets/images/splash.png")}
+        resizeMode="contain"
+        style={styles.splashImage}
+      />
+    </View>
+  );
+}
 
 function RootNavigator() {
   const { user, userData, loading } = useAuth();
 
   const segments: any = useSegments();
+
+  useEffect(() => {
+    if (!loading) {
+      SplashScreen.hideAsync();
+    }
+  }, [loading]);
 
   useEffect(() => {
     if (loading) return;
@@ -87,6 +111,10 @@ function RootNavigator() {
   }, [user, userData, loading, segments]);
 
   if (loading) {
+    if (Platform.OS === "web") {
+      return <LoadingSplash />;
+    }
+
     return null;
   }
 
@@ -114,3 +142,16 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    flex: 1,
+    justifyContent: "center",
+  },
+  splashImage: {
+    height: 220,
+    width: 220,
+  },
+});

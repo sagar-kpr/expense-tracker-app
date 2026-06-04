@@ -3,11 +3,14 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import {
   createContext,
@@ -26,6 +29,7 @@ import {
   Platform,
 } from "react-native";
 
+import { useAuth } from "@/context/AuthContext";
 import { auth, db } from "@/firebase";
 import { ParsedSmsTransaction, parseSmsMessage } from "@/utils/smsParser";
 
@@ -100,6 +104,7 @@ export const PendingTransactionProvider = ({
 }: {
   children: ReactNode;
 }) => {
+  const { userData } = useAuth();
   const [pendingTransactions, setPendingTransactions] = useState<
     PendingTransaction[]
   >([]);
@@ -111,6 +116,7 @@ export const PendingTransactionProvider = ({
     lastInboxScanCount: 0,
   });
   const processedNativeMessagesRef = useRef<string[]>([]);
+  const seenDuplicateKeysRef = useRef<Set<string>>(new Set());
   const seenRawMessagesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -152,6 +158,13 @@ export const PendingTransactionProvider = ({
                 Boolean(rawMessage),
               ),
           );
+          seenDuplicateKeysRef.current = new Set(
+            snapshot.docs
+              .map((item) => item.data().duplicateKey)
+              .filter((duplicateKey): duplicateKey is string =>
+                Boolean(duplicateKey),
+              ),
+          );
 
           setLoading(false);
         },
@@ -184,10 +197,62 @@ export const PendingTransactionProvider = ({
     [pendingTransactions],
   );
 
+  const hasStoredTransaction = async (duplicateKey: string) => {
+    if (seenDuplicateKeysRef.current.has(duplicateKey)) {
+      return true;
+    }
+
+    const collections = getUserCollections();
+
+    if (!collections) {
+      return false;
+    }
+
+    const pendingSnapshot = await getDocs(
+      query(collections.pending, where("duplicateKey", "==", duplicateKey), limit(1)),
+    );
+
+    if (!pendingSnapshot.empty) {
+      seenDuplicateKeysRef.current.add(duplicateKey);
+      return true;
+    }
+
+    const expensesSnapshot = await getDocs(
+      query(
+        collections.expenses,
+        where("duplicateKey", "==", duplicateKey),
+        limit(1),
+      ),
+    );
+
+    if (!expensesSnapshot.empty) {
+      seenDuplicateKeysRef.current.add(duplicateKey);
+      return true;
+    }
+
+    return false;
+  };
+
+  const shouldStoreParsedTransaction = (transaction: ParsedSmsTransaction) => {
+    if (userData?.type === "salary" && transaction.type === "income") {
+      return false;
+    }
+
+    return true;
+  };
+
   const addPendingTransaction = async (transaction: ParsedSmsTransaction) => {
     const collections = getUserCollections();
 
     if (!collections) {
+      return null;
+    }
+
+    if (!shouldStoreParsedTransaction(transaction)) {
+      return null;
+    }
+
+    if (await hasStoredTransaction(transaction.duplicateKey)) {
       return null;
     }
 
@@ -226,6 +291,7 @@ export const PendingTransactionProvider = ({
 
     if (parsed) {
       seenRawMessagesRef.current.add(rawMessage);
+      seenDuplicateKeysRef.current.add(parsed.duplicateKey);
       await addPendingTransaction(parsed);
       return;
     }
@@ -246,6 +312,7 @@ export const PendingTransactionProvider = ({
     }
 
     seenRawMessagesRef.current.add(rawMessage);
+    seenDuplicateKeysRef.current.add(parsed.duplicateKey);
     await addPendingTransaction(parsed);
   };
 
@@ -255,31 +322,12 @@ export const PendingTransactionProvider = ({
     amount: 100,
     category: "Other",
     description: "Unable to parse SMS. Edit details to save.",
+    duplicateKey: `raw:expense:100:${rawMessage.toLowerCase().replace(/\s+/g, " ").trim()}`,
     rawMessage,
     source: "sms-auto",
     transactionDate: new Date().toISOString(),
     type: "expense",
   });
-
-  const requestSmsPermissions = async () => {
-    if (Platform.OS !== "android") {
-      return true;
-    }
-
-    const permissions = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-      PermissionsAndroid.PERMISSIONS.READ_SMS,
-    ]);
-
-    const hasReceiveSms =
-      permissions[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] ===
-      PermissionsAndroid.RESULTS.GRANTED;
-    const hasReadSms =
-      permissions[PermissionsAndroid.PERMISSIONS.READ_SMS] ===
-      PermissionsAndroid.RESULTS.GRANTED;
-
-    return hasReceiveSms && hasReadSms;
-  };
 
   const updateSmsPermissionDiagnostics = async () => {
     if (Platform.OS !== "android") {
@@ -300,13 +348,28 @@ export const PendingTransactionProvider = ({
   };
 
   const importNativeSmsMessages = async () => {
-    const hasPermissions = await requestSmsPermissions();
-
-    if (!hasPermissions || Platform.OS !== "android" || !SmsTransactionModule) {
+    if (Platform.OS !== "android" || !SmsTransactionModule) {
       setSmsDiagnostics((current) => ({
         ...current,
         hasNativeModule: !!SmsTransactionModule,
         lastImportAt: new Date().toISOString(),
+      }));
+      return;
+    }
+
+    const [receivePermission, readPermission] = await Promise.all([
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS),
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS),
+    ]);
+    const hasPermissions = receivePermission && readPermission;
+
+    if (!hasPermissions) {
+      setSmsDiagnostics((current) => ({
+        ...current,
+        hasNativeModule: true,
+        lastImportAt: new Date().toISOString(),
+        readPermission,
+        receivePermission,
       }));
       return;
     }
@@ -425,6 +488,7 @@ export const PendingTransactionProvider = ({
       category: transaction.category,
       createdAt: transaction.transactionDate || new Date().toISOString(),
       description: transaction.description,
+      duplicateKey: transaction.duplicateKey,
       source: transaction.source,
       type: transaction.type,
     });
