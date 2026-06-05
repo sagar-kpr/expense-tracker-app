@@ -90,7 +90,7 @@ export default function UserTypeScreen() {
             gap: 18,
           }}
         >
-          <Animated.View entering={FadeInUp.delay(150).duration(700)}>
+          <Animated.View entering={FadeInUp.delay(250).duration(700)}>
             <Pressable
               onPress={() => handleSelect("salary")}
               style={({ pressed }) => ({
@@ -199,7 +199,7 @@ export default function UserTypeScreen() {
             </Pressable>
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.delay(260).duration(700)}>
+          <Animated.View entering={FadeInUp.delay(450).duration(700)}>
             <Pressable
               onPress={() => handleSelect("self-employed")}
               style={({ pressed }) => ({
