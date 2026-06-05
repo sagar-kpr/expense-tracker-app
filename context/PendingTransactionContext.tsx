@@ -3,14 +3,11 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
-  limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
-  where,
 } from "firebase/firestore";
 import {
   createContext,
@@ -54,22 +51,10 @@ type PendingTransactionContextType = {
   pendingDebits: PendingTransaction[];
   pendingTransactions: PendingTransaction[];
   refreshPendingTransactions: () => Promise<void>;
-  smsDiagnostics: SmsDiagnostics;
   updatePendingTransaction: (
     id: string,
     data: Partial<PendingTransactionInput>,
   ) => Promise<void>;
-};
-
-type SmsDiagnostics = {
-  cachedMessageCount: number;
-  hasNativeModule: boolean;
-  lastError?: string;
-  lastEventAt?: string;
-  lastImportAt?: string;
-  lastInboxScanCount: number;
-  readPermission?: boolean;
-  receivePermission?: boolean;
 };
 
 const PendingTransactionContext = createContext<
@@ -80,7 +65,6 @@ const SmsTransactionModule = NativeModules.SmsTransactionModule as
   | {
       addListener: (eventName: string) => void;
       clearPendingMessages: () => Promise<void>;
-      getRecentInboxMessages: (limit: number) => Promise<string[]>;
       getPendingMessages: () => Promise<string[]>;
       removeListeners: (count: number) => void;
     }
@@ -110,14 +94,7 @@ export const PendingTransactionProvider = ({
   >([]);
 
   const [loading, setLoading] = useState(true);
-  const [smsDiagnostics, setSmsDiagnostics] = useState<SmsDiagnostics>({
-    cachedMessageCount: 0,
-    hasNativeModule: Platform.OS === "android" && !!SmsTransactionModule,
-    lastInboxScanCount: 0,
-  });
   const processedNativeMessagesRef = useRef<string[]>([]);
-  const seenDuplicateKeysRef = useRef<Set<string>>(new Set());
-  const seenRawMessagesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let unsubscribeSnapshot: (() => void) | undefined;
@@ -151,20 +128,6 @@ export const PendingTransactionProvider = ({
               ...item.data(),
             })) as PendingTransaction[],
           );
-          seenRawMessagesRef.current = new Set(
-            snapshot.docs
-              .map((item) => item.data().rawMessage)
-              .filter((rawMessage): rawMessage is string =>
-                Boolean(rawMessage),
-              ),
-          );
-          seenDuplicateKeysRef.current = new Set(
-            snapshot.docs
-              .map((item) => item.data().duplicateKey)
-              .filter((duplicateKey): duplicateKey is string =>
-                Boolean(duplicateKey),
-              ),
-          );
 
           setLoading(false);
         },
@@ -197,50 +160,6 @@ export const PendingTransactionProvider = ({
     [pendingTransactions],
   );
 
-  const hasStoredTransaction = async (duplicateKey: string) => {
-    if (seenDuplicateKeysRef.current.has(duplicateKey)) {
-      return true;
-    }
-
-    const collections = getUserCollections();
-
-    if (!collections) {
-      return false;
-    }
-
-    const pendingSnapshot = await getDocs(
-      query(collections.pending, where("duplicateKey", "==", duplicateKey), limit(1)),
-    );
-
-    if (!pendingSnapshot.empty) {
-      seenDuplicateKeysRef.current.add(duplicateKey);
-      return true;
-    }
-
-    const expensesSnapshot = await getDocs(
-      query(
-        collections.expenses,
-        where("duplicateKey", "==", duplicateKey),
-        limit(1),
-      ),
-    );
-
-    if (!expensesSnapshot.empty) {
-      seenDuplicateKeysRef.current.add(duplicateKey);
-      return true;
-    }
-
-    return false;
-  };
-
-  const shouldStoreParsedTransaction = (transaction: ParsedSmsTransaction) => {
-    if (userData?.type === "salary" && transaction.type === "income") {
-      return false;
-    }
-
-    return true;
-  };
-
   const addPendingTransaction = async (transaction: ParsedSmsTransaction) => {
     const collections = getUserCollections();
 
@@ -248,11 +167,7 @@ export const PendingTransactionProvider = ({
       return null;
     }
 
-    if (!shouldStoreParsedTransaction(transaction)) {
-      return null;
-    }
-
-    if (await hasStoredTransaction(transaction.duplicateKey)) {
+    if (userData?.type === "salary" && transaction.type === "income") {
       return null;
     }
 
@@ -283,37 +198,14 @@ export const PendingTransactionProvider = ({
   };
 
   const addNativeSmsMessage = async (rawMessage: string) => {
-    if (seenRawMessagesRef.current.has(rawMessage)) {
-      return;
-    }
-
     const parsed = parseSmsMessage(rawMessage, "sms-auto");
 
     if (parsed) {
-      seenRawMessagesRef.current.add(rawMessage);
-      seenDuplicateKeysRef.current.add(parsed.duplicateKey);
       await addPendingTransaction(parsed);
       return;
     }
 
-    seenRawMessagesRef.current.add(rawMessage);
     await addPendingTransaction(createFallbackPendingTransaction(rawMessage));
-  };
-
-  const addParsedInboxMessage = async (rawMessage: string) => {
-    if (seenRawMessagesRef.current.has(rawMessage)) {
-      return;
-    }
-
-    const parsed = parseSmsMessage(rawMessage, "sms-auto");
-
-    if (!parsed) {
-      return;
-    }
-
-    seenRawMessagesRef.current.add(rawMessage);
-    seenDuplicateKeysRef.current.add(parsed.duplicateKey);
-    await addPendingTransaction(parsed);
   };
 
   const createFallbackPendingTransaction = (
@@ -322,60 +214,44 @@ export const PendingTransactionProvider = ({
     amount: 100,
     category: "Other",
     description: "Unable to parse SMS. Edit details to save.",
-    duplicateKey: `raw:expense:100:${rawMessage.toLowerCase().replace(/\s+/g, " ").trim()}`,
     rawMessage,
     source: "sms-auto",
     transactionDate: new Date().toISOString(),
     type: "expense",
   });
 
-  const updateSmsPermissionDiagnostics = async () => {
+  const requestSmsPermissions = async () => {
     if (Platform.OS !== "android") {
-      return;
+      return true;
     }
 
-    const [receivePermission, readPermission] = await Promise.all([
-      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS),
-      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS),
+    const permissions = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+      PermissionsAndroid.PERMISSIONS.READ_SMS,
     ]);
 
-    setSmsDiagnostics((current) => ({
-      ...current,
-      hasNativeModule: !!SmsTransactionModule,
-      readPermission,
-      receivePermission,
-    }));
+    const hasReceiveSms =
+      permissions[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+    const hasReadSms =
+      permissions[PermissionsAndroid.PERMISSIONS.READ_SMS] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+
+    return hasReceiveSms && hasReadSms;
   };
 
   const importNativeSmsMessages = async () => {
-    if (Platform.OS !== "android" || !SmsTransactionModule) {
-      setSmsDiagnostics((current) => ({
-        ...current,
-        hasNativeModule: !!SmsTransactionModule,
-        lastImportAt: new Date().toISOString(),
-      }));
-      return;
-    }
+    const hasPermissions = await requestSmsPermissions();
 
-    const [receivePermission, readPermission] = await Promise.all([
-      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS),
-      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS),
-    ]);
-    const hasPermissions = receivePermission && readPermission;
-
-    if (!hasPermissions) {
-      setSmsDiagnostics((current) => ({
-        ...current,
-        hasNativeModule: true,
-        lastImportAt: new Date().toISOString(),
-        readPermission,
-        receivePermission,
-      }));
+    if (!hasPermissions || Platform.OS !== "android" || !SmsTransactionModule) {
       return;
     }
 
     const messages = await SmsTransactionModule.getPendingMessages();
-    const inboxMessages = await SmsTransactionModule.getRecentInboxMessages(25);
+
+    if (messages.length === 0) {
+      return;
+    }
 
     const alreadyProcessed = new Set(processedNativeMessagesRef.current);
 
@@ -387,48 +263,17 @@ export const PendingTransactionProvider = ({
       await addNativeSmsMessage(message);
     }
 
-    for (const message of inboxMessages) {
-      await addParsedInboxMessage(message);
-    }
-
     processedNativeMessagesRef.current = [];
 
     await SmsTransactionModule.clearPendingMessages();
-
-    setSmsDiagnostics((current) => ({
-      ...current,
-      cachedMessageCount: messages.length,
-      hasNativeModule: true,
-      lastError: undefined,
-      lastImportAt: new Date().toISOString(),
-      lastInboxScanCount: inboxMessages.length,
-    }));
   };
 
   const refreshPendingTransactions = async () => {
-    try {
-      await updateSmsPermissionDiagnostics();
-      await importNativeSmsMessages();
-    } catch (error) {
-      setSmsDiagnostics((current) => ({
-        ...current,
-        lastError: error instanceof Error ? error.message : String(error),
-      }));
-
-      throw error;
-    }
+    await importNativeSmsMessages();
   };
 
   useEffect(() => {
-    updateSmsPermissionDiagnostics().catch((error) => {
-      console.log("Native SMS diagnostics error:", error);
-    });
-
     importNativeSmsMessages().catch((error) => {
-      setSmsDiagnostics((current) => ({
-        ...current,
-        lastError: error instanceof Error ? error.message : String(error),
-      }));
       console.log("Native SMS import error:", error);
     });
 
@@ -441,17 +286,8 @@ export const PendingTransactionProvider = ({
                 ...processedNativeMessagesRef.current,
                 message,
               ];
-              setSmsDiagnostics((current) => ({
-                ...current,
-                lastEventAt: new Date().toISOString(),
-              }));
 
               addNativeSmsMessage(message).catch((error) => {
-                setSmsDiagnostics((current) => ({
-                  ...current,
-                  lastError:
-                    error instanceof Error ? error.message : String(error),
-                }));
                 console.log("Native SMS event import error:", error);
               });
             },
@@ -461,10 +297,6 @@ export const PendingTransactionProvider = ({
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         importNativeSmsMessages().catch((error) => {
-          setSmsDiagnostics((current) => ({
-            ...current,
-            lastError: error instanceof Error ? error.message : String(error),
-          }));
           console.log("Native SMS import error:", error);
         });
       }
@@ -488,7 +320,6 @@ export const PendingTransactionProvider = ({
       category: transaction.category,
       createdAt: transaction.transactionDate || new Date().toISOString(),
       description: transaction.description,
-      duplicateKey: transaction.duplicateKey,
       source: transaction.source,
       type: transaction.type,
     });
@@ -531,7 +362,6 @@ export const PendingTransactionProvider = ({
         pendingDebits,
         pendingTransactions,
         refreshPendingTransactions,
-        smsDiagnostics,
         updatePendingTransaction,
       }}
     >

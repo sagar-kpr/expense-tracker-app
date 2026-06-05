@@ -34,7 +34,6 @@ export default function PendingTransactionsReview() {
     pendingDebits,
     pendingTransactions,
     refreshPendingTransactions,
-    smsDiagnostics,
   } = usePendingTransactions();
 
   const [message, setMessage] = useState("");
@@ -326,88 +325,6 @@ export default function PendingTransactionsReview() {
         >
           Review bank messages before they become real expense records.
         </Text>
-
-        {Platform.OS === "android" && (
-          <View
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-              borderRadius: 16,
-              borderWidth: 1,
-              marginTop: 16,
-              padding: 14,
-            }}
-          >
-            <Text
-              style={{
-                color: theme.text,
-                fontSize: 14,
-                fontWeight: "900",
-              }}
-            >
-              SMS status
-            </Text>
-            <Text
-              style={{
-                color: theme.subText,
-                fontSize: 12,
-                lineHeight: 19,
-                marginTop: 6,
-              }}
-            >
-              Native: {smsDiagnostics.hasNativeModule ? "yes" : "no"} | Receive:{" "}
-              {smsDiagnostics.receivePermission ? "yes" : "no"} | Read:{" "}
-              {smsDiagnostics.readPermission ? "yes" : "no"}
-            </Text>
-            <Text
-              style={{
-                color: theme.subText,
-                fontSize: 12,
-                lineHeight: 19,
-              }}
-            >
-              Cache: {smsDiagnostics.cachedMessageCount} | Inbox scan:{" "}
-              {smsDiagnostics.lastInboxScanCount}
-            </Text>
-            {!!smsDiagnostics.lastEventAt && (
-              <Text
-                style={{
-                  color: theme.subText,
-                  fontSize: 12,
-                  lineHeight: 19,
-                }}
-              >
-                Last live SMS:{" "}
-                {new Date(smsDiagnostics.lastEventAt).toLocaleTimeString()}
-              </Text>
-            )}
-            {!!smsDiagnostics.lastImportAt && (
-              <Text
-                style={{
-                  color: theme.subText,
-                  fontSize: 12,
-                  lineHeight: 19,
-                }}
-              >
-                Last scan:{" "}
-                {new Date(smsDiagnostics.lastImportAt).toLocaleTimeString()}
-              </Text>
-            )}
-            {!!smsDiagnostics.lastError && (
-              <Text
-                style={{
-                  color: theme.danger,
-                  fontSize: 12,
-                  fontWeight: "700",
-                  lineHeight: 19,
-                  marginTop: 4,
-                }}
-              >
-                {smsDiagnostics.lastError}
-              </Text>
-            )}
-          </View>
-        )}
 
         {/* <View
           style={{

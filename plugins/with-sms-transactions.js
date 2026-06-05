@@ -23,7 +23,6 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableNativeArray
-import android.provider.Telephony
 import org.json.JSONArray
 import java.lang.ref.WeakReference
 
@@ -80,40 +79,6 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       promise.resolve(result)
     } catch (error: Exception) {
       promise.reject("SMS_PENDING_READ_FAILED", error)
-    }
-  }
-
-  @ReactMethod
-  fun getRecentInboxMessages(limit: Int, promise: Promise) {
-    try {
-      val result = WritableNativeArray()
-      val cursor = reactContext.contentResolver.query(
-        Telephony.Sms.Inbox.CONTENT_URI,
-        arrayOf(Telephony.Sms.BODY),
-        null,
-        null,
-        "${Telephony.Sms.DATE} DESC"
-      )
-
-      cursor?.use {
-        val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
-        var count = 0
-
-        while (it.moveToNext() && count < limit) {
-          if (bodyIndex >= 0) {
-            val body = it.getString(bodyIndex)?.trim()
-
-            if (!body.isNullOrEmpty()) {
-              result.pushString(body)
-              count += 1
-            }
-          }
-        }
-      }
-
-      promise.resolve(result)
-    } catch (error: Exception) {
-      promise.reject("SMS_INBOX_READ_FAILED", error)
     }
   }
 

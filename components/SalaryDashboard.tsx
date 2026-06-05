@@ -218,6 +218,35 @@ export default function SalaryDashboard() {
           }}
         >
           <Ionicons name="receipt" size={21} color={theme.primary} />
+          {pendingCount > 0 && (
+            <View
+              style={{
+                alignItems: "center",
+                backgroundColor: theme.danger,
+                borderColor: theme.card,
+                borderRadius: 999,
+                borderWidth: 2,
+                minWidth: 22,
+                height: 22,
+                justifyContent: "center",
+                paddingHorizontal: 5,
+                position: "absolute",
+                right: -7,
+                top: -7,
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 11,
+                  fontWeight: "900",
+                }}
+              >
+                {pendingCount > 99 ? "99+" : pendingCount}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text
