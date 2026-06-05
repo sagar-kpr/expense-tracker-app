@@ -12,8 +12,6 @@ import { useState } from "react";
 
 import Animated, { FadeInUp } from "react-native-reanimated";
 
-import { router } from "expo-router";
-
 import { Ionicons } from "@expo/vector-icons";
 
 import * as Haptics from "expo-haptics";
@@ -58,11 +56,7 @@ export default function LoginScreen() {
 
         await signup(email.trim(), password);
 
-        router.dismissAll();
 
-        // IMPORTANT FIX 🔥
-        // user-type first
-        router.replace("/(auth)/user-type" as any);
       } else {
         await loginWithEmail(email.trim(), password);
       }

@@ -1,6 +1,6 @@
 import "react-native-get-random-values";
 
-import { Stack, router, useSegments } from "expo-router";
+import { Redirect, Stack, useSegments } from "expo-router";
 
 import { useEffect } from "react";
 
@@ -46,76 +46,49 @@ function RootNavigator() {
     }
   }, [loading]);
 
-  useEffect(() => {
-    if (loading) return;
-
-    const inAuthGroup = segments?.[0] === "(auth)";
-
-    const currentScreen = segments?.[1];
-
-    // NO USER
-    if (!user) {
-      if (!inAuthGroup) {
-        router.replace("/(auth)/welcome" as any);
-      }
-
-      return;
-    }
-
-    // USER EXISTS
-    if (user && userData) {
-      // ONBOARDING COMPLETE
-      if (userData.onboarding) {
-        const blockedScreens = ["welcome", "login", "user-type"];
-
-        if (inAuthGroup && blockedScreens.includes(currentScreen || "")) {
-          router.replace("/(tabs)" as any);
-        }
-
-        return;
-      }
-
-      // ONBOARDING NOT COMPLETE
-
-      // TYPE NOT SELECTED
-      if (!userData.type) {
-        // Allow users to navigate to the setup screens even if `type` isn't
-        // persisted yet (so they can go back). Only block other screens.
-        const allowedWhenTypeMissing = [
-          "user-type",
-          "salary-setup",
-          "business-setup",
-        ];
-
-        if (!allowedWhenTypeMissing.includes(currentScreen || "")) {
-          router.replace("/(auth)/user-type" as any);
-        }
-
-        return;
-      }
-
-      // TYPE SELECTED
-      if (userData.type === "salary") {
-        if (currentScreen !== "salary-setup") {
-          router.replace("/(auth)/salary-setup" as any);
-        }
-
-        return;
-      }
-
-      // SELF EMPLOYED
-      if (currentScreen !== "business-setup") {
-        router.replace("/(auth)/business-setup" as any);
-      }
-    }
-  }, [user, userData, loading, segments]);
-
   if (loading) {
     if (Platform.OS === "web") {
       return <LoadingSplash />;
     }
 
     return null;
+  }
+
+  const inAuthGroup = segments?.[0] === "(auth)";
+  const inTabsGroup = segments?.[0] === "(tabs)";
+  const currentScreen = segments?.[1];
+
+  if (!user && !inAuthGroup) {
+    return <Redirect href="/(auth)/welcome" />;
+  }
+
+  if (user && userData) {
+    if (userData.onboarding) {
+      const blockedScreens = ["welcome", "login", "user-type"];
+
+      if (
+        !inTabsGroup &&
+        (!inAuthGroup || blockedScreens.includes(currentScreen || ""))
+      ) {
+        return <Redirect href="/(tabs)" />;
+      }
+    } else if (!userData.type) {
+      const allowedWhenTypeMissing = [
+        "user-type",
+        "salary-setup",
+        "business-setup",
+      ];
+
+      if (!allowedWhenTypeMissing.includes(currentScreen || "")) {
+        return <Redirect href="/(auth)/user-type" />;
+      }
+    } else if (userData.type === "salary") {
+      if (currentScreen !== "salary-setup") {
+        return <Redirect href="/(auth)/salary-setup" />;
+      }
+    } else if (currentScreen !== "business-setup") {
+      return <Redirect href="/(auth)/business-setup" />;
+    }
   }
 
   return (

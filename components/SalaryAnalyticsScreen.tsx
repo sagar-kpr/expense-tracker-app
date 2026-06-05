@@ -35,6 +35,51 @@ const screenWidth = Dimensions.get("window").width;
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const getSafeCycleDate = (year: number, month: number, salaryDate: number) => {
+  const lastDay = new Date(year, month + 1, 0).getDate();
+
+  return new Date(year, month, Math.min(salaryDate, lastDay));
+};
+
+const getCurrentCycleStart = (salaryDate: number) => {
+  const now = new Date();
+  let start = getSafeCycleDate(now.getFullYear(), now.getMonth(), salaryDate);
+
+  if (now < start) {
+    start = getSafeCycleDate(now.getFullYear(), now.getMonth() - 1, salaryDate);
+  }
+
+  start.setHours(0, 0, 0, 0);
+
+  return start;
+};
+
+const getNextCycleStart = (cycleStart: Date, salaryDate: number) => {
+  const next = getSafeCycleDate(
+    cycleStart.getFullYear(),
+    cycleStart.getMonth() + 1,
+    salaryDate,
+  );
+
+  next.setHours(0, 0, 0, 0);
+
+  return next;
+};
+
+const formatCycleDate = (date: Date) =>
+  date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+
+const getExpenseDate = (value: any) => {
+  const date = value?.toDate ? value.toDate() : new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 type DonutSegmentProps = {
   color: string;
   circumference: number;
@@ -85,8 +130,10 @@ export default function AnalyticsScreen() {
 
   const { userData } = useAuth();
 
-  const [selectedDate, setSelectedDate] = useState(
-    new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  const salaryDate = Number(userData?.salaryDate || 1);
+
+  const [selectedDate, setSelectedDate] = useState(() =>
+    getCurrentCycleStart(salaryDate),
   );
 
   const [refreshing, setRefreshing] = useState(false);
@@ -96,9 +143,7 @@ export default function AnalyticsScreen() {
 
     setRefreshing(true);
 
-    setSelectedDate(
-      new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    );
+    setSelectedDate(getCurrentCycleStart(salaryDate));
 
     setTimeout(() => {
       setRefreshing(false);
@@ -115,55 +160,63 @@ export default function AnalyticsScreen() {
     });
   }, [progress, selectedDate]);
 
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
+  const salaryCycles = useMemo(() => {
+    const currentCycleStart = getCurrentCycleStart(salaryDate);
+
+    return Array.from({ length: 12 }, (_value, index) => {
+      const monthOffset = index - 8;
+      const start = getSafeCycleDate(
+        currentCycleStart.getFullYear(),
+        currentCycleStart.getMonth() + monthOffset,
+        salaryDate,
+      );
+      const end = getNextCycleStart(start, salaryDate);
+      const displayEnd = new Date(end.getTime() - MS_PER_DAY);
+
+      return {
+        end,
+        label: `${formatCycleDate(start)} - ${formatCycleDate(displayEnd)}`,
+        start,
+      };
+    });
+  }, [salaryDate]);
 
   useFocusEffect(
     React.useCallback(() => {
-      setSelectedDate(
-        new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-      );
-    }, []),
+      setSelectedDate(getCurrentCycleStart(salaryDate));
+    }, [salaryDate]),
   );
 
   useEffect(() => {
+    const selectedIndex = salaryCycles.findIndex(
+      (cycle) => cycle.start.getTime() === selectedDate.getTime(),
+    );
+
     monthScrollRef.current?.scrollTo({
-      x: Math.max(0, (selectedDate.getMonth() - 2) * 95),
+      x: Math.max(0, (selectedIndex - 2) * 142),
       animated: true,
     });
-  }, [selectedDate]);
+  }, [salaryCycles, selectedDate]);
+
+  const selectedCycleEnd = useMemo(
+    () => getNextCycleStart(selectedDate, salaryDate),
+    [salaryDate, selectedDate],
+  );
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((item) => {
-      const rawDate: any = item.createdAt;
-
-      const date = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
+      const date = getExpenseDate(item.createdAt);
 
       if (
-        Number.isNaN(date.getTime()) ||
+        !date ||
         (item.type || "expense") !== "expense"
       ) {
         return false;
       }
 
-      return (
-        date.getMonth() === selectedDate.getMonth() &&
-        date.getFullYear() === selectedDate.getFullYear()
-      );
+      return date >= selectedDate && date < selectedCycleEnd;
     });
-  }, [expenses, selectedDate]);
+  }, [expenses, selectedCycleEnd, selectedDate]);
 
   const groupedCategories = filteredExpenses.reduce(
     (acc: Record<string, number>, item: any) => {
@@ -214,11 +267,22 @@ export default function AnalyticsScreen() {
 
   const groupedByDay = filteredExpenses.reduce(
     (acc: Record<string, number>, item) => {
-      const rawDate: any = item.createdAt;
+      const date = getExpenseDate(item.createdAt);
 
-      const date = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
+      if (!date) {
+        return acc;
+      }
 
-      const day = date.getDate();
+      const day =
+        Math.floor(
+          (new Date(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate(),
+          ).getTime() -
+            selectedDate.getTime()) /
+            MS_PER_DAY,
+        ) + 1;
 
       acc[day] = (acc[day] || 0) + Number(item.amount);
 
@@ -231,24 +295,31 @@ export default function AnalyticsScreen() {
     .map(Number)
     .sort((a, b) => a - b);
 
-  const daysInSelectedMonth = new Date(
-    selectedDate.getFullYear(),
-    selectedDate.getMonth() + 1,
-    0,
-  ).getDate();
+  const daysInSelectedCycle = Math.max(
+    1,
+    Math.round((selectedCycleEnd.getTime() - selectedDate.getTime()) / MS_PER_DAY),
+  );
 
   const monthDays = Array.from(
     {
-      length: daysInSelectedMonth,
+      length: daysInSelectedCycle,
     },
     (_value, index) => index + 1,
   );
 
   const chartLabels = monthDays.map((day) => {
     const shouldShowLabel =
-      day === 1 || day === daysInSelectedMonth || day % 5 === 0;
+      day === 1 || day === daysInSelectedCycle || day % 5 === 0;
 
-    return shouldShowLabel ? String(day) : "";
+    if (!shouldShowLabel) {
+      return "";
+    }
+
+    const labelDate = new Date(selectedDate);
+
+    labelDate.setDate(selectedDate.getDate() + day - 1);
+
+    return String(labelDate.getDate());
   });
 
   const chartValues = monthDays.map((day) => groupedByDay[day] || 0);
@@ -320,16 +391,16 @@ export default function AnalyticsScreen() {
           paddingRight: 20,
         }}
       >
-        {months.map((month, index) => {
-          const active = selectedDate.getMonth() === index;
+        {salaryCycles.map((cycle) => {
+          const active = selectedDate.getTime() === cycle.start.getTime();
 
           return (
             <Text
-              key={month}
+              key={cycle.start.toISOString()}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-                setSelectedDate(new Date(selectedDate.getFullYear(), index, 1));
+                setSelectedDate(cycle.start);
               }}
               style={{
                 backgroundColor: active ? theme.primary : theme.card,
@@ -349,7 +420,7 @@ export default function AnalyticsScreen() {
                 overflow: "hidden",
               }}
             >
-              {month}
+              {cycle.label}
             </Text>
           );
         })}
@@ -386,7 +457,7 @@ export default function AnalyticsScreen() {
         {displayRanges.length > 0 ? (
           <>
             <Animated.View
-              key={`donut-${selectedDate.getMonth()}-${refreshing}`}
+              key={`donut-${selectedDate.getTime()}-${refreshing}`}
               style={{
                 justifyContent: "center",
 
@@ -614,7 +685,7 @@ export default function AnalyticsScreen() {
                 lineHeight: 22,
               }}
             >
-              No analytics available for this month.
+              No analytics available for this salary cycle.
             </Text>
           </View>
         )}
@@ -675,7 +746,7 @@ export default function AnalyticsScreen() {
                 fontSize: 9,
               }}
             >
-              Monthly
+              Salary Cycle
             </Text>
           </View>
         </View>
@@ -874,7 +945,7 @@ export default function AnalyticsScreen() {
             }}
           >
             {topCategory
-              ? `You spent most on ${topCategory[0]} this month 🔥`
+              ? `You spent most on ${topCategory[0]} this salary cycle 🔥`
               : "No spending insights yet"}
           </Text>
         </View>

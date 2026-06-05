@@ -14,17 +14,21 @@ import { router } from "expo-router";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
+
 export default function UserTypeScreen() {
   const [loadingType, setLoadingType] = useState("");
+
+  useBlockAndroidBack();
 
   const handleSelect = async (type: string) => {
     try {
       setLoadingType(type);
 
       if (type === "salary") {
-        router.push("/(auth)/salary-setup" as any);
+        router.replace("/(auth)/salary-setup" as any);
       } else {
-        router.push("/(auth)/business-setup" as any);
+        router.replace("/(auth)/business-setup" as any);
       }
     } finally {
       setLoadingType("");

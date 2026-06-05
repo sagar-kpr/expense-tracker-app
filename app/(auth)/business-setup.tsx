@@ -14,7 +14,11 @@ import { auth, db } from "@/firebase";
 
 import { doc, updateDoc } from "firebase/firestore";
 
+import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
+
 export default function BusinessSetupScreen() {
+  useBlockAndroidBack();
+
   const [name, setName] = useState("");
 
   const [businessName, setBusinessName] = useState("");
