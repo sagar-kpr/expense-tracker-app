@@ -416,7 +416,6 @@ export default function SelfEmployedProfileScreen() {
           onPress={async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             await logout();
-            router.replace("/(auth)/login");
           }}
           activeOpacity={0.8}
           style={{

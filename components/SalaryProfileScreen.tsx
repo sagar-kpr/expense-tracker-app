@@ -1058,8 +1058,6 @@ export default function ProfileScreen() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
             await logout();
-
-            router.replace("/(auth)/login");
           }}
           activeOpacity={0.8}
           style={{
