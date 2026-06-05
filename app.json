@@ -21,6 +21,8 @@
     "android": {
       "package": "com.sagarkpr.expensetracker.preview",
 
+      "allowBackup": false,
+
       "permissions": ["READ_SMS", "RECEIVE_SMS"],
 
       "adaptiveIcon": {
