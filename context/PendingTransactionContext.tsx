@@ -88,13 +88,19 @@ export const PendingTransactionProvider = ({
 }: {
   children: ReactNode;
 }) => {
-  const { userData } = useAuth();
+  const { loading: authLoading, userData } = useAuth();
   const [pendingTransactions, setPendingTransactions] = useState<
     PendingTransaction[]
   >([]);
 
   const [loading, setLoading] = useState(true);
   const processedNativeMessagesRef = useRef<string[]>([]);
+  const requestedStartupImportRef = useRef(false);
+  const userTypeRef = useRef(userData?.type);
+
+  useEffect(() => {
+    userTypeRef.current = userData?.type;
+  }, [userData?.type]);
 
   useEffect(() => {
     let unsubscribeSnapshot: (() => void) | undefined;
@@ -167,7 +173,7 @@ export const PendingTransactionProvider = ({
       return null;
     }
 
-    if (userData?.type === "salary" && transaction.type === "income") {
+    if (userTypeRef.current === "salary" && transaction.type === "income") {
       return null;
     }
 
@@ -273,10 +279,22 @@ export const PendingTransactionProvider = ({
   };
 
   useEffect(() => {
-    importNativeSmsMessages().catch((error) => {
-      console.log("Native SMS import error:", error);
-    });
+    if (authLoading || requestedStartupImportRef.current) {
+      return;
+    }
 
+    requestedStartupImportRef.current = true;
+
+    const timeout = setTimeout(() => {
+      importNativeSmsMessages().catch((error) => {
+        console.log("Native SMS import error:", error);
+      });
+    }, 700);
+
+    return () => clearTimeout(timeout);
+  }, [authLoading]);
+
+  useEffect(() => {
     const nativeSmsSubscription =
       Platform.OS === "android" && SmsTransactionModule
         ? new NativeEventEmitter(SmsTransactionModule).addListener(
