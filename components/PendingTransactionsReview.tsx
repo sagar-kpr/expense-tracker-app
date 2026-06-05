@@ -2,26 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-  RefreshControl,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { RefreshControl, ScrollView, Text, View } from "react-native";
 
 import PendingTransactionCard from "@/components/PendingTransactionCard";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
 import { useTheme } from "@/context/ThemeContext";
 
-const examples = [
-  "Rs.130 debited from your account via UPI to SWIGGY.",
-  "Rs.50000 credited to your account as salary.",
-];
-console.log(
-  "🚀 ~ file: PendingTransactionsReview.tsx:11 ~ examples:",
-  examples,
-);
 export default function PendingTransactionsReview() {
   const { theme } = useTheme();
   const {
@@ -64,8 +50,6 @@ export default function PendingTransactionsReview() {
       setParsing(false);
     }
   };
-
-  console.log("🚀Transactions:", pendingTransactions);
 
   const handleRefresh = async () => {
     setRefreshing(true);
