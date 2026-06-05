@@ -2,6 +2,7 @@ export type ParsedSmsTransaction = {
   amount: number;
   category: string;
   description: string;
+  duplicateKey?: string;
   rawMessage: string;
   source: "manual-paste" | "sms-auto";
   transactionDate: string;
@@ -130,6 +131,20 @@ const getDescription = (rawMessage: string, type: "expense" | "income") => {
     : normalized;
 };
 
+export const getSmsDuplicateKey = (rawMessage: string) =>
+  rawMessage.toLowerCase().replace(/\s+/g, " ").trim();
+
+export const getSmsDuplicateId = (rawMessage: string) => {
+  const normalized = getSmsDuplicateKey(rawMessage);
+  let hash = 0;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(index)) | 0;
+  }
+
+  return `sms_${Math.abs(hash).toString(36)}`;
+};
+
 const hasDebitAccountContext = (message: string) =>
   /\b(?:a\/c|account|acct|card|wallet)\b.{0,80}\b(?:debited|debit)\b/.test(
     message,
@@ -190,6 +205,7 @@ export const parseSmsMessage = (
     amount,
     category: getCategory(message, type),
     description: getDescription(rawMessage, type),
+    duplicateKey: getSmsDuplicateKey(rawMessage),
     rawMessage,
     source,
     transactionDate: new Date().toISOString(),

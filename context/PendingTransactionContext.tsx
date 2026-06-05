@@ -3,10 +3,12 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 import {
@@ -28,7 +30,12 @@ import {
 
 import { useAuth } from "@/context/AuthContext";
 import { auth, db } from "@/firebase";
-import { ParsedSmsTransaction, parseSmsMessage } from "@/utils/smsParser";
+import {
+  getSmsDuplicateId,
+  getSmsDuplicateKey,
+  ParsedSmsTransaction,
+  parseSmsMessage,
+} from "@/utils/smsParser";
 
 export type PendingTransaction = ParsedSmsTransaction & {
   id: string;
@@ -81,6 +88,14 @@ const getUserCollections = () => {
     expenses: collection(db, "users", user.uid, "expenses"),
     pending: collection(db, "users", user.uid, "pendingTransactions"),
   };
+};
+
+const getPendingDuplicateId = (transaction: ParsedSmsTransaction) => {
+  if (transaction.source !== "sms-auto") {
+    return null;
+  }
+
+  return getSmsDuplicateId(transaction.rawMessage);
 };
 
 export const PendingTransactionProvider = ({
@@ -177,11 +192,36 @@ export const PendingTransactionProvider = ({
       return null;
     }
 
-    const docRef = await addDoc(collections.pending, {
+    const duplicateId = getPendingDuplicateId(transaction);
+    const payload = {
       ...transaction,
+      duplicateKey:
+        transaction.duplicateKey || getSmsDuplicateKey(transaction.rawMessage),
       createdAt: serverTimestamp(),
       status: "pending",
-    });
+    };
+
+    if (duplicateId) {
+      const docRef = doc(collections.pending, duplicateId);
+      const existing = await getDoc(docRef);
+
+      if (existing.exists()) {
+        return {
+          id: docRef.id,
+          ...(existing.data() as PendingTransactionInput),
+        } as PendingTransaction;
+      }
+
+      await setDoc(docRef, payload);
+
+      return {
+        ...transaction,
+        id: docRef.id,
+        status: "pending" as const,
+      };
+    }
+
+    const docRef = await addDoc(collections.pending, payload);
 
     return {
       ...transaction,
@@ -220,6 +260,7 @@ export const PendingTransactionProvider = ({
     amount: 100,
     category: "Other",
     description: "Unable to parse SMS. Edit details to save.",
+    duplicateKey: getSmsDuplicateKey(rawMessage),
     rawMessage,
     source: "sms-auto",
     transactionDate: new Date().toISOString(),
