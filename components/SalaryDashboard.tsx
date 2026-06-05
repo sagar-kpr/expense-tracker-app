@@ -258,8 +258,7 @@ export default function SalaryDashboard() {
                 fontWeight: "900",
               }}
             >
-              {pendingCount} transaction{pendingCount > 1 ? "s" : ""} need
-              review
+              Transaction{pendingCount > 1 ? "s" : ""} need review
             </Text>
             <Text
               style={{

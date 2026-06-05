@@ -56,6 +56,7 @@ function RootNavigator() {
 
   const inAuthGroup = segments?.[0] === "(auth)";
   const inTabsGroup = segments?.[0] === "(tabs)";
+  const atRoot = !segments?.[0];
   const currentScreen = segments?.[1];
 
   if (!user && !inAuthGroup) {
@@ -67,8 +68,8 @@ function RootNavigator() {
       const blockedScreens = ["welcome", "login", "user-type"];
 
       if (
-        !inTabsGroup &&
-        (!inAuthGroup || blockedScreens.includes(currentScreen || ""))
+        atRoot ||
+        (inAuthGroup && blockedScreens.includes(currentScreen || ""))
       ) {
         return <Redirect href="/(tabs)" />;
       }
