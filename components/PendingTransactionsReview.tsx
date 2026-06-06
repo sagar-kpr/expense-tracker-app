@@ -2,11 +2,27 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import {
+  AppState,
+  NativeModules,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import PendingTransactionCard from "@/components/PendingTransactionCard";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
 import { useTheme } from "@/context/ThemeContext";
+
+const SmsTransactionModule = NativeModules.SmsTransactionModule as
+  | {
+      isNotificationAccessEnabled: () => Promise<boolean>;
+      openNotificationAccessSettings: () => Promise<void>;
+    }
+  | undefined;
 
 export default function PendingTransactionsReview() {
   const { theme } = useTheme();
@@ -23,6 +39,8 @@ export default function PendingTransactionsReview() {
   const [error, setError] = useState("");
   const [parsing, setParsing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [notificationAccessEnabled, setNotificationAccessEnabled] =
+    useState(false);
 
   const handlePasteImport = async (value = message) => {
     if (!value.trim()) {
@@ -76,6 +94,28 @@ export default function PendingTransactionsReview() {
     }
   }, [params?.message]);
 
+  useEffect(() => {
+    if (Platform.OS !== "android" || !SmsTransactionModule) {
+      return;
+    }
+
+    const refreshNotificationAccess = () => {
+      SmsTransactionModule.isNotificationAccessEnabled()
+        .then(setNotificationAccessEnabled)
+        .catch(() => setNotificationAccessEnabled(false));
+    };
+
+    refreshNotificationAccess();
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        refreshNotificationAccess();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   return (
     <>
       <ScrollView
@@ -118,6 +158,85 @@ export default function PendingTransactionsReview() {
         >
           Review bank messages before they become real expense records.
         </Text>
+
+        {Platform.OS === "android" && SmsTransactionModule && (
+          <View
+            style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderRadius: 20,
+              borderWidth: 1,
+              marginTop: 20,
+              padding: 18,
+            }}
+          >
+            <View style={{ alignItems: "center", flexDirection: "row" }}>
+              <Ionicons
+                name={
+                  notificationAccessEnabled
+                    ? "notifications-circle"
+                    : "notifications-outline"
+                }
+                size={28}
+                color={theme.primary}
+              />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text
+                  style={{
+                    color: theme.text,
+                    fontSize: 16,
+                    fontWeight: "900",
+                  }}
+                >
+                  Business message detection
+                </Text>
+                <Text
+                  style={{
+                    color: theme.subText,
+                    fontSize: 13,
+                    lineHeight: 19,
+                    marginTop: 4,
+                  }}
+                >
+                  {notificationAccessEnabled
+                    ? "Enabled for bank debit and credit alerts from Google Messages."
+                    : "Enable notification access to detect bank RCS business messages."}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                SmsTransactionModule.openNotificationAccessSettings().catch(
+                  () => setError("Could not open Notification Access settings."),
+                );
+              }}
+              style={{
+                alignItems: "center",
+                backgroundColor: notificationAccessEnabled
+                  ? theme.border
+                  : theme.primary,
+                borderRadius: 14,
+                justifyContent: "center",
+                marginTop: 14,
+                minHeight: 46,
+              }}
+            >
+              <Text
+                style={{
+                  color: notificationAccessEnabled ? theme.text : "#FFFFFF",
+                  fontSize: 14,
+                  fontWeight: "800",
+                }}
+              >
+                {notificationAccessEnabled
+                  ? "Manage notification access"
+                  : "Enable notification access"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* <View
           style={{

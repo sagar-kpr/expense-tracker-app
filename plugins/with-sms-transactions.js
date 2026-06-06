@@ -8,7 +8,10 @@ const {
 } = require("expo/config-plugins");
 
 const RECEIVER_NAME = ".SmsReceiver";
+const NOTIFICATION_LISTENER_NAME = ".BankMessageNotificationListenerService";
 const SMS_ACTION = "android.provider.Telephony.SMS_RECEIVED";
+const NOTIFICATION_LISTENER_ACTION =
+  "android.service.notification.NotificationListenerService";
 
 const packageToPath = (packageName) => packageName.replace(/\./g, path.sep);
 
@@ -18,6 +21,9 @@ const getAndroidPackage = (config) =>
 const smsTransactionModule = (packageName) => `package ${packageName}
 
 import android.content.Context
+import android.content.ComponentName
+import android.content.Intent
+import android.provider.Settings
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -46,6 +52,26 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       context.emitDeviceEvent(SMS_RECEIVED_EVENT, message)
 
       return true
+    }
+
+    fun handleIncomingMessage(context: Context, message: String) {
+      val body = message.trim()
+
+      if (body.isEmpty()) {
+        return
+      }
+
+      emitSmsReceived(body)
+
+      val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      val pendingMessages = try {
+        JSONArray(prefs.getString(PREFS_KEY, "[]"))
+      } catch (_: Exception) {
+        JSONArray()
+      }
+
+      pendingMessages.put(body)
+      prefs.edit().putString(PREFS_KEY, pendingMessages.toString()).apply()
     }
   }
 
@@ -94,6 +120,42 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       promise.reject("SMS_PENDING_CLEAR_FAILED", error)
     }
   }
+
+  @ReactMethod
+  fun isNotificationAccessEnabled(promise: Promise) {
+    try {
+      val componentName = ComponentName(
+        reactContext,
+        BankMessageNotificationListenerService::class.java,
+      )
+      val enabledListeners = Settings.Secure.getString(
+        reactContext.contentResolver,
+        "enabled_notification_listeners",
+      ).orEmpty()
+      val isEnabled = enabledListeners
+        .split(":")
+        .mapNotNull(ComponentName::unflattenFromString)
+        .any { it == componentName }
+
+      promise.resolve(isEnabled)
+    } catch (error: Exception) {
+      promise.reject("NOTIFICATION_ACCESS_CHECK_FAILED", error)
+    }
+  }
+
+  @ReactMethod
+  fun openNotificationAccessSettings(promise: Promise) {
+    try {
+      val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+
+      reactContext.startActivity(intent)
+      promise.resolve(null)
+    } catch (error: Exception) {
+      promise.reject("NOTIFICATION_ACCESS_SETTINGS_FAILED", error)
+    }
+  }
 }
 `;
 
@@ -103,7 +165,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import org.json.JSONArray
 
 class SmsReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
@@ -118,19 +179,61 @@ class SmsReceiver : BroadcastReceiver() {
       return
     }
 
-    SmsTransactionModule.emitSmsReceived(body)
+    SmsTransactionModule.handleIncomingMessage(context, body)
+  }
+}
+`;
 
-    val prefs = context.getSharedPreferences(SmsTransactionModule.PREFS_NAME, Context.MODE_PRIVATE)
-    val existing = prefs.getString(SmsTransactionModule.PREFS_KEY, "[]")
-    val pendingMessages = try {
-      JSONArray(existing)
-    } catch (_: Exception) {
-      JSONArray()
+const bankMessageNotificationListener = (packageName) => `package ${packageName}
+
+import android.app.Notification
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+
+class BankMessageNotificationListenerService : NotificationListenerService() {
+  companion object {
+    private const val GOOGLE_MESSAGES_PACKAGE = "com.google.android.apps.messaging"
+
+    private val transactionKeywordPattern =
+      Regex("""(?i)\\b(debited|debit|credited|credit|spent|paid|withdrawn|purchase|received|deposited|refund|cashback)\\b""")
+    private val amountPattern =
+      Regex("""(?i)(?:rs\\.?|inr|\\x{20B9})\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?""")
+    private val ignoredPattern =
+      Regex("""(?i)\\b(otp|one[ -]time password|verification code|sale alert|buy [0-9]|offer)\\b""")
+  }
+
+  override fun onNotificationPosted(statusBarNotification: StatusBarNotification?) {
+    val notification = statusBarNotification?.notification ?: return
+
+    if (statusBarNotification.packageName != GOOGLE_MESSAGES_PACKAGE) {
+      return
     }
 
-    pendingMessages.put(body)
+    if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) {
+      return
+    }
 
-    prefs.edit().putString(SmsTransactionModule.PREFS_KEY, pendingMessages.toString()).commit()
+    val extras = notification.extras
+    val body = (
+      extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+        ?: extras.getCharSequence(Notification.EXTRA_TEXT)
+        ?: extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString(" ")
+      )
+      ?.toString()
+      ?.replace(Regex("""\\s+"""), " ")
+      ?.trim()
+      .orEmpty()
+
+    if (
+      body.isEmpty() ||
+      ignoredPattern.containsMatchIn(body) ||
+      !transactionKeywordPattern.containsMatchIn(body) ||
+      !amountPattern.containsMatchIn(body)
+    ) {
+      return
+    }
+
+    SmsTransactionModule.handleIncomingMessage(applicationContext, body)
   }
 }
 `;
@@ -171,6 +274,10 @@ const writeKotlinFiles = (projectRoot, packageName) => {
   );
   fs.writeFileSync(path.join(sourceDir, "SmsReceiver.kt"), smsReceiver(packageName));
   fs.writeFileSync(
+    path.join(sourceDir, "BankMessageNotificationListenerService.kt"),
+    bankMessageNotificationListener(packageName),
+  );
+  fs.writeFileSync(
     path.join(sourceDir, "SmsTransactionPackage.kt"),
     smsTransactionPackage(packageName),
   );
@@ -206,6 +313,32 @@ const withSmsReceiverManifest = (config) =>
     if (!existingReceiver) {
       receivers.push(receiver);
       application.receiver = receivers;
+    }
+
+    const services = application.service || [];
+    const existingService = services.find(
+      (service) =>
+        service.$["android:name"] === NOTIFICATION_LISTENER_NAME,
+    );
+    const notificationListener = existingService || {
+      $: {
+        "android:name": NOTIFICATION_LISTENER_NAME,
+        "android:exported": "true",
+        "android:label": "Bank message detection",
+        "android:permission":
+          "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
+      },
+    };
+
+    notificationListener["intent-filter"] = [
+      {
+        action: [{ $: { "android:name": NOTIFICATION_LISTENER_ACTION } }],
+      },
+    ];
+
+    if (!existingService) {
+      services.push(notificationListener);
+      application.service = services;
     }
 
     return pluginConfig;

@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   addDoc,
   collection,
@@ -21,6 +22,7 @@ import {
   useState,
 } from "react";
 import {
+  Alert,
   AppState,
   NativeEventEmitter,
   NativeModules,
@@ -73,9 +75,14 @@ const SmsTransactionModule = NativeModules.SmsTransactionModule as
       addListener: (eventName: string) => void;
       clearPendingMessages: () => Promise<void>;
       getPendingMessages: () => Promise<string[]>;
+      isNotificationAccessEnabled: () => Promise<boolean>;
+      openNotificationAccessSettings: () => Promise<void>;
       removeListeners: (count: number) => void;
     }
   | undefined;
+
+const NOTIFICATION_ACCESS_PROMPTED_KEY =
+  "bank_message_notification_access_prompted";
 
 const getUserCollections = () => {
   const user = auth.currentUser;
@@ -246,26 +253,12 @@ export const PendingTransactionProvider = ({
   const addNativeSmsMessage = async (rawMessage: string) => {
     const parsed = parseSmsMessage(rawMessage, "sms-auto");
 
-    if (parsed) {
-      await addPendingTransaction(parsed);
+    if (!parsed) {
       return;
     }
 
-    await addPendingTransaction(createFallbackPendingTransaction(rawMessage));
+    await addPendingTransaction(parsed);
   };
-
-  const createFallbackPendingTransaction = (
-    rawMessage: string,
-  ): ParsedSmsTransaction => ({
-    amount: 100,
-    category: "Other",
-    description: "Unable to parse SMS. Edit details to save.",
-    duplicateKey: getSmsDuplicateKey(rawMessage),
-    rawMessage,
-    source: "sms-auto",
-    transactionDate: new Date().toISOString(),
-    type: "expense",
-  });
 
   const requestSmsPermissions = async () => {
     if (Platform.OS !== "android") {
@@ -288,11 +281,11 @@ export const PendingTransactionProvider = ({
   };
 
   const importNativeSmsMessages = async () => {
-    const hasPermissions = await requestSmsPermissions();
-
-    if (!hasPermissions || Platform.OS !== "android" || !SmsTransactionModule) {
+    if (Platform.OS !== "android" || !SmsTransactionModule) {
       return;
     }
+
+    await requestSmsPermissions();
 
     const messages = await SmsTransactionModule.getPendingMessages();
 
@@ -315,6 +308,48 @@ export const PendingTransactionProvider = ({
     await SmsTransactionModule.clearPendingMessages();
   };
 
+  const promptForNotificationAccess = async () => {
+    if (
+      Platform.OS !== "android" ||
+      !SmsTransactionModule ||
+      !auth.currentUser
+    ) {
+      return;
+    }
+
+    const [isEnabled, hasPrompted] = await Promise.all([
+      SmsTransactionModule.isNotificationAccessEnabled(),
+      AsyncStorage.getItem(NOTIFICATION_ACCESS_PROMPTED_KEY),
+    ]);
+
+    if (isEnabled || hasPrompted === "true") {
+      return;
+    }
+
+    await AsyncStorage.setItem(NOTIFICATION_ACCESS_PROMPTED_KEY, "true");
+
+    Alert.alert(
+      "Enable business message detection",
+      "Expense Tracker needs Notification Access to detect bank RCS business messages in Google Messages. Other app notifications are ignored by the transaction filter.",
+      [
+        {
+          text: "Not now",
+          style: "cancel",
+        },
+        {
+          text: "Continue",
+          onPress: () => {
+            SmsTransactionModule.openNotificationAccessSettings().catch(
+              (error) => {
+                console.log("Notification Access settings error:", error);
+              },
+            );
+          },
+        },
+      ],
+    );
+  };
+
   const refreshPendingTransactions = async () => {
     await importNativeSmsMessages();
   };
@@ -327,9 +362,11 @@ export const PendingTransactionProvider = ({
     requestedStartupImportRef.current = true;
 
     const timeout = setTimeout(() => {
-      importNativeSmsMessages().catch((error) => {
-        console.log("Native SMS import error:", error);
-      });
+      importNativeSmsMessages()
+        .then(promptForNotificationAccess)
+        .catch((error) => {
+          console.log("Native message setup error:", error);
+        });
     }, 700);
 
     return () => clearTimeout(timeout);
