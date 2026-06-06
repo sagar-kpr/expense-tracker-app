@@ -280,6 +280,20 @@ export const PendingTransactionProvider = ({
     return hasReceiveSms && hasReadSms;
   };
 
+  const requestTransactionNotificationPermission = async () => {
+    if (
+      Platform.OS !== "android" ||
+      Number(Platform.Version) < 33 ||
+      !PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    ) {
+      return;
+    }
+
+    await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    );
+  };
+
   const importNativeSmsMessages = async () => {
     if (Platform.OS !== "android" || !SmsTransactionModule) {
       return;
@@ -363,6 +377,7 @@ export const PendingTransactionProvider = ({
 
     const timeout = setTimeout(() => {
       importNativeSmsMessages()
+        .then(requestTransactionNotificationPermission)
         .then(promptForNotificationAccess)
         .catch((error) => {
           console.log("Native message setup error:", error);

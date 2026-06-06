@@ -23,6 +23,13 @@ const smsTransactionModule = (packageName) => `package ${packageName}
 import android.content.Context
 import android.content.ComponentName
 import android.content.Intent
+import android.app.ActivityManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -42,6 +49,14 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
     const val RECENT_MESSAGES_KEY = "recent_message_fingerprints"
     const val SMS_RECEIVED_EVENT = "SmsTransactionReceived"
     private const val DUPLICATE_WINDOW_MS = 2 * 60 * 1000L
+    private const val TRANSACTION_CHANNEL_ID = "detected_transactions"
+
+    private val transactionKeywordPattern =
+      Regex("""(?i)\\b(debited|debit|credited|credit|spent|paid|withdrawn|purchase|sent|upi payment|received|deposited|salary|refund|cashback)\\b""")
+    private val amountPattern =
+      Regex("""(?i)(?:(?:rs\\.?|inr|\\x{20B9})\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?|[0-9][0-9,]*(?:\\.[0-9]{1,2})?\\s*(?:rs\\.?|inr|\\x{20B9}))""")
+    private val ignoredPattern =
+      Regex("""(?i)\\b(otp|one[ -]time password|verification code|sale alert|buy [0-9]|offer)\\b""")
 
     private var activeReactContext: WeakReference<ReactApplicationContext>? = null
 
@@ -102,7 +117,82 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       }
 
       pendingMessages.put(body)
-      prefs.edit().putString(PREFS_KEY, pendingMessages.toString()).apply()
+      prefs.edit().putString(PREFS_KEY, pendingMessages.toString()).commit()
+
+      showTransactionNotificationIfNeeded(context, body)
+    }
+
+    private fun showTransactionNotificationIfNeeded(context: Context, body: String) {
+      if (
+        isAppInForeground(context) ||
+        ignoredPattern.containsMatchIn(body) ||
+        !transactionKeywordPattern.containsMatchIn(body) ||
+        !amountPattern.containsMatchIn(body)
+      ) {
+        return
+      }
+
+      if (
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        context.checkSelfPermission("android.permission.POST_NOTIFICATIONS") !=
+          PackageManager.PERMISSION_GRANTED
+      ) {
+        return
+      }
+
+      val notificationManager =
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        notificationManager.createNotificationChannel(
+          NotificationChannel(
+            TRANSACTION_CHANNEL_ID,
+            "Detected transactions",
+            NotificationManager.IMPORTANCE_DEFAULT,
+          ).apply {
+            description = "Alerts when a bank transaction is detected"
+          },
+        )
+      }
+
+      val reviewIntent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("expensetracker://pending-transactions"),
+        context,
+        MainActivity::class.java,
+      ).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+      }
+      val pendingIntent = PendingIntent.getActivity(
+        context,
+        0,
+        reviewIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      )
+      val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        android.app.Notification.Builder(context, TRANSACTION_CHANNEL_ID)
+      } else {
+        android.app.Notification.Builder(context)
+      }
+        .setSmallIcon(context.applicationInfo.icon)
+        .setContentTitle("New transaction detected")
+        .setContentText("Tap to review")
+        .setContentIntent(pendingIntent)
+        .setAutoCancel(true)
+        .setCategory(android.app.Notification.CATEGORY_STATUS)
+        .build()
+
+      notificationManager.notify(body.hashCode(), notification)
+    }
+
+    private fun isAppInForeground(context: Context): Boolean {
+      val activityManager =
+        context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+      val appProcess = activityManager.runningAppProcesses
+        ?.firstOrNull { it.pid == android.os.Process.myPid() }
+
+      return appProcess?.importance ==
+        ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
     }
   }
 
