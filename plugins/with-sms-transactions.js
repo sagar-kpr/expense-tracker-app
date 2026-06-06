@@ -30,6 +30,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableNativeArray
 import org.json.JSONArray
+import org.json.JSONObject
 import java.lang.ref.WeakReference
 
 class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
@@ -38,7 +39,9 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
   companion object {
     const val PREFS_NAME = "sms_transaction_messages"
     const val PREFS_KEY = "pending_messages"
+    const val RECENT_MESSAGES_KEY = "recent_message_fingerprints"
     const val SMS_RECEIVED_EVENT = "SmsTransactionReceived"
+    private const val DUPLICATE_WINDOW_MS = 2 * 60 * 1000L
 
     private var activeReactContext: WeakReference<ReactApplicationContext>? = null
 
@@ -54,6 +57,7 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       return true
     }
 
+    @Synchronized
     fun handleIncomingMessage(context: Context, message: String) {
       val body = message.trim()
 
@@ -61,9 +65,36 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
         return
       }
 
+      val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      val now = System.currentTimeMillis()
+      val fingerprint = body
+        .lowercase()
+        .replace("₹", "rs")
+        .replace(Regex("""[^a-z0-9]+"""), "")
+      val recentMessages = try {
+        JSONObject(prefs.getString(RECENT_MESSAGES_KEY, "{}").orEmpty())
+      } catch (_: Exception) {
+        JSONObject()
+      }
+
+      val recentKeys = recentMessages.keys().asSequence().toList()
+      for (key in recentKeys) {
+        if (now - recentMessages.optLong(key, 0L) > DUPLICATE_WINDOW_MS) {
+          recentMessages.remove(key)
+        }
+      }
+
+      if (recentMessages.has(fingerprint)) {
+        return
+      }
+
+      recentMessages.put(fingerprint, now)
+      prefs.edit()
+        .putString(RECENT_MESSAGES_KEY, recentMessages.toString())
+        .commit()
+
       emitSmsReceived(body)
 
-      val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
       val pendingMessages = try {
         JSONArray(prefs.getString(PREFS_KEY, "[]"))
       } catch (_: Exception) {
