@@ -19,10 +19,14 @@ import { useTheme } from "@/context/ThemeContext";
 
 const SmsTransactionModule = NativeModules.SmsTransactionModule as
   | {
-      isNotificationAccessEnabled: () => Promise<boolean>;
-      openNotificationAccessSettings: () => Promise<void>;
+      isNotificationAccessEnabled?: () => Promise<boolean>;
+      openNotificationAccessSettings?: () => Promise<void>;
     }
   | undefined;
+
+const hasNotificationAccessApi =
+  typeof SmsTransactionModule?.isNotificationAccessEnabled === "function" &&
+  typeof SmsTransactionModule?.openNotificationAccessSettings === "function";
 
 export default function PendingTransactionsReview() {
   const { theme } = useTheme();
@@ -95,12 +99,16 @@ export default function PendingTransactionsReview() {
   }, [params?.message]);
 
   useEffect(() => {
-    if (Platform.OS !== "android" || !SmsTransactionModule) {
+    if (
+      Platform.OS !== "android" ||
+      !SmsTransactionModule ||
+      !hasNotificationAccessApi
+    ) {
       return;
     }
 
     const refreshNotificationAccess = () => {
-      SmsTransactionModule.isNotificationAccessEnabled()
+      SmsTransactionModule.isNotificationAccessEnabled!()
         .then(setNotificationAccessEnabled)
         .catch(() => setNotificationAccessEnabled(false));
     };
@@ -159,7 +167,9 @@ export default function PendingTransactionsReview() {
           Review bank messages before they become real expense records.
         </Text>
 
-        {Platform.OS === "android" && SmsTransactionModule && (
+        {Platform.OS === "android" &&
+          SmsTransactionModule &&
+          hasNotificationAccessApi && (
           <View
             style={{
               backgroundColor: theme.card,
@@ -208,7 +218,7 @@ export default function PendingTransactionsReview() {
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => {
-                SmsTransactionModule.openNotificationAccessSettings().catch(
+                SmsTransactionModule.openNotificationAccessSettings!().catch(
                   () => setError("Could not open Notification Access settings."),
                 );
               }}
@@ -236,7 +246,7 @@ export default function PendingTransactionsReview() {
               </Text>
             </TouchableOpacity>
           </View>
-        )}
+          )}
 
         {/* <View
           style={{

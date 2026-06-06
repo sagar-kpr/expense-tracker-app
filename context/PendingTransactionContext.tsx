@@ -72,14 +72,21 @@ const PendingTransactionContext = createContext<
 
 const SmsTransactionModule = NativeModules.SmsTransactionModule as
   | {
-      addListener: (eventName: string) => void;
-      clearPendingMessages: () => Promise<void>;
-      getPendingMessages: () => Promise<string[]>;
-      isNotificationAccessEnabled: () => Promise<boolean>;
-      openNotificationAccessSettings: () => Promise<void>;
-      removeListeners: (count: number) => void;
+      addListener?: (eventName: string) => void;
+      clearPendingMessages?: () => Promise<void>;
+      getPendingMessages?: () => Promise<string[]>;
+      isNotificationAccessEnabled?: () => Promise<boolean>;
+      openNotificationAccessSettings?: () => Promise<void>;
+      removeListeners?: (count: number) => void;
     }
   | undefined;
+
+const hasSmsQueueApi =
+  typeof SmsTransactionModule?.getPendingMessages === "function" &&
+  typeof SmsTransactionModule?.clearPendingMessages === "function";
+const hasSmsEventApi =
+  typeof SmsTransactionModule?.addListener === "function" &&
+  typeof SmsTransactionModule?.removeListeners === "function";
 
 const NOTIFICATION_ACCESS_PROMPTED_KEY =
   "bank_message_notification_access_prompted";
@@ -295,13 +302,17 @@ export const PendingTransactionProvider = ({
   };
 
   const importNativeSmsMessages = async () => {
-    if (Platform.OS !== "android" || !SmsTransactionModule) {
+    if (
+      Platform.OS !== "android" ||
+      !SmsTransactionModule ||
+      !hasSmsQueueApi
+    ) {
       return;
     }
 
     await requestSmsPermissions();
 
-    const messages = await SmsTransactionModule.getPendingMessages();
+    const messages = await SmsTransactionModule.getPendingMessages!();
 
     if (messages.length === 0) {
       return;
@@ -319,13 +330,16 @@ export const PendingTransactionProvider = ({
 
     processedNativeMessagesRef.current = [];
 
-    await SmsTransactionModule.clearPendingMessages();
+    await SmsTransactionModule.clearPendingMessages!();
   };
 
   const promptForNotificationAccess = async () => {
     if (
       Platform.OS !== "android" ||
       !SmsTransactionModule ||
+      typeof SmsTransactionModule.isNotificationAccessEnabled !== "function" ||
+      typeof SmsTransactionModule.openNotificationAccessSettings !==
+        "function" ||
       !auth.currentUser
     ) {
       return;
@@ -353,7 +367,7 @@ export const PendingTransactionProvider = ({
         {
           text: "Continue",
           onPress: () => {
-            SmsTransactionModule.openNotificationAccessSettings().catch(
+            SmsTransactionModule.openNotificationAccessSettings!().catch(
               (error) => {
                 console.log("Notification Access settings error:", error);
               },
@@ -389,8 +403,8 @@ export const PendingTransactionProvider = ({
 
   useEffect(() => {
     const nativeSmsSubscription =
-      Platform.OS === "android" && SmsTransactionModule
-        ? new NativeEventEmitter(SmsTransactionModule).addListener(
+      Platform.OS === "android" && SmsTransactionModule && hasSmsEventApi
+        ? new NativeEventEmitter(SmsTransactionModule as any).addListener(
             "SmsTransactionReceived",
             (message: string) => {
               processedNativeMessagesRef.current = [

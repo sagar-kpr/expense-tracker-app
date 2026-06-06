@@ -4,8 +4,8 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Platform, Text, TouchableOpacity, View } from "react-native";
 
-import { db } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
+import { db } from "@/firebase";
 
 type UpdateInfo = {
   apkUrl?: string;
@@ -35,14 +35,28 @@ export default function AppUpdateCard() {
     !!apkUrl &&
     latestBuildVersion > currentBuildVersion;
 
+  console.log("Current build version:", currentBuildVersion);
+  console.log("Latest build version from Firestore:", latestBuildVersion);
+  console.log("APK URL from Firestore:", apkUrl);
+  console.log("Is update available?", hasUpdate);
+
   useEffect(() => {
     if (Platform.OS !== "android") {
       return;
     }
 
-    return onSnapshot(doc(db, "appConfig", "android"), (snapshot) => {
-      setUpdateInfo(snapshot.exists() ? (snapshot.data() as UpdateInfo) : null);
-    });
+    return onSnapshot(
+      doc(db, "appConfig", "android"),
+      (snapshot) => {
+        setUpdateInfo(
+          snapshot.exists() ? (snapshot.data() as UpdateInfo) : null,
+        );
+      },
+      (error) => {
+        console.log("App update listener error:", error);
+        setUpdateInfo(null);
+      },
+    );
   }, []);
 
   if (!hasUpdate) {
