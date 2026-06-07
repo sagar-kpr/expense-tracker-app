@@ -44,7 +44,7 @@ export default function PendingTransactionsReview() {
   const [parsing, setParsing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [notificationAccessEnabled, setNotificationAccessEnabled] =
-    useState(false);
+    useState<boolean | null>(null);
 
   const handlePasteImport = async (value = message) => {
     if (!value.trim()) {
@@ -169,7 +169,8 @@ export default function PendingTransactionsReview() {
 
         {Platform.OS === "android" &&
           SmsTransactionModule &&
-          hasNotificationAccessApi && (
+          hasNotificationAccessApi &&
+          notificationAccessEnabled === false && (
           <View
             style={{
               backgroundColor: theme.card,
@@ -182,11 +183,7 @@ export default function PendingTransactionsReview() {
           >
             <View style={{ alignItems: "center", flexDirection: "row" }}>
               <Ionicons
-                name={
-                  notificationAccessEnabled
-                    ? "notifications-circle"
-                    : "notifications-outline"
-                }
+                name="notifications-outline"
                 size={28}
                 color={theme.primary}
               />
@@ -208,9 +205,8 @@ export default function PendingTransactionsReview() {
                     marginTop: 4,
                   }}
                 >
-                  {notificationAccessEnabled
-                    ? "Enabled for bank debit and credit alerts from Google Messages."
-                    : "Enable notification access to detect bank RCS business messages."}
+                  Enable notification access to detect bank RCS business
+                  messages.
                 </Text>
               </View>
             </View>
@@ -224,9 +220,7 @@ export default function PendingTransactionsReview() {
               }}
               style={{
                 alignItems: "center",
-                backgroundColor: notificationAccessEnabled
-                  ? theme.border
-                  : theme.primary,
+                backgroundColor: theme.primary,
                 borderRadius: 14,
                 justifyContent: "center",
                 marginTop: 14,
@@ -235,14 +229,12 @@ export default function PendingTransactionsReview() {
             >
               <Text
                 style={{
-                  color: notificationAccessEnabled ? theme.text : "#FFFFFF",
+                  color: "#FFFFFF",
                   fontSize: 14,
                   fontWeight: "800",
                 }}
               >
-                {notificationAccessEnabled
-                  ? "Manage notification access"
-                  : "Enable notification access"}
+                Enable notification access
               </Text>
             </TouchableOpacity>
           </View>

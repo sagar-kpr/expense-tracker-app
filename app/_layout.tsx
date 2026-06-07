@@ -9,6 +9,10 @@ import * as SplashScreen from "expo-splash-screen";
 import "react-native-reanimated";
 
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+} from "react-native-safe-area-context";
 import { Image, Platform, StyleSheet, View } from "react-native";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -104,15 +108,17 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <ThemeProvider>
-          <ExpenseProvider>
-            <PendingTransactionProvider>
-              <RootNavigator />
-            </PendingTransactionProvider>
-          </ExpenseProvider>
-        </ThemeProvider>
-      </AuthProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <AuthProvider>
+          <ThemeProvider>
+            <ExpenseProvider>
+              <PendingTransactionProvider>
+                <RootNavigator />
+              </PendingTransactionProvider>
+            </ExpenseProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

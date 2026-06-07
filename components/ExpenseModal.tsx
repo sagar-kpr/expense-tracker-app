@@ -23,6 +23,7 @@ import BottomSheet, {
   BottomSheetTextInput,
   type BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = {
   handleAddExpense: (
@@ -58,6 +59,8 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
   const { theme } = useTheme();
 
   const { userData } = useAuth();
+
+  const insets = useSafeAreaInsets();
 
   const [amount, setAmount] = useState("");
 
@@ -164,8 +167,10 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
       ref={ref}
       index={-1}
       snapPoints={snapPoints}
+      enableDynamicSizing={false}
       enablePanDownToClose
       onClose={handleSheetClose}
+      bottomInset={insets.bottom}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
