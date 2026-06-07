@@ -18,6 +18,7 @@ import Animated, {
 import Svg, { Circle } from "react-native-svg";
 
 import { getCategoryMeta } from "@/components/categoryMeta";
+import CategoryRadialProgress from "@/components/CategoryRadialProgress";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useFocusEffect } from "@react-navigation/native";
@@ -304,6 +305,15 @@ export default function SelfEmployedAnalyticsScreen() {
           />
         </View>
       </Animated.View>
+
+      <CategoryRadialProgress
+        items={categoryRows}
+        referenceAmount={totals.income}
+        referenceLabel={
+          totals.income > 0 ? "monthly income" : "total spending"
+        }
+        totalSpent={totals.expense}
+      />
 
       <Animated.View
         entering={FadeInUp.delay(200).duration(650)}

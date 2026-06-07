@@ -17,6 +17,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { getCategoryMeta } from "@/components/categoryMeta";
+import CategoryRadialProgress from "@/components/CategoryRadialProgress";
 import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -690,6 +691,13 @@ export default function AnalyticsScreen() {
           </View>
         )}
       </Animated.View>
+
+      <CategoryRadialProgress
+        items={ranges as [string, number][]}
+        referenceAmount={salaryAmount}
+        referenceLabel="your salary"
+        totalSpent={totalSpent}
+      />
 
       <Animated.View
         entering={FadeInUp.delay(100).duration(700)}
