@@ -126,7 +126,7 @@ export default function CategoryRadialProgress({
             minimumFontScale={0.5}
             style={{
               color: theme.text,
-              fontSize: 25,
+              fontSize: 18,
               fontWeight: "900",
               textAlign: "center",
               width: "100%",
@@ -161,8 +161,7 @@ export default function CategoryRadialProgress({
               style={{
                 alignItems: "center",
                 borderBottomColor: theme.border,
-                borderBottomWidth:
-                  index === visibleItems.length - 1 ? 0 : 1,
+                borderBottomWidth: index === visibleItems.length - 1 ? 0 : 1,
                 flexDirection: "row",
                 paddingVertical: 13,
               }}
@@ -246,10 +245,7 @@ function RadialArc({
   ratio: number;
 }) {
   const animatedProps = useAnimatedProps(() => ({
-    strokeDasharray: [
-      circumference * ratio * progress.value,
-      circumference,
-    ],
+    strokeDasharray: [circumference * ratio * progress.value, circumference],
   }));
 
   return (

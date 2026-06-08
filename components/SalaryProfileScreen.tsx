@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,8 +16,6 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 import { useTheme } from "@/context/ThemeContext";
 import { useMemo, useState } from "react";
 
-import { router } from "expo-router";
-
 import { doc, updateDoc } from "firebase/firestore";
 
 import * as Haptics from "expo-haptics";
@@ -27,6 +24,7 @@ import { auth, db } from "@/firebase";
 
 import { useExpense } from "@/context/ExpenseContext";
 
+import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ProfileScreen() {
@@ -35,8 +33,6 @@ export default function ProfileScreen() {
   const { userData, logout } = useAuth();
 
   const { theme, dark, setDark } = useTheme();
-
-  const [notifications, setNotifications] = useState(true);
 
   const [editModal, setEditModal] = useState<"salary" | "date" | null>(null);
 
@@ -555,7 +551,7 @@ export default function ProfileScreen() {
                 fontSize: 13,
               }}
             >
-              Salary Date
+              Income Type
             </Text>
 
             <Text
@@ -569,7 +565,7 @@ export default function ProfileScreen() {
                 marginTop: 8,
               }}
             >
-              {userData?.salaryDate}
+              Salary
             </Text>
           </View>
 
@@ -593,7 +589,7 @@ export default function ProfileScreen() {
                 fontSize: 13,
               }}
             >
-              Income Type
+              Salary Date
             </Text>
 
             <Text
@@ -607,7 +603,7 @@ export default function ProfileScreen() {
                 marginTop: 8,
               }}
             >
-              Salary
+              {userData?.salaryDate}
             </Text>
           </View>
         </View>
@@ -930,39 +926,6 @@ export default function ProfileScreen() {
             justifyContent: "space-between",
 
             alignItems: "center",
-
-            marginBottom: 22,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 16,
-
-              color: theme.text,
-            }}
-          >
-            Notifications
-          </Text>
-
-          <Switch
-            value={notifications}
-            onValueChange={setNotifications}
-            trackColor={{
-              false: theme.card,
-
-              true: theme.primary,
-            }}
-            thumbColor={dark ? theme.background : "#FFFFFF"}
-          />
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-
-            justifyContent: "space-between",
-
-            alignItems: "center",
           }}
         >
           <Text
@@ -1006,44 +969,7 @@ export default function ProfileScreen() {
         </View>
       </Animated.View>
 
-      <Animated.View
-        entering={FadeInUp.delay(650).duration(700)}
-        style={{
-          marginTop: 24,
-        }}
-      >
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => {
-            Alert.alert(
-              "Coming Soon",
-
-              "Export feature will be added soon.",
-            );
-          }}
-          style={{
-            backgroundColor: theme.primary,
-
-            paddingVertical: 18,
-
-            borderRadius: 22,
-
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              color: "#FFFFFF",
-
-              fontSize: 16,
-
-              fontWeight: "700",
-            }}
-          >
-            Export Data
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+      <PrivacyDataSection />
 
       <Animated.View
         entering={FadeInUp.delay(700).duration(700)}

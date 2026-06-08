@@ -69,6 +69,8 @@ export default function LoginScreen() {
         setError("Email already exists");
       } else if (err.message?.includes("auth/weak-password")) {
         setError("Password should be at least 6 characters");
+      } else if (err.message?.includes("User account does not exist")) {
+        setError("User account does not exist");
       } else {
         setError("Something went wrong");
       }

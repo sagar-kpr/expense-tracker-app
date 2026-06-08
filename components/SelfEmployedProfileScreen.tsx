@@ -1,10 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  Alert,
   ScrollView,
   Switch,
   Text,
@@ -13,6 +11,7 @@ import {
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -27,7 +26,6 @@ export default function SelfEmployedProfileScreen() {
   const { expenses } = useExpense();
   const { userData, logout } = useAuth();
   const { theme, dark, setDark } = useTheme();
-  const [notifications, setNotifications] = useState(true);
 
   const totals = useMemo(
     () =>
@@ -62,33 +60,6 @@ export default function SelfEmployedProfileScreen() {
       return date.toDateString();
     }),
   ).size;
-
-  const handleEditBusinessName = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    Alert.prompt(
-      "Edit Business Name",
-      "Enter your business display name",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: async (value: any) => {
-            if (!value) return;
-
-            const user = auth.currentUser;
-            if (!user) return;
-
-            await updateDoc(doc(db, "users", user.uid), {
-              businessName: value,
-            });
-          },
-        },
-      ],
-      "plain-text",
-      String(userData?.businessName || ""),
-    );
-  };
 
   return (
     <ScrollView
@@ -380,33 +351,11 @@ export default function SelfEmployedProfileScreen() {
 
       <SettingsSection
         dark={dark}
-        notifications={notifications}
         setDark={setDark}
-        setNotifications={setNotifications}
         theme={theme}
       />
 
-      <Animated.View
-        entering={FadeInUp.delay(650).duration(700)}
-        style={{ marginTop: 24 }}
-      >
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => {
-            Alert.alert("Coming Soon", "Export feature will be added soon.");
-          }}
-          style={{
-            backgroundColor: theme.primary,
-            paddingVertical: 18,
-            borderRadius: 22,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}>
-            Export Business Data
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+      <PrivacyDataSection />
 
       <Animated.View
         entering={FadeInUp.delay(700).duration(700)}
@@ -581,15 +530,11 @@ function SettingsRow({
 
 function SettingsSection({
   dark,
-  notifications,
   setDark,
-  setNotifications,
   theme,
 }: {
   dark: boolean;
-  notifications: boolean;
   setDark: (value: boolean) => void;
-  setNotifications: (value: boolean) => void;
   theme: any;
 }) {
   return (
@@ -612,23 +557,6 @@ function SettingsSection({
       >
         Settings
       </Text>
-
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 22,
-        }}
-      >
-        <Text style={{ fontSize: 16, color: theme.text }}>Notifications</Text>
-        <Switch
-          value={notifications}
-          onValueChange={setNotifications}
-          trackColor={{ false: theme.card, true: theme.primary }}
-          thumbColor={theme.background}
-        />
-      </View>
 
       <View
         style={{

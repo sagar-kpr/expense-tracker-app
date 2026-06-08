@@ -61,6 +61,9 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const MISSING_USER_PROFILE_MESSAGE =
+  "User account does not exist. Please contact support or sign up again.";
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
@@ -94,12 +97,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             unsubUser = onSnapshot(
               doc(db, "users", firebaseUser.uid),
 
-              (snapshot) => {
+              async (snapshot) => {
                 if (snapshot.exists()) {
                   setUserData(snapshot.data() as UserData);
 
                   setLoading(false);
                 } else {
+                  console.log("User profile document missing. Signing out.");
+
+                  if (unsubUser) {
+                    unsubUser();
+                    unsubUser = undefined;
+                  }
+
+                  await signOut(auth);
+
+                  setUser(null);
+
                   setUserData(null);
 
                   setLoading(false);
@@ -205,7 +219,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const loginWithEmail = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    const snap = await getDoc(doc(db, "users", result.user.uid));
+
+    if (!snap.exists()) {
+      await signOut(auth);
+
+      throw new Error(MISSING_USER_PROFILE_MESSAGE);
+    }
   };
 
   const forgotPassword = async (email: string) => {
