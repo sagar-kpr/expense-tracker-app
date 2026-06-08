@@ -47,12 +47,17 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
     const val PREFS_NAME = "sms_transaction_messages"
     const val PREFS_KEY = "pending_messages"
     const val RECENT_MESSAGES_KEY = "recent_message_fingerprints"
+    const val USER_TYPE_KEY = "current_user_type"
     const val SMS_RECEIVED_EVENT = "SmsTransactionReceived"
     private const val DUPLICATE_WINDOW_MS = 2 * 60 * 1000L
     private const val TRANSACTION_CHANNEL_ID = "detected_transactions"
 
     private val transactionKeywordPattern =
       Regex("""(?i)\\b(debited|debit|credited|credit|spent|paid|withdrawn|purchase|sent|upi payment|received|deposited|salary|refund|cashback)\\b""")
+    private val expenseKeywordPattern =
+      Regex("""(?i)\\b(debited|debit|spent|paid|withdrawn|purchase|sent|upi payment)\\b""")
+    private val incomeKeywordPattern =
+      Regex("""(?i)\\b(credited|credit|received|deposited|salary|refund|cashback)\\b""")
     private val amountPattern =
       Regex("""(?i)(?:(?:rs\\.?|inr|\\x{20B9})\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?|[0-9][0-9,]*(?:\\.[0-9]{1,2})?\\s*(?:rs\\.?|inr|\\x{20B9}))""")
     private val ignoredPattern =
@@ -127,7 +132,8 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
         isAppInForeground(context) ||
         ignoredPattern.containsMatchIn(body) ||
         !transactionKeywordPattern.containsMatchIn(body) ||
-        !amountPattern.containsMatchIn(body)
+        !amountPattern.containsMatchIn(body) ||
+        shouldSuppressNotificationForUser(context, body)
       ) {
         return
       }
@@ -183,6 +189,19 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
         .build()
 
       notificationManager.notify(body.hashCode(), notification)
+    }
+
+    private fun shouldSuppressNotificationForUser(context: Context, body: String): Boolean {
+      val userType = context
+        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .getString(USER_TYPE_KEY, "")
+
+      if (userType != "salary") {
+        return false
+      }
+
+      return incomeKeywordPattern.containsMatchIn(body) &&
+        !expenseKeywordPattern.containsMatchIn(body)
     }
 
     private fun isAppInForeground(context: Context): Boolean {
@@ -277,6 +296,21 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       promise.reject("NOTIFICATION_ACCESS_SETTINGS_FAILED", error)
     }
   }
+
+  @ReactMethod
+  fun setCurrentUserType(userType: String, promise: Promise) {
+    try {
+      reactContext
+        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .putString(USER_TYPE_KEY, userType)
+        .apply()
+
+      promise.resolve(null)
+    } catch (error: Exception) {
+      promise.reject("USER_TYPE_SYNC_FAILED", error)
+    }
+  }
 }
 `;
 
@@ -318,7 +352,7 @@ class BankMessageNotificationListenerService : NotificationListenerService() {
     private val transactionKeywordPattern =
       Regex("""(?i)\\b(debited|debit|credited|credit|spent|paid|withdrawn|purchase|received|deposited|refund|cashback)\\b""")
     private val amountPattern =
-      Regex("""(?i)(?:rs\\.?|inr|\\x{20B9})\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?""")
+      Regex("""(?i)(?:(?:rs\\.?|inr|\\x{20B9})\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?|[0-9][0-9,]*(?:\\.[0-9]{1,2})?\\s*(?:rs\\.?|inr|\\x{20B9}))""")
     private val ignoredPattern =
       Regex("""(?i)\\b(otp|one[ -]time password|verification code|sale alert|buy [0-9]|offer)\\b""")
   }

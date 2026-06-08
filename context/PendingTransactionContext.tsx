@@ -78,6 +78,7 @@ const SmsTransactionModule = NativeModules.SmsTransactionModule as
       isNotificationAccessEnabled?: () => Promise<boolean>;
       openNotificationAccessSettings?: () => Promise<void>;
       removeListeners?: (count: number) => void;
+      setCurrentUserType?: (userType: string) => Promise<void>;
     }
   | undefined;
 
@@ -129,6 +130,17 @@ export const PendingTransactionProvider = ({
 
   useEffect(() => {
     userTypeRef.current = userData?.type;
+
+    if (
+      Platform.OS === "android" &&
+      typeof SmsTransactionModule?.setCurrentUserType === "function"
+    ) {
+      SmsTransactionModule.setCurrentUserType(userData?.type || "").catch(
+        (error) => {
+          console.log("Native user type sync error:", error);
+        },
+      );
+    }
   }, [userData?.type]);
 
   useEffect(() => {
