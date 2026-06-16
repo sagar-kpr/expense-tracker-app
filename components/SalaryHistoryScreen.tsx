@@ -4,6 +4,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
 import {
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -171,23 +172,24 @@ export default function HistoryScreen() {
   });
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-          progressBackgroundColor={theme.card}
-          progressViewOffset={70}
-        />
-      }
-    >
-      <Animated.View entering={FadeInUp.duration(650)}>
-        <Text style={styles.title}>History</Text>
+    <>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressBackgroundColor={theme.card}
+            progressViewOffset={70}
+          />
+        }
+      >
+        <Animated.View entering={FadeInUp.duration(650)}>
+          <Text style={styles.title}>History</Text>
 
         <View style={styles.searchBox}>
           <Ionicons name="search" size={25} color={theme.subText} />
@@ -474,7 +476,17 @@ export default function HistoryScreen() {
           </Animated.View>
         ))
       )}
-      {showDeleteModal && (
+      </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDeleteModal(false);
+          setDeleteItem(null);
+        }}
+        transparent
+        visible={showDeleteModal}
+      >
         <View
           style={{
             position: "absolute",
@@ -607,8 +619,8 @@ export default function HistoryScreen() {
             </View>
           </Animated.View>
         </View>
-      )}
-    </ScrollView>
+      </Modal>
+    </>
   );
 }
 

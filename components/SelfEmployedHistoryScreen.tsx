@@ -3,6 +3,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
 import {
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -170,22 +171,23 @@ export default function SelfEmployedHistoryScreen() {
   });
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-          progressBackgroundColor={theme.card}
-          progressViewOffset={70}
-        />
-      }
-    >
-      <Animated.View entering={FadeInUp.duration(650)}>
+    <>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressBackgroundColor={theme.card}
+            progressViewOffset={70}
+          />
+        }
+      >
+        <Animated.View entering={FadeInUp.duration(650)}>
         <Text style={styles.title}>Business History</Text>
 
         <View style={styles.searchBox}>
@@ -465,7 +467,17 @@ export default function SelfEmployedHistoryScreen() {
           </Animated.View>
         ))
       )}
-      {showDeleteModal && (
+      </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDeleteModal(false);
+          setDeleteItem(null);
+        }}
+        transparent
+        visible={showDeleteModal}
+      >
         <View
           style={{
             position: "absolute",
@@ -598,8 +610,8 @@ export default function SelfEmployedHistoryScreen() {
             </View>
           </Animated.View>
         </View>
-      )}
-    </ScrollView>
+      </Modal>
+    </>
   );
 }
 
