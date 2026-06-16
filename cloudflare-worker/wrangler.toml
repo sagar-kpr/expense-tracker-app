@@ -1,0 +1,10 @@
+name = "expense-tracker-sms-ai"
+main = "src/index.js"
+compatibility_date = "2026-06-11"
+
+[vars]
+FIREBASE_PROJECT_ID = "expense-tracker-15f49"
+GEMINI_SMS_MODEL = "gemini-2.5-flash-lite"
+
+[observability]
+enabled = true

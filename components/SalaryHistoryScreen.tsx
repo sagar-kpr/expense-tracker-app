@@ -329,6 +329,7 @@ export default function HistoryScreen() {
             <Ionicons name="bar-chart" size={32} color={theme.primary} />
           </View>
         </View>
+
       </Animated.View>
 
       {filteredExpenses.length === 0 ? (

@@ -35,8 +35,10 @@ import { auth, db } from "@/firebase";
 import {
   getSmsDuplicateId,
   getSmsDuplicateKey,
+  parseSmsMessageResult,
   ParsedSmsTransaction,
   parseSmsMessage,
+  NativeSmsMessage,
 } from "@/utils/smsParser";
 
 export type PendingTransaction = ParsedSmsTransaction & {
@@ -46,12 +48,35 @@ export type PendingTransaction = ParsedSmsTransaction & {
 };
 
 type PendingTransactionInput = Omit<PendingTransaction, "id">;
+type PendingSmsResult =
+  | {
+      pending: PendingTransaction;
+    }
+  | {
+      pending: null;
+      reason:
+        | "ai-rejected"
+        | "missing-amount"
+        | "missing-auth"
+        | "missing-keyword"
+        | "missing-user"
+        | "missing-worker-url"
+        | "network-error"
+        | "save-skipped"
+        | "worker-error";
+      message?: string;
+      status?: number;
+    };
 
 type PendingTransactionContextType = {
   addPendingFromSms: (
-    rawMessage: string,
+    rawMessage: string | NativeSmsMessage,
     source?: "manual-paste" | "sms-auto",
   ) => Promise<PendingTransaction | null>;
+  addPendingFromSmsWithResult: (
+    rawMessage: string | NativeSmsMessage,
+    source?: "manual-paste" | "sms-auto",
+  ) => Promise<PendingSmsResult>;
   approvePendingTransaction: (transaction: PendingTransaction) => Promise<void>;
   ignorePendingTransaction: (id: string) => Promise<void>;
   loading: boolean;
@@ -74,7 +99,7 @@ const SmsTransactionModule = NativeModules.SmsTransactionModule as
   | {
       addListener?: (eventName: string) => void;
       clearPendingMessages?: () => Promise<void>;
-      getPendingMessages?: () => Promise<string[]>;
+      getPendingMessages?: () => Promise<Array<string | NativeSmsMessage>>;
       isNotificationAccessEnabled?: () => Promise<boolean>;
       openNotificationAccessSettings?: () => Promise<void>;
       removeListeners?: (count: number) => void;
@@ -214,7 +239,11 @@ export const PendingTransactionProvider = ({
       return null;
     }
 
-    if (userTypeRef.current === "salary" && transaction.type === "income") {
+    if (
+      userTypeRef.current === "salary" &&
+      transaction.source === "sms-auto" &&
+      transaction.type === "income"
+    ) {
       return null;
     }
 
@@ -257,10 +286,10 @@ export const PendingTransactionProvider = ({
   };
 
   const addPendingFromSms = async (
-    rawMessage: string,
+    rawMessage: string | NativeSmsMessage,
     source: "manual-paste" | "sms-auto" = "manual-paste",
   ) => {
-    const parsed = parseSmsMessage(rawMessage, source);
+    const parsed = await parseSmsMessage(rawMessage, source);
 
     if (!parsed) {
       return null;
@@ -269,8 +298,36 @@ export const PendingTransactionProvider = ({
     return addPendingTransaction(parsed);
   };
 
-  const addNativeSmsMessage = async (rawMessage: string) => {
-    const parsed = parseSmsMessage(rawMessage, "sms-auto");
+  const addPendingFromSmsWithResult = async (
+    rawMessage: string | NativeSmsMessage,
+    source: "manual-paste" | "sms-auto" = "manual-paste",
+  ): Promise<PendingSmsResult> => {
+    if (!auth.currentUser) {
+      return { pending: null, reason: "missing-user" };
+    }
+
+    const parsed = await parseSmsMessageResult(rawMessage, source);
+
+    if (!parsed.transaction) {
+      return {
+        message: parsed.message,
+        pending: null,
+        reason: parsed.reason,
+        status: parsed.status,
+      };
+    }
+
+    const pending = await addPendingTransaction(parsed.transaction);
+
+    if (!pending) {
+      return { pending: null, reason: "save-skipped" };
+    }
+
+    return { pending };
+  };
+
+  const addNativeSmsMessage = async (message: string | NativeSmsMessage) => {
+    const parsed = await parseSmsMessage(message, "sms-auto");
 
     if (!parsed) {
       return;
@@ -333,7 +390,12 @@ export const PendingTransactionProvider = ({
     const alreadyProcessed = new Set(processedNativeMessagesRef.current);
 
     for (const message of messages) {
-      if (alreadyProcessed.has(message)) {
+      const rawMessage =
+        typeof message === "string"
+          ? message
+          : String(message.body || message.message || "");
+
+      if (alreadyProcessed.has(rawMessage)) {
         continue;
       }
 
@@ -418,10 +480,15 @@ export const PendingTransactionProvider = ({
       Platform.OS === "android" && SmsTransactionModule && hasSmsEventApi
         ? new NativeEventEmitter(SmsTransactionModule as any).addListener(
             "SmsTransactionReceived",
-            (message: string) => {
+            (message: string | NativeSmsMessage) => {
+              const rawMessage =
+                typeof message === "string"
+                  ? message
+                  : String(message.body || message.message || "");
+
               processedNativeMessagesRef.current = [
                 ...processedNativeMessagesRef.current,
-                message,
+                rawMessage,
               ];
 
               addNativeSmsMessage(message).catch((error) => {
@@ -491,6 +558,7 @@ export const PendingTransactionProvider = ({
     <PendingTransactionContext.Provider
       value={{
         addPendingFromSms,
+        addPendingFromSmsWithResult,
         approvePendingTransaction,
         ignorePendingTransaction,
         loading,

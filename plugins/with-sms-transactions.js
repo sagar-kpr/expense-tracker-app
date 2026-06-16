@@ -36,6 +36,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableNativeArray
+import com.facebook.react.bridge.WritableNativeMap
 import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.ref.WeakReference
@@ -65,21 +66,27 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
 
     private var activeReactContext: WeakReference<ReactApplicationContext>? = null
 
-    fun emitSmsReceived(message: String): Boolean {
+    fun emitSmsReceived(message: String, senderId: String): Boolean {
       val context = activeReactContext?.get() ?: return false
 
       if (!context.hasActiveReactInstance()) {
         return false
       }
 
-      context.emitDeviceEvent(SMS_RECEIVED_EVENT, message)
+      val payload = WritableNativeMap().apply {
+        putString("body", message)
+        putString("senderId", senderId)
+      }
+
+      context.emitDeviceEvent(SMS_RECEIVED_EVENT, payload)
 
       return true
     }
 
     @Synchronized
-    fun handleIncomingMessage(context: Context, message: String) {
+    fun handleIncomingMessage(context: Context, message: String, senderId: String = "") {
       val body = message.trim()
+      val sender = senderId.trim()
 
       if (body.isEmpty()) {
         return
@@ -113,7 +120,7 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
         .putString(RECENT_MESSAGES_KEY, recentMessages.toString())
         .commit()
 
-      emitSmsReceived(body)
+      emitSmsReceived(body, sender)
 
       val pendingMessages = try {
         JSONArray(prefs.getString(PREFS_KEY, "[]"))
@@ -121,7 +128,10 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
         JSONArray()
       }
 
-      pendingMessages.put(body)
+      pendingMessages.put(JSONObject().apply {
+        put("body", body)
+        put("senderId", sender)
+      })
       prefs.edit().putString(PREFS_KEY, pendingMessages.toString()).commit()
 
       showTransactionNotificationIfNeeded(context, body)
@@ -239,7 +249,16 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       val result = WritableNativeArray()
 
       for (index in 0 until messages.length()) {
-        result.pushString(messages.getString(index))
+        val item = messages.get(index)
+
+        if (item is JSONObject) {
+          result.pushMap(WritableNativeMap().apply {
+            putString("body", item.optString("body"))
+            putString("senderId", item.optString("senderId"))
+          })
+        } else {
+          result.pushString(item.toString())
+        }
       }
 
       promise.resolve(result)
@@ -329,12 +348,17 @@ class SmsReceiver : BroadcastReceiver() {
 
     val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
     val body = messages.joinToString(separator = "") { it.messageBody ?: "" }.trim()
+    val senderId = messages
+      .firstOrNull()
+      ?.displayOriginatingAddress
+      ?.trim()
+      .orEmpty()
 
     if (body.isEmpty()) {
       return
     }
 
-    SmsTransactionModule.handleIncomingMessage(context, body)
+    SmsTransactionModule.handleIncomingMessage(context, body, senderId)
   }
 }
 `;
@@ -369,6 +393,11 @@ class BankMessageNotificationListenerService : NotificationListenerService() {
     }
 
     val extras = notification.extras
+    val senderId = extras
+      .getCharSequence(Notification.EXTRA_TITLE)
+      ?.toString()
+      ?.trim()
+      .orEmpty()
     val body = (
       extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
         ?: extras.getCharSequence(Notification.EXTRA_TEXT)
@@ -388,7 +417,7 @@ class BankMessageNotificationListenerService : NotificationListenerService() {
       return
     }
 
-    SmsTransactionModule.handleIncomingMessage(applicationContext, body)
+    SmsTransactionModule.handleIncomingMessage(applicationContext, body, senderId)
   }
 }
 `;
