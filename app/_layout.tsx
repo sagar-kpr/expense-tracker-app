@@ -8,12 +8,12 @@ import * as SplashScreen from "expo-splash-screen";
 
 import "react-native-reanimated";
 
+import { Image, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   initialWindowMetrics,
   SafeAreaProvider,
 } from "react-native-safe-area-context";
-import { Image, Platform, StyleSheet, View } from "react-native";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
@@ -31,7 +31,7 @@ function LoadingSplash() {
   return (
     <View style={styles.splashContainer}>
       <Image
-        source={require("../assets/images/splash.png")}
+        source={require("../assets/images/newicon.png")}
         resizeMode="contain"
         style={styles.splashImage}
       />
@@ -100,10 +100,24 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
+        title: "Expense Tracker",
       }}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    flex: 1,
+    justifyContent: "center",
+  },
+  splashImage: {
+    height: 220,
+    width: 220,
+  },
+});
 
 export default function RootLayout() {
   return (
@@ -122,16 +136,3 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  splashContainer: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    flex: 1,
-    justifyContent: "center",
-  },
-  splashImage: {
-    height: 220,
-    width: 220,
-  },
-});

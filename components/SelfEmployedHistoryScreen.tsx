@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
-import { useMemo, useState } from "react";
+import { createElement, useMemo, useState } from "react";
 import {
   Modal,
   Platform,
@@ -67,6 +67,17 @@ const getTransactionTime = (date: Date | null) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const formatDateInputValue = (date: Date | null) => {
+  if (!date) {
+    return "";
+  }
+
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${date.getFullYear()}-${month}-${day}`;
 };
 
 export default function SelfEmployedHistoryScreen() {
@@ -257,23 +268,57 @@ export default function SelfEmployedHistoryScreen() {
 
         {showDatePicker && (
           <View style={styles.datePickerBox}>
-            <DateTimePicker
-              value={selectedDate || new Date()}
-              mode="date"
-              display={Platform.OS === "ios" ? "inline" : "default"}
-              accentColor="#FFFFFF"
-              textColor={theme.primary}
-              onChange={(_event, date) => {
-                if (Platform.OS !== "ios") {
-                  setShowDatePicker(false);
-                }
+            {Platform.OS === "web"
+              ? createElement("input", {
+                  type: "date",
+                  value: formatDateInputValue(selectedDate),
+                  onChange: (event: any) => {
+                    const value = event.target.value;
 
-                if (date) {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSelectedDate(date);
-                }
-              }}
-            />
+                    if (!value) {
+                      setSelectedDate(null);
+                      return;
+                    }
+
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedDate(new Date(`${value}T00:00:00`));
+                    setShowDatePicker(false);
+                  },
+                style: {
+                    backgroundColor: "transparent",
+                    border: 0,
+                    color: "#FFFFFF",
+                    fontSize: 16,
+                    fontWeight: 800,
+                    minHeight: 52,
+                    outline: "none",
+                    padding: "0 16px",
+                    width: "100%",
+                  },
+                  autoFocus: true,
+                  onFocus: (event: any) => {
+                    event.target.showPicker?.();
+                  },
+                })
+              : (
+                <DateTimePicker
+                  value={selectedDate || new Date()}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "inline" : "default"}
+                  accentColor="#FFFFFF"
+                  textColor={theme.primary}
+                  onChange={(_event, date) => {
+                    if (Platform.OS !== "ios") {
+                      setShowDatePicker(false);
+                    }
+
+                    if (date) {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedDate(date);
+                    }
+                  }}
+                />
+              )}
           </View>
         )}
 

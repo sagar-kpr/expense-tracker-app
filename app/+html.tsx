@@ -11,6 +11,11 @@ export default function Html({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
+        <title>Expense Tracker</title>
+        <meta
+          name="description"
+          content="A simple expense tracker for salary and self-employed people."
+        />
         <meta name="theme-color" content="#16A34A" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/web-app-icon.png" />

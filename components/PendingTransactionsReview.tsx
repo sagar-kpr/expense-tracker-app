@@ -14,6 +14,7 @@ import {
 } from "react-native";
 
 import PendingTransactionCard from "@/components/PendingTransactionCard";
+import ScreenSkeleton from "@/components/ScreenSkeleton";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -123,6 +124,10 @@ export default function PendingTransactionsReview() {
 
     return () => subscription.remove();
   }, []);
+
+  if (loading && !refreshing) {
+    return <ScreenSkeleton variant="pending" />;
+  }
 
   return (
     <>

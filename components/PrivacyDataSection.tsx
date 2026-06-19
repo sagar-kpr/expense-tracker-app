@@ -16,6 +16,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Text,
   TouchableOpacity,
   View,
@@ -597,6 +598,31 @@ const buildPdfHtml = ({
   `;
 };
 
+const downloadHtmlReportOnWeb = (html: string) => {
+  const documentRef = globalThis.document;
+  const urlApi = globalThis.URL;
+
+  if (!documentRef || !urlApi) {
+    return false;
+  }
+
+  const exportedAt = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = urlApi.createObjectURL(blob);
+  const link = documentRef.createElement("a");
+
+  link.href = url;
+  link.download = `expense-tracker-report-${exportedAt}.html`;
+  link.style.display = "none";
+
+  documentRef.body.appendChild(link);
+  link.click();
+  link.remove();
+  urlApi.revokeObjectURL(url);
+
+  return true;
+};
+
 export default function PrivacyDataSection() {
   const { theme } = useTheme();
   const [exporting, setExporting] = useState(false);
@@ -665,6 +691,19 @@ export default function PrivacyDataSection() {
           email: profile.email || user.email || "",
         },
       });
+
+      if (Platform.OS === "web") {
+        if (!downloadHtmlReportOnWeb(html)) {
+          setNotice("Could not start download in this browser.");
+
+          return;
+        }
+
+        setNotice("Report downloaded. Open it in your browser to print or save as PDF.");
+
+        return;
+      }
+
       const { uri } = await Print.printToFileAsync({
         html,
         width: 612,

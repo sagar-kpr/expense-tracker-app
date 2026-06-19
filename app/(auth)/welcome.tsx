@@ -121,7 +121,7 @@
 //   );
 // }
 
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 
 import { router } from "expo-router";
 
@@ -184,9 +184,9 @@ export default function WelcomeScreen() {
         }}
       /> */}
 
-      <Animated.View entering={FadeIn.delay(1000).duration(700)}>
+      <View>
         <Animated.Text
-          entering={FadeInUp.delay(100).duration(700)}
+          entering={FadeInUp.duration(450)}
           style={{
             fontSize: 46,
 
@@ -196,7 +196,7 @@ export default function WelcomeScreen() {
 
             lineHeight: 56,
 
-            letterSpacing: -1,
+            letterSpacing: 0,
           }}
         >
           Expense{"\n"}
@@ -210,7 +210,7 @@ export default function WelcomeScreen() {
         </Animated.Text>
 
         <Animated.Text
-          entering={FadeInUp.delay(250).duration(700)}
+          entering={FadeInUp.delay(80).duration(450)}
           style={{
             fontSize: 19,
 
@@ -227,11 +227,11 @@ export default function WelcomeScreen() {
         </Animated.Text>
 
         <Animated.Text
-          entering={FadeInUp.delay(400).duration(700)}
+          entering={FadeInUp.delay(140).duration(450)}
           style={{
             fontSize: 15,
 
-            color: "#888",
+            color: "#5F6B6D",
 
             marginTop: 28,
 
@@ -257,7 +257,7 @@ export default function WelcomeScreen() {
           ].map((item, index) => (
             <Animated.View
               key={item}
-              entering={FadeInDown.delay(500 + index * 120).duration(700)}
+              entering={FadeInDown.delay(180 + index * 70).duration(450)}
               style={{
                 flexDirection: "row",
 
@@ -292,12 +292,14 @@ export default function WelcomeScreen() {
             </Animated.View>
           ))}
         </View>
-      </Animated.View>
+      </View>
 
-      <Animated.View entering={FadeIn.delay(1000).duration(700)}>
+      <Animated.View entering={FadeIn.delay(260).duration(450)}>
         <Pressable
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            if (Platform.OS !== "web") {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }
 
             router.push("/(auth)/login");
           }}

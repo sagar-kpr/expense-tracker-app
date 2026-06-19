@@ -2,20 +2,27 @@ import { Tabs } from "expo-router";
 
 import { useRef } from "react";
 import { useExpense } from "../../context/ExpenseContext";
+import { usePendingTransactions } from "@/context/PendingTransactionContext";
 
 import BottomSheet from "@gorhom/bottom-sheet";
 
 import BottomNavbar from "../../components/BottomNavbar";
 
 import ExpenseModal from "../../components/ExpenseModal";
+import ScreenSkeleton from "@/components/ScreenSkeleton";
 
 export default function TabLayout() {
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const { addExpense } = useExpense();
+  const { addExpense, loading: expensesLoading } = useExpense();
+  const { loading: pendingLoading } = usePendingTransactions();
 
   const openModal = () => {
     bottomSheetRef.current?.expand();
   };
+
+  if (expensesLoading || pendingLoading) {
+    return <ScreenSkeleton variant="dashboard" />;
+  }
 
   return (
     <>
