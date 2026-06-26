@@ -364,7 +364,7 @@ export default function ProfileScreen() {
                 marginTop: 8,
               }}
             >
-              ₹{Number(userData?.salary || 0).toLocaleString()}
+              ₹{Number(userData?.salary || 0).toLocaleString("en-IN")}
             </Text>
           </View>
 
@@ -518,7 +518,7 @@ export default function ProfileScreen() {
               marginTop: 10,
             }}
           >
-            ₹{Number(userData?.salary || 0).toLocaleString()}
+            ₹{Number(userData?.salary || 0).toLocaleString("en-IN")}
           </Text>
         </View>
 
@@ -858,7 +858,7 @@ export default function ProfileScreen() {
               fontSize: 16,
             }}
           >
-            ₹{avgExpense.toLocaleString()}
+            ₹{avgExpense.toLocaleString("en-IN")}
           </Text>
         </View>
 

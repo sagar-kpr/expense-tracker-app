@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Dimensions,
+  Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
-
 import Animated, {
   FadeInUp,
   type SharedValue,
@@ -15,32 +17,26 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import Svg, { Circle, Path, Polyline } from "react-native-svg";
 
 import { getCategoryMeta } from "@/components/categoryMeta";
-import CategoryRadialProgress from "@/components/CategoryRadialProgress";
-import { useTheme } from "@/context/ThemeContext";
-import { Ionicons } from "@expo/vector-icons";
-
-import Svg, { Circle } from "react-native-svg";
-
-import * as Haptics from "expo-haptics";
-
+import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
-
+import { useTheme } from "@/context/ThemeContext";
+import { useOnboardingStore } from "@/store/useOnboardingStore";
 import { useFocusEffect } from "@react-navigation/native";
 
-import { useAuth } from "@/context/AuthContext";
-import { useOnboardingStore } from "@/store/useOnboardingStore";
-
-const screenWidth = Dimensions.get("window").width;
-
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const RUPEE = "\u20B9";
+const PURPLE = "#6E3CFF";
+const PURPLE_DARK = "#371872"; //"#35108E";
+const GREEN = "#0F9B58";
+const BLUE = "#1877F2";
+const ORANGE = "#F97316";
 
 const getSafeCycleDate = (year: number, month: number, salaryDate: number) => {
   const lastDay = new Date(year, month + 1, 0).getDate();
-
   return new Date(year, month, Math.min(salaryDate, lastDay));
 };
 
@@ -53,7 +49,6 @@ const getCurrentCycleStart = (salaryDate: number) => {
   }
 
   start.setHours(0, 0, 0, 0);
-
   return start;
 };
 
@@ -65,7 +60,6 @@ const getNextCycleStart = (cycleStart: Date, salaryDate: number) => {
   );
 
   next.setHours(0, 0, 0, 0);
-
   return next;
 };
 
@@ -77,89 +71,97 @@ const formatCycleDate = (date: Date) =>
 
 const getExpenseDate = (value: any) => {
   const date = value?.toDate ? value.toDate() : new Date(value);
-
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-type DonutSegmentProps = {
-  color: string;
+const formatMoney = (value: number) => {
+  const amount = Number(value || 0);
+
+  if (amount >= 10000000) {
+    const cr = amount / 10000000;
+    return `${RUPEE}${Number(cr.toFixed(1))} Cr`;
+  }
+
+  if (amount >= 1000000) {
+    const lakh = amount / 100000;
+    return `${RUPEE}${Number(lakh.toFixed(1))} L`;
+  }
+
+  return `${RUPEE}${amount.toLocaleString("en-IN")}`;
+};
+
+const formatCompactMoney = (value: number) => {
+  const amount = Number(value || 0);
+  if (Math.abs(amount) < 1000) return formatMoney(amount);
+
+  const thousands = amount / 1000;
+  return `${RUPEE}${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}k`;
+};
+
+const categoryColor = (category: string, index: number) => {
+  const metaColor = getCategoryMeta(category).color;
+  const fallback = [PURPLE, "#FF202A", GREEN, BLUE, ORANGE][index % 5];
+  return metaColor || fallback;
+};
+
+type DonutProgressProps = {
   circumference: number;
-  dash: number;
-  gap: number;
   progress: SharedValue<number>;
   radius: number;
-  rotation: number;
+  salaryUsed: number;
   strokeWidth: number;
 };
 
-function DonutSegment({
-  color,
+function DonutProgress({
   circumference,
-  dash,
-  gap,
   progress,
   radius,
-  rotation,
+  salaryUsed,
   strokeWidth,
-}: DonutSegmentProps) {
+}: DonutProgressProps) {
   const animatedProps = useAnimatedProps(() => ({
-    strokeDasharray: [dash * progress.value, circumference],
+    strokeDasharray: [
+      circumference * (salaryUsed / 100) * progress.value,
+      circumference,
+    ],
   }));
 
   return (
     <AnimatedCircle
+      animatedProps={animatedProps}
       cx="90"
       cy="90"
-      r={radius}
-      stroke={color}
-      strokeWidth={strokeWidth}
       fill="none"
-      animatedProps={animatedProps}
-      strokeDasharray={`${dash} ${gap}`}
-      strokeDashoffset={0}
-      transform={`rotate(${rotation - 90} 90 90)`}
+      r={radius}
+      stroke="#7B61FF"
       strokeLinecap="round"
+      strokeWidth={strokeWidth}
+      strokeOpacity={0.95}
+      transform="rotate(-90 90 90)"
     />
   );
 }
 
-export default function AnalyticsScreen() {
+export default function SalaryAnalyticsScreen() {
   const { expenses } = useExpense();
-  const monthScrollRef = useRef<any>(null);
-  const { theme } = useTheme();
-  const { salary: onboardingSalary } = useOnboardingStore();
-
+  const { theme, dark } = useTheme();
   const { userData } = useAuth();
+  const { salary: onboardingSalary } = useOnboardingStore();
+  const { width } = useWindowDimensions();
 
   const salaryDate = Number(userData?.salaryDate || 1);
-
   const [selectedDate, setSelectedDate] = useState(() =>
     getCurrentCycleStart(salaryDate),
   );
 
   const [refreshing, setRefreshing] = useState(false);
-
-  const onRefresh = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    setRefreshing(true);
-
-    setSelectedDate(getCurrentCycleStart(salaryDate));
-
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
-  };
-
   const progress = useSharedValue(0);
+  const compact = width < 422;
 
-  useEffect(() => {
-    progress.value = 0;
-
-    progress.value = withTiming(1, {
-      duration: 1400,
-    });
-  }, [progress, selectedDate]);
+  const styles = useMemo(
+    () => getStyles(theme, dark, compact),
+    [compact, dark, theme],
+  );
 
   const salaryCycles = useMemo(() => {
     const currentCycleStart = getCurrentCycleStart(salaryDate);
@@ -177,6 +179,13 @@ export default function AnalyticsScreen() {
       return {
         end,
         label: `${formatCycleDate(start)} - ${formatCycleDate(displayEnd)}`,
+        shortLabel:
+          start.getTime() === currentCycleStart.getTime()
+            ? "This Month"
+            : start.toLocaleDateString("en-IN", {
+                month: "short",
+                year: "2-digit",
+              }),
         start,
       };
     });
@@ -189,15 +198,9 @@ export default function AnalyticsScreen() {
   );
 
   useEffect(() => {
-    const selectedIndex = salaryCycles.findIndex(
-      (cycle) => cycle.start.getTime() === selectedDate.getTime(),
-    );
-
-    monthScrollRef.current?.scrollTo({
-      x: Math.max(0, (selectedIndex - 2) * 142),
-      animated: true,
-    });
-  }, [salaryCycles, selectedDate]);
+    progress.value = 0;
+    progress.value = withTiming(1, { duration: 1200 });
+  }, [progress, selectedDate]);
 
   const selectedCycleEnd = useMemo(
     () => getNextCycleStart(selectedDate, salaryDate),
@@ -208,10 +211,7 @@ export default function AnalyticsScreen() {
     return expenses.filter((item) => {
       const date = getExpenseDate(item.createdAt);
 
-      if (
-        !date ||
-        (item.type || "expense") !== "expense"
-      ) {
+      if (!date || (item.type || "expense") !== "expense") {
         return false;
       }
 
@@ -219,876 +219,1092 @@ export default function AnalyticsScreen() {
     });
   }, [expenses, selectedCycleEnd, selectedDate]);
 
-  const groupedCategories = filteredExpenses.reduce(
-    (acc: Record<string, number>, item: any) => {
-      const category = item.category || "Other";
-
-      acc[category] = (acc[category] || 0) + Number(item.amount);
-
-      return acc;
-    },
-    {},
+  const groupedCategories = useMemo(
+    () =>
+      filteredExpenses.reduce((acc: Record<string, number>, item: any) => {
+        const category = item.category || "Other";
+        acc[category] = (acc[category] || 0) + Number(item.amount || 0);
+        return acc;
+      }, {}),
+    [filteredExpenses],
   );
 
-  const totalSpent = Object.values(groupedCategories).reduce(
-    (sum, value) => sum + value,
-    0,
+  const ranges = useMemo(
+    () =>
+      Object.entries(groupedCategories).sort(
+        (left: any, right: any) => right[1] - left[1],
+      ) as [string, number][],
+    [groupedCategories],
   );
 
   const salaryAmount = Number(userData?.salary ?? onboardingSalary ?? 0);
-
+  const totalSpent = ranges.reduce((sum, item) => sum + item[1], 0);
+  const remaining = salaryAmount - totalSpent;
   const salaryUsed =
     salaryAmount > 0 ? Math.min((totalSpent / salaryAmount) * 100, 100) : 0;
   const salaryUsedLabel =
     totalSpent > 0 && salaryUsed < 1
-      ? String(salaryUsed.toFixed(2))
+      ? salaryUsed.toFixed(1)
       : String(Math.round(salaryUsed));
+  const savingsRate =
+    salaryAmount > 0 ? Math.round((remaining / salaryAmount) * 100) : 0;
 
-  const ranges = Object.entries(groupedCategories).sort(
-    (a: any, b: any) => b[1] - a[1],
-  );
+  const isOverspent = remaining < 0;
+  const topCategory = ranges[0];
+  const displayRanges = ranges.slice(0, 6);
 
-  const emptyCategoryData = [
-    "Food",
-    "Travel",
-    "Shopping",
-    "Bills",
-    "Other",
-    "Health",
-  ].map((category) => [category, 0] as [string, number]);
+  const trendBuckets = useMemo(() => {
+    const now = new Date();
+    const tomorrow = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+    );
+    const trendEnd =
+      now >= selectedDate && now < selectedCycleEnd
+        ? tomorrow
+        : selectedCycleEnd;
+    const totalDays = Math.max(
+      1,
+      Math.ceil((trendEnd.getTime() - selectedDate.getTime()) / MS_PER_DAY),
+    );
+    const bucketCount = Math.min(6, totalDays);
+    const buckets = Array.from({ length: bucketCount }, (_value, index) => {
+      const dayOffset = Math.floor((index * totalDays) / bucketCount);
+      const bucketDate = new Date(
+        selectedDate.getTime() + dayOffset * MS_PER_DAY,
+      );
 
-  const displayRanges =
-    ranges.length > 0 ? (ranges as [string, number][]) : emptyCategoryData;
+      return {
+        label: bucketDate.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+        }),
+        value: 0,
+      };
+    });
 
-  const radius = 70;
+    filteredExpenses.forEach((item) => {
+      const date = getExpenseDate(item.createdAt);
+      if (!date) return;
 
-  const strokeWidth = 18;
+      const dayOffset = Math.max(
+        0,
+        Math.floor((date.getTime() - selectedDate.getTime()) / MS_PER_DAY),
+      );
+      const bucketIndex = Math.min(
+        bucketCount - 1,
+        Math.floor((dayOffset * bucketCount) / totalDays),
+      );
+      buckets[bucketIndex].value += Number(item.amount || 0);
+    });
 
-  const circumference = 2 * Math.PI * radius;
+    let cumulativeSpend = 0;
+    return buckets.map((bucket) => {
+      cumulativeSpend += bucket.value;
+      return { ...bucket, value: cumulativeSpend };
+    });
+  }, [filteredExpenses, selectedCycleEnd, selectedDate]);
+  const showTrend = trendBuckets.some((item) => item.value > 0);
+  const previousCycleSpend = useMemo(() => {
+    const previousStart = getSafeCycleDate(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth() - 1,
+      salaryDate,
+    );
+    previousStart.setHours(0, 0, 0, 0);
 
-  const groupedByDay = filteredExpenses.reduce(
-    (acc: Record<string, number>, item) => {
+    return expenses.reduce((sum, item: any) => {
       const date = getExpenseDate(item.createdAt);
 
-      if (!date) {
-        return acc;
-      }
+      if (!date || (item.type || "expense") !== "expense") return sum;
 
-      const day =
-        Math.floor(
-          (new Date(
-            date.getFullYear(),
-            date.getMonth(),
-            date.getDate(),
-          ).getTime() -
-            selectedDate.getTime()) /
-            MS_PER_DAY,
-        ) + 1;
+      return date >= previousStart && date < selectedDate
+        ? sum + Number(item.amount || 0)
+        : sum;
+    }, 0);
+  }, [expenses, salaryDate, selectedDate]);
 
-      acc[day] = (acc[day] || 0) + Number(item.amount);
-
-      return acc;
-    },
-    {},
+  const hasPreviousCycle = previousCycleSpend > 0;
+  const comparisonPercent =
+    previousCycleSpend > 0
+      ? Math.round(
+          ((totalSpent - previousCycleSpend) / previousCycleSpend) * 100,
+        )
+      : 0;
+  const comparisonUp = comparisonPercent >= 0;
+  const selectedCycle = salaryCycles.find(
+    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
+  );
+  const selectedCycleIndex = salaryCycles.findIndex(
+    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
   );
 
-  const sortedDays = Object.keys(groupedByDay)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const selectAdjacentCycle = (offset: number) => {
+    const nextCycle = salaryCycles[selectedCycleIndex + offset];
 
-  const daysInSelectedCycle = Math.max(
-    1,
-    Math.round((selectedCycleEnd.getTime() - selectedDate.getTime()) / MS_PER_DAY),
-  );
+    if (!nextCycle) return;
 
-  const monthDays = Array.from(
-    {
-      length: daysInSelectedCycle,
-    },
-    (_value, index) => index + 1,
-  );
-
-  const chartLabels = monthDays.map((day) => {
-    const shouldShowLabel =
-      day === 1 || day === daysInSelectedCycle || day % 5 === 0;
-
-    if (!shouldShowLabel) {
-      return "";
-    }
-
-    const labelDate = new Date(selectedDate);
-
-    labelDate.setDate(selectedDate.getDate() + day - 1);
-
-    return String(labelDate.getDate());
-  });
-
-  const chartValues = monthDays.map((day) => groupedByDay[day] || 0);
-
-  const chartData = {
-    labels: chartLabels,
-
-    datasets: [
-      {
-        data: chartValues,
-      },
-    ],
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedDate(nextCycle.start);
   };
 
-  const highestExpense = filteredExpenses.reduce(
-    (max, item) => (Number(item.amount) > Number(max.amount) ? item : max),
-    filteredExpenses[0] || {},
-  );
+  const onRefresh = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRefreshing(true);
+    setSelectedDate(getCurrentCycleStart(salaryDate));
+    setTimeout(() => setRefreshing(false), 700);
+  };
 
-  const totalTransactions = filteredExpenses.length;
-
-  const averagePerDay =
-    sortedDays.length > 0 ? totalSpent / sortedDays.length : 0;
-
-  const highestDay = Object.entries(groupedByDay).sort(
-    (a: any, b: any) => b[1] - a[1],
-  )[0];
-
-  const topCategory = ranges[0];
+  const donutRadius = 74;
+  const donutStrokeWidth = 10;
+  const donutCircumference = 2 * Math.PI * donutRadius;
 
   return (
     <ScrollView
-      style={{
-        flex: 1,
-        backgroundColor: theme.background,
-      }}
+      contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
-          refreshing={refreshing}
+          colors={[PURPLE]}
           onRefresh={onRefresh}
-          tintColor={theme.primary}
-          progressViewOffset={60}
+          progressBackgroundColor={theme.card}
+          progressViewOffset={70}
+          refreshing={refreshing}
+          tintColor={PURPLE}
         />
       }
-      contentContainerStyle={{
-        padding: 20,
-        paddingTop: 70,
-        paddingBottom: 120,
-        flexGrow: 1,
-      }}
       showsVerticalScrollIndicator={false}
+      style={styles.screen}
     >
-      <Text
-        style={{
-          fontSize: 32,
-          fontWeight: "800",
-          color: theme.text,
-        }}
-      >
-        Analytics
-      </Text>
-
-      <ScrollView
-        ref={monthScrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          marginTop: 24,
-          paddingRight: 20,
-        }}
-      >
-        {salaryCycles.map((cycle) => {
-          const active = selectedDate.getTime() === cycle.start.getTime();
-
-          return (
-            <Text
-              key={cycle.start.toISOString()}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-                setSelectedDate(cycle.start);
-              }}
-              style={{
-                backgroundColor: active ? theme.primary : theme.card,
-
-                color: active ? theme.card : theme.subText,
-
-                paddingVertical: 12,
-
-                paddingHorizontal: 18,
-
-                borderRadius: 999,
-
-                marginRight: 10,
-
-                fontWeight: "700",
-
-                overflow: "hidden",
-              }}
-            >
-              {cycle.label}
+      <Animated.View entering={FadeInUp.duration(500)} style={styles.headerRow}>
+        <Text style={styles.title}>Analytics</Text>
+        <View style={styles.monthSelector}>
+          <Pressable
+            accessibilityLabel="Previous salary cycle"
+            disabled={selectedCycleIndex <= 0}
+            hitSlop={8}
+            onPress={() => selectAdjacentCycle(-1)}
+            style={styles.monthArrow}
+          >
+            <Ionicons
+              color={selectedCycleIndex <= 0 ? theme.border : theme.subText}
+              name="chevron-back"
+              size={17}
+            />
+          </Pressable>
+          <View style={styles.monthButton}>
+            <Ionicons
+              color={GREEN}
+              name="calendar-clear-outline"
+              size={compact ? 17 : 19}
+            />
+            <Text numberOfLines={1} style={styles.monthButtonTextActive}>
+              {selectedCycle?.shortLabel ?? "This Month"}
             </Text>
-          );
-        })}
-      </ScrollView>
+          </View>
+          <Pressable
+            accessibilityLabel="Next salary cycle"
+            disabled={selectedCycleIndex >= salaryCycles.length - 1}
+            hitSlop={8}
+            onPress={() => selectAdjacentCycle(1)}
+            style={styles.monthArrow}
+          >
+            <Ionicons
+              color={
+                selectedCycleIndex >= salaryCycles.length - 1
+                  ? theme.border
+                  : theme.subText
+              }
+              name="chevron-forward"
+              size={17}
+            />
+          </Pressable>
+        </View>
+      </Animated.View>
 
       <Animated.View
-        entering={FadeInUp.delay(100).duration(700)}
-        style={{
-          backgroundColor: theme.card,
-
-          borderRadius: 28,
-
-          padding: 24,
-
-          marginTop: 28,
-
-          alignItems: "center",
-        }}
+        entering={FadeInUp.delay(80).duration(550)}
+        style={styles.overviewCard}
       >
-        <Text
-          style={{
-            fontSize: 22,
+        <View style={styles.overviewLeft}>
+          <View style={styles.cardTitleRow}>
+            <Ionicons
+              color="rgba(255,255,255,0.86)"
+              name="pie-chart-outline"
+              size={compact ? 20 : 24}
+            />
+            <Text style={styles.overviewTitle}>Salary Overview</Text>
+          </View>
 
-            fontWeight: "700",
+          <Text style={styles.overviewLabel}>Salary Used</Text>
+          <Text style={styles.usedPercent}>{salaryUsedLabel}%</Text>
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+            numberOfLines={1}
+            style={styles.usedAmount}
+          >
+            {formatMoney(totalSpent)} of {formatMoney(salaryAmount)}
+          </Text>
 
-            color: theme.text,
-
-            marginBottom: 26,
-          }}
-        >
-          Spending Distribution
-        </Text>
-
-        {displayRanges.length > 0 ? (
-          <>
-            <Animated.View
-              key={`donut-${selectedDate.getTime()}-${refreshing}`}
-              style={{
-                justifyContent: "center",
-
-                alignItems: "center",
-              }}
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: "#7A4CFF" }]} />
+            <Text style={styles.legendText}>Used</Text>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={styles.legendAmount}
             >
-              <Svg width={180} height={180}>
-                <Circle
-                  cx="90"
-                  cy="90"
-                  r={radius}
-                  stroke={theme.border}
-                  strokeWidth={strokeWidth}
-                  fill="none"
-                />
+              {formatMoney(totalSpent)}
+            </Text>
+          </View>
 
-                {(() => {
-                  let cumulativePercent = 0;
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: "#C9D1CC" }]} />
+            <Text style={styles.legendText}>Remaining</Text>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={styles.legendAmount}
+            >
+              {formatMoney(remaining)}
+            </Text>
+          </View>
 
-                  return ranges.map(([key, value], index) => {
-                    const percent = totalSpent > 0 ? value / totalSpent : 0;
+          <View style={styles.comparisonPill}>
+            <Ionicons
+              color={comparisonUp ? "#11D86E" : "#FF7474"}
+              name={comparisonUp ? "arrow-up" : "arrow-down"}
+              size={22}
+            />
+            <Text style={styles.comparisonText}>
+              {hasPreviousCycle
+                ? `${Math.abs(comparisonPercent)}% vs Last Month`
+                : "First Cycle"}
+            </Text>
+          </View>
+        </View>
 
-                    const dash = circumference * percent;
-
-                    const gap = circumference - dash + 6;
-
-                    const rotation = cumulativePercent * 360;
-
-                    cumulativePercent += percent;
-
-                    return (
-                      <DonutSegment
-                        key={key}
-                        color={getCategoryMeta(key).color}
-                        circumference={circumference}
-                        dash={dash}
-                        gap={gap}
-                        progress={progress}
-                        radius={radius}
-                        rotation={rotation}
-                        strokeWidth={strokeWidth}
-                      />
-                    );
-                  });
-                })()}
-              </Svg>
-
-              <View
-                style={{
-                  position: "absolute",
-
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 28,
-
-                    fontWeight: "800",
-
-                    color: theme.text,
-                  }}
-                >
-                  {salaryUsedLabel}%
-                </Text>
-
-                <Text
-                  style={{
-                    color: theme.subText,
-
-                    marginTop: 4,
-                  }}
-                >
-                  Salary Used
-                </Text>
+        {salaryAmount > 0 && (
+          <View style={styles.donutBox}>
+            <Svg width={155} height={155} viewBox="0 0 180 180">
+              <Circle
+                cx="90"
+                cy="90"
+                fill="none"
+                r={donutRadius}
+                stroke="#F3F4F1"
+                strokeWidth={donutStrokeWidth}
+              />
+              <DonutProgress
+                circumference={donutCircumference}
+                progress={progress}
+                radius={donutRadius}
+                salaryUsed={salaryUsed}
+                strokeWidth={donutStrokeWidth}
+              />
+            </Svg>
+            <View style={styles.donutCenter}>
+              <View style={styles.walletIcon}>
+                <Ionicons color={PURPLE} name="wallet" size={21} />
               </View>
-            </Animated.View>
+              <Text style={styles.donutLabel}>Total Salary</Text>
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+                numberOfLines={1}
+                style={styles.donutAmount}
+              >
+                {formatMoney(salaryAmount)}
+              </Text>
+            </View>
+          </View>
+        )}
+      </Animated.View>
 
-            <View
-              style={{
-                width: "100%",
+      <Animated.View
+        entering={FadeInUp.delay(140).duration(550)}
+        style={styles.insightCard}
+      >
+        <View style={styles.insightIcon}>
+          <Ionicons color={GREEN} name="bulb" size={25} />
+        </View>
+        <View style={styles.insightCopy}>
+          <Text style={styles.insightTitle}>Insight</Text>
+          <Text style={styles.insightText}>
+            {topCategory ? (
+              <>
+                {topCategory[0]} is your largest expense{" "}
+                <Text style={styles.insightStrong}>
+                  {totalSpent > 0
+                    ? Math.round((topCategory[1] / totalSpent) * 100)
+                    : 0}
+                  %
+                </Text>{" "}
+                this cycle.
+              </>
+            ) : (
+              "Add expenses to unlock spending insights this cycle."
+            )}
+          </Text>
+        </View>
+        <Ionicons color={GREEN} name="chevron-forward" size={25} />
+      </Animated.View>
 
-                marginTop: 30,
-              }}
-            >
-              {displayRanges.map(([key, value], index) => {
-                const percent =
-                  totalSpent > 0
-                    ? ((value / totalSpent) * 100).toFixed(1)
-                    : "0";
+      <Animated.View
+        entering={FadeInUp.delay(200).duration(550)}
+        style={styles.sectionCard}
+      >
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Category Breakdown</Text>
+        </View>
 
-                return (
-                  <View
-                    key={key}
-                    style={{
-                      flexDirection: "row",
+        {displayRanges.length === 0 ? (
+          <Text style={styles.emptyTrendText}>
+            No expenses recorded in this salary cycle.
+          </Text>
+        ) : (
+          displayRanges.map(([category, value], index) => {
+            const percent = totalSpent > 0 ? (value / totalSpent) * 100 : 0;
+            const color = categoryColor(category, index);
+            const meta = getCategoryMeta(category);
 
-                      justifyContent: "space-between",
+            return (
+              <View key={category} style={styles.categoryRow}>
+                <View
+                  style={[styles.categoryIcon, { backgroundColor: meta.tint }]}
+                >
+                  <Ionicons color={color} name={meta.icon} size={18} />
+                </View>
 
-                      alignItems: "center",
-
-                      marginBottom: 18,
-
-                      backgroundColor: theme.border,
-
-                      padding: 16,
-
-                      borderRadius: 18,
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-
-                        alignItems: "center",
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 38,
-
-                          height: 38,
-
-                          borderRadius: 14,
-
-                          backgroundColor: getCategoryMeta(key).tint,
-
-                          marginRight: 12,
-
-                          alignItems: "center",
-
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Ionicons
-                          name={getCategoryMeta(key).icon}
-                          size={20}
-                          color={getCategoryMeta(key).color}
-                        />
-                      </View>
-
+                <View style={styles.categoryContent}>
+                  <View style={styles.categoryTopRow}>
+                    <View style={styles.categoryTextGroup}>
+                      <Text numberOfLines={1} style={styles.categoryName}>
+                        {category}
+                      </Text>
                       <Text
-                        style={{
-                          fontSize: 16,
-
-                          fontWeight: "700",
-
-                          color: theme.text,
-                        }}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                        numberOfLines={1}
+                        style={[styles.categoryAmount, { color }]}
                       >
-                        {key}
+                        {formatMoney(value)}
                       </Text>
                     </View>
 
-                    <View
-                      style={{
-                        alignItems: "flex-end",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontWeight: "700",
-
-                          color: theme.text,
-
-                          fontSize: 16,
-                        }}
-                      >
-                        ₹{value.toLocaleString()}
-                      </Text>
-
-                      <Text
-                        style={{
-                          color: theme.subText,
-
-                          marginTop: 6,
-                        }}
-                      >
-                        {percent}%
-                      </Text>
-                    </View>
+                    <Text style={styles.categoryPercent}>
+                      {percent.toFixed(1)}%
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
-          </>
-        ) : (
-          <View
-            style={{
-              paddingVertical: 50,
 
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 52,
-              }}
-            >
-              📊
-            </Text>
-
-            <Text
-              style={{
-                marginTop: 14,
-
-                fontSize: 18,
-
-                fontWeight: "800",
-
-                color: theme.text,
-              }}
-            >
-              No spending data
-            </Text>
-
-            <Text
-              style={{
-                marginTop: 8,
-
-                color: theme.subText,
-
-                textAlign: "center",
-
-                lineHeight: 22,
-              }}
-            >
-              No analytics available for this salary cycle.
-            </Text>
-          </View>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          backgroundColor: color,
+                          width: `${Math.max(percent, value > 0 ? 3 : 0)}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              </View>
+            );
+          })
         )}
       </Animated.View>
-
-      <CategoryRadialProgress
-        items={ranges as [string, number][]}
-        referenceAmount={salaryAmount}
-        referenceLabel="your salary"
-        totalSpent={totalSpent}
-      />
 
       <Animated.View
-        entering={FadeInUp.delay(100).duration(700)}
-        style={{
-          backgroundColor: theme.card,
-          borderRadius: 28,
-          padding: 24,
-          marginTop: 24,
-        }}
+        entering={FadeInUp.delay(260).duration(550)}
+        style={styles.sectionCard}
       >
-        {/* HEADER */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 20,
-          }}
-        >
-          <View>
-            <Text
-              style={{
-                fontSize: 22,
-                fontWeight: "800",
-                color: theme.text,
-              }}
-            >
-              Spending Overview
-            </Text>
-
-            <Text
-              style={{
-                marginTop: 4,
-                color: theme.subText,
-                fontSize: 14,
-              }}
-            >
-              Monitor your spending insights
-            </Text>
-          </View>
-
-          <View
-            style={{
-              backgroundColor: theme.background,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 14,
-            }}
-          >
-            <Text
-              style={{
-                color: theme.text,
-                fontWeight: "700",
-                fontSize: 9,
-              }}
-            >
-              Salary Cycle
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Salary Cycle Progress</Text>
+          <View style={styles.trendPill}>
+            <Ionicons color={GREEN} name="calendar-clear-outline" size={15} />
+            <Text numberOfLines={1} style={styles.trendPillText}>
+              {selectedCycle?.shortLabel ?? "This Month"}
             </Text>
           </View>
         </View>
 
-        {chartValues.length > 0 ? (
-          <>
-            {/* TOP CARDS */}
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                marginBottom: 28,
-              }}
-            >
-              {/* TOTAL */}
-              <View
-                style={{
-                  width: "48%",
-                  backgroundColor: "#F0FDF4",
-                  borderRadius: 22,
-                  padding: 18,
-                }}
-              >
-                <View
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 18,
-                    backgroundColor: "#DCFCE7",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginBottom: 12,
-                  }}
-                >
-                  <Ionicons name="wallet" size={26} color="#16A34A" />
-                </View>
-
-                <Text
-                  style={{
-                    color: "#666",
-                    fontSize: 14,
-                    marginBottom: 8,
-                  }}
-                >
-                  Total Spent
-                </Text>
-
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                  style={{
-                    color: "#16A34A",
-                    fontSize: 20,
-                    fontWeight: "900",
-                  }}
-                >
-                  ₹{totalSpent.toLocaleString("en-IN")}
-                </Text>
-              </View>
-
-              {/* HIGHEST */}
-              <View
-                style={{
-                  width: "48%",
-                  backgroundColor: "#F5F7FF",
-                  borderRadius: 22,
-                  padding: 18,
-                }}
-              >
-                <View
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 18,
-                    backgroundColor: "#E9EEFF",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginBottom: 12,
-                  }}
-                >
-                  <Ionicons name="trending-up" size={26} color="#2563EB" />
-                </View>
-
-                <Text
-                  style={{
-                    color: "#666",
-                    fontSize: 14,
-                    marginBottom: 8,
-                  }}
-                >
-                  Highest Spend
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                  style={{
-                    color: "#2563EB",
-                    fontSize: 20,
-                    fontWeight: "900",
-                  }}
-                >
-                  ₹{highestExpense?.amount?.toLocaleString("en-IN") || "0"}
-                </Text>
-              </View>
-            </View>
-          </>
+        {showTrend ? (
+          <TrendChart data={trendBuckets} styles={styles} />
         ) : (
-          <View
-            style={{
-              paddingVertical: 60,
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 52,
-              }}
-            >
-              📊
-            </Text>
-
-            <Text
-              style={{
-                marginTop: 16,
-                fontSize: 18,
-                fontWeight: "800",
-                color: theme.text,
-              }}
-            >
-              No spending data
-            </Text>
-
-            <Text
-              style={{
-                marginTop: 8,
-                color: theme.subText,
-                textAlign: "center",
-                lineHeight: 22,
-                paddingHorizontal: 30,
-              }}
-            >
-              Your daily expense analytics will appear here once transactions
-              are added.
-            </Text>
-          </View>
+          <Text style={styles.emptyTrendText}>
+            No spending recorded for {selectedCycle?.label ?? "this cycle"}.
+          </Text>
         )}
       </Animated.View>
 
-      <View
-        style={{
-          backgroundColor: theme.card,
-
-          borderRadius: 28,
-
-          padding: 24,
-
-          marginTop: 24,
-        }}
+      <Animated.View
+        entering={FadeInUp.delay(320).duration(550)}
+        style={styles.savingsCard}
       >
-        <Text
-          style={{
-            fontSize: 22,
-
-            fontWeight: "700",
-
-            color: theme.text,
-
-            marginBottom: 24,
-          }}
-        >
-          Insights
-        </Text>
-
-        <View
-          style={{
-            backgroundColor: theme.primary + "10",
-
-            padding: 18,
-
-            borderRadius: 20,
-
-            marginBottom: 24,
-          }}
-        >
-          <Text
-            style={{
-              color: theme.primary,
-
-              fontWeight: "700",
-
-              fontSize: 15,
-
-              lineHeight: 24,
-            }}
-          >
-            {topCategory
-              ? `You spent most on ${topCategory[0]} this salary cycle 🔥`
-              : "No spending insights yet"}
-          </Text>
+        <View style={styles.savingsLeft}>
+          <View style={styles.savingsIcon}>
+            <Ionicons color={GREEN} name="shield-checkmark-outline" size={31} />
+          </View>
+          <View>
+            <Text style={styles.savingsLabel}>Savings Rate</Text>
+            <Text style={styles.savingsPercent}>{savingsRate}%</Text>
+            <Text style={styles.savingsCaption}>
+              {salaryAmount <= 0
+                ? "Add salary to unlock analytics."
+                : totalSpent === 0
+                  ? "No spending recorded this cycle."
+                  : isOverspent
+                    ? `Overspent by ${formatMoney(Math.abs(remaining))}`
+                    : savingsRate >= 30
+                      ? "Excellent saving rate."
+                      : savingsRate >= 10
+                        ? "Healthy spending habits."
+                        : "Keep watching the big categories."}
+            </Text>
+          </View>
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
+        <View style={styles.savingsDivider} />
 
-            justifyContent: "space-between",
-
-            marginBottom: 20,
-          }}
-        >
+        <View style={styles.savingsRight}>
+          <View style={styles.savingsBarRow}>
+            <View style={styles.savingsTrack}>
+              <View
+                style={[styles.savingsFill, { width: `${savingsRate}%` }]}
+              />
+            </View>
+            <Text style={styles.savingsSmallPercent}>{savingsRate}%</Text>
+          </View>
           <Text
-            style={{
-              color: theme.subText,
-
-              fontSize: 16,
-            }}
+            adjustsFontSizeToFit
+            numberOfLines={2}
+            style={styles.savingsAmount}
           >
-            Total Transactions
+            {isOverspent
+              ? `${formatMoney(Math.abs(remaining))} overspent`
+              : `${formatMoney(remaining)} remaining`}
           </Text>
-
-          <Text
-            style={{
-              fontWeight: "700",
-
-              fontSize: 16,
-
-              color: theme.text,
-            }}
-          >
-            {totalTransactions}
+          <Text numberOfLines={1} style={styles.cycleLabel}>
+            {selectedCycle?.label}
           </Text>
         </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-
-            justifyContent: "space-between",
-
-            marginBottom: 20,
-          }}
-        >
-          <Text
-            style={{
-              color: theme.subText,
-
-              fontSize: 16,
-            }}
-          >
-            Highest Expense
-          </Text>
-
-          <Text
-            style={{
-              fontWeight: "700",
-
-              fontSize: 16,
-
-              color: theme.text,
-            }}
-          >
-            ₹
-            {highestExpense?.amount
-              ? Number(highestExpense.amount).toLocaleString()
-              : 0}
-          </Text>
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-
-            justifyContent: "space-between",
-
-            marginBottom: 20,
-          }}
-        >
-          <Text
-            style={{
-              color: theme.subText,
-
-              fontSize: 16,
-            }}
-          >
-            Avg Per Day
-          </Text>
-
-          <Text
-            style={{
-              fontWeight: "700",
-
-              fontSize: 16,
-
-              color: theme.text,
-            }}
-          >
-            ₹{Math.round(averagePerDay).toLocaleString()}
-          </Text>
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-
-            justifyContent: "space-between",
-          }}
-        >
-          <Text
-            style={{
-              color: theme.subText,
-
-              fontSize: 16,
-            }}
-          >
-            Highest Spending Day
-          </Text>
-
-          <Text
-            style={{
-              fontWeight: "700",
-
-              fontSize: 16,
-
-              color: theme.text,
-            }}
-          >
-            {highestDay
-              ? `${highestDay[0]} • ₹${Number(highestDay[1]).toLocaleString()}`
-              : "N/A"}
-          </Text>
-        </View>
-      </View>
+      </Animated.View>
     </ScrollView>
   );
 }
+
+function TrendChart({
+  data,
+  styles,
+}: {
+  data: { label: string; value: number }[];
+  styles: ReturnType<typeof getStyles>;
+}) {
+  const chartWidth = 300;
+  const chartHeight = 160;
+  const left = 38;
+  const right = 10;
+  const top = 12;
+  const bottom = 32;
+  const plotWidth = chartWidth - left - right;
+  const plotHeight = chartHeight - top - bottom;
+  const highestValue = Math.max(1, ...data.map((item) => item.value));
+  const magnitude = 10 ** Math.floor(Math.log10(highestValue));
+  const maxValue = Math.ceil(highestValue / magnitude) * magnitude;
+  const yTicks = [1, 0.75, 0.5, 0.25, 0].map((ratio) => maxValue * ratio);
+
+  const formatAxisValue = (value: number) => {
+    if (value === 0) return `${RUPEE}0`;
+    if (value < 1000) return `${RUPEE}${Math.round(value)}`;
+
+    const thousands = value / 1000;
+    return `${RUPEE}${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
+  };
+
+  const points = data.map((item, index) => {
+    const x = left + (plotWidth / Math.max(data.length - 1, 1)) * index;
+    const y = top + plotHeight - (item.value / maxValue) * plotHeight;
+    return { ...item, x, y };
+  });
+
+  const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const areaPath = points.length
+    ? `M ${points[0].x} ${plotHeight + top} L ${points
+        .map((point) => `${point.x} ${point.y}`)
+        .join(" L ")} L ${points[points.length - 1].x} ${plotHeight + top} Z`
+    : "";
+
+  return (
+    <View style={styles.trendChart}>
+      <Svg
+        height={chartHeight}
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        width="100%"
+      >
+        {yTicks.map((tick) => {
+          const y = top + plotHeight - (tick / maxValue) * plotHeight;
+          return (
+            <React.Fragment key={tick}>
+              <Path
+                d={`M ${left} ${y} H ${chartWidth - right}`}
+                opacity={tick === 0 ? 0.9 : 0.55}
+                stroke="#D6DAE2"
+                strokeWidth="1"
+              />
+            </React.Fragment>
+          );
+        })}
+        <Path
+          d={`M ${left} ${top} V ${top + plotHeight} H ${chartWidth - right}`}
+          fill="none"
+          stroke="#D6DAE2"
+          strokeWidth="1.2"
+        />
+        {areaPath ? <Path d={areaPath} fill="rgba(15,155,88,0.14)" /> : null}
+        <Polyline
+          fill="none"
+          points={linePoints}
+          stroke={GREEN}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="3.2"
+        />
+        {points.map((point) => (
+          <Circle
+            key={`${point.label}-${point.x}`}
+            cx={point.x}
+            cy={point.y}
+            fill={GREEN}
+            r="7"
+            stroke="#FFFFFF"
+            strokeWidth="2"
+          />
+        ))}
+      </Svg>
+
+      {points.length > 0 && points[points.length - 1].value > 0 ? (
+        <Text
+          style={[
+            styles.pointLabel,
+            {
+              left: `${Math.min(
+                84,
+                Math.max(
+                  8,
+                  ((points[points.length - 1].x - 30) / chartWidth) * 100,
+                ),
+              )}%`,
+              top: Math.max(0, points[points.length - 1].y - 24),
+            },
+          ]}
+        >
+          {formatCompactMoney(points[points.length - 1].value)}
+        </Text>
+      ) : null}
+
+      <View style={styles.yAxisLabels}>
+        {yTicks.map((tick) => (
+          <Text key={tick} style={styles.axisText}>
+            {formatAxisValue(tick)}
+          </Text>
+        ))}
+      </View>
+
+      <View style={styles.xAxisLabels}>
+        {data.map((item) => (
+          <Text
+            adjustsFontSizeToFit
+            key={item.label}
+            minimumFontScale={0.72}
+            numberOfLines={1}
+            style={styles.monthLabel}
+          >
+            {item.label}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const getStyles = (theme: any, dark: boolean, compact: boolean) =>
+  StyleSheet.create({
+    screen: {
+      backgroundColor: dark ? "#101216" : "#F8F9FB",
+      flex: 1,
+    },
+    content: {
+      paddingBottom: 138,
+      paddingHorizontal: compact ? 10 : 14,
+      paddingTop: 62,
+    },
+    headerRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: compact ? 8 : 12,
+      justifyContent: "space-between",
+    },
+    title: {
+      color: dark ? "#FFFFFF" : "#070E2D",
+      flexShrink: 0,
+      fontSize: compact ? 30 : 33,
+      fontWeight: "900",
+    },
+    monthSelector: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderColor: dark ? "#2D3240" : "#D9DDE8",
+      borderRadius: 16,
+      borderWidth: 1,
+      flex: 1,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      maxWidth: compact ? 176 : 196,
+      minWidth: 0,
+      paddingHorizontal: 4,
+    },
+    monthArrow: {
+      alignItems: "center",
+      height: 46,
+      justifyContent: "center",
+      width: 26,
+    },
+    monthButton: {
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      gap: compact ? 5 : 7,
+      height: 48,
+      justifyContent: "center",
+      minWidth: 0,
+    },
+    monthButtonTextActive: {
+      color: GREEN,
+      flexShrink: 1,
+      fontSize: compact ? 12 : 14,
+      fontWeight: "800",
+    },
+    overviewCard: {
+      backgroundColor: PURPLE_DARK,
+      borderRadius: 24,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 24,
+      minHeight: 250,
+      overflow: "hidden",
+      padding: compact ? 16 : 18,
+    },
+    overviewLeft: {
+      flex: 0.9,
+      minWidth: 0,
+      paddingRight: compact ? 8 : 8,
+      zIndex: 1,
+    },
+    cardTitleRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 5,
+      marginBottom: 12,
+    },
+    overviewTitle: {
+      color: "rgba(255,255,255,0.86)",
+      fontSize: compact ? 14 : 16,
+      fontWeight: "600",
+    },
+    overviewLabel: {
+      color: "#FFFFFF",
+      // fontSize: 12,
+      // fontWeight: "800",
+      marginBottom: 8,
+
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    usedPercent: {
+      color: "#FFFFFF",
+      fontSize: compact ? 26 : 34,
+      fontWeight: "800",
+      lineHeight: 28,
+    },
+    usedAmount: {
+      color: "#FFFFFF",
+      fontSize: 11,
+      fontWeight: "800",
+      marginBottom: compact ? 14 : 20,
+    },
+    legendRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      marginTop: compact ? 8 : 11,
+    },
+    legendDot: {
+      borderRadius: 9,
+      height: 15,
+      marginRight: compact ? 8 : 12,
+      width: 15,
+    },
+    legendText: {
+      color: "#FFFFFF",
+      flex: 1,
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    legendAmount: {
+      color: "#FFFFFF",
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    comparisonPill: {
+      alignItems: "center",
+      alignSelf: "flex-start",
+      backgroundColor: "rgba(6, 4, 44, 0.45)",
+      borderRadius: 9,
+      flexDirection: "row",
+      gap: 8,
+      marginTop: compact ? 18 : 23,
+      paddingHorizontal: compact ? 8 : 8,
+      paddingVertical: compact ? 6 : 6,
+    },
+    comparisonText: {
+      color: "#FFFFFF",
+      fontSize: compact ? 11 : 11,
+      fontWeight: "900",
+    },
+    donutBox: {
+      alignItems: "center",
+      flex: 1,
+      alignSelf: "flex-start",
+      marginTop: 8,
+      justifyContent: "center",
+      marginRight: 0,
+      width: compact ? 150 : 170,
+      height: compact ? 150 : 170,
+    },
+    donutCenter: {
+      alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      width: 96,
+      height: 96,
+      borderRadius: 50,
+      justifyContent: "center",
+      position: "absolute",
+    },
+    walletIcon: {
+      alignItems: "center",
+      backgroundColor: "#ECE4FF",
+
+      justifyContent: "center",
+      marginBottom: 5,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+    },
+    donutLabel: {
+      color: "#5A6174",
+      fontSize: compact ? 10 : 10,
+      fontWeight: "800",
+    },
+    donutAmount: {
+      color: "#0B102B",
+      fontSize: compact ? 12 : 12,
+      fontWeight: "900",
+      maxWidth: compact ? 82 : 94,
+      marginTop: 4,
+    },
+    insightCard: {
+      alignItems: "center",
+      backgroundColor: dark ? "#13201B" : "#F7FFFB",
+      borderColor: dark ? "#224D3B" : "#CDEBDD",
+      borderRadius: 18,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: compact ? 11 : 15,
+      marginTop: 22,
+      minHeight: 92,
+      paddingHorizontal: compact ? 14 : 18,
+      paddingVertical: 16,
+    },
+    insightIcon: {
+      alignItems: "center",
+      backgroundColor: dark ? "rgba(15,155,88,0.17)" : "#E2F6EB",
+      borderRadius: 32,
+      height: 45,
+      justifyContent: "center",
+      width: 45,
+    },
+    insightCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    insightTitle: {
+      color: GREEN,
+      fontSize: 15,
+      fontWeight: "900",
+      marginBottom: 6,
+    },
+    insightText: {
+      color: dark ? "#E8EDF2" : "#1C2338",
+      fontSize: 14,
+      fontWeight: "700",
+      lineHeight: 22,
+    },
+    insightStrong: {
+      color: GREEN,
+      fontWeight: "900",
+    },
+    sectionCard: {
+      backgroundColor: theme.card,
+      borderColor: dark ? "#252A35" : "#EAEDF3",
+      borderRadius: 22,
+      borderWidth: 1,
+      elevation: 2,
+      marginTop: 22,
+      padding: compact ? 16 : 18,
+      shadowColor: "#111827",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: dark ? 0.18 : 0.05,
+      shadowRadius: 18,
+    },
+    sectionHeader: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 18,
+    },
+    sectionTitle: {
+      color: dark ? "#FFFFFF" : "#080D27",
+      fontSize: compact ? 17 : 18,
+      fontWeight: "900",
+    },
+    viewAllText: {
+      color: PURPLE,
+      fontSize: 14,
+      fontWeight: "900",
+    },
+    categoryRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: compact ? 9 : 13,
+      marginTop: 14,
+    },
+    categoryIcon: {
+      alignItems: "center",
+      borderRadius: 13,
+      height: 42,
+      justifyContent: "center",
+      width: 42,
+    },
+    categoryContent: {
+      flex: 1,
+      minWidth: 0,
+    },
+    categoryTopRow: {
+      alignItems: "flex-start",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
+    categoryTextGroup: {
+      flex: 1,
+      minWidth: 0,
+      paddingRight: 10,
+    },
+    categoryName: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: "900",
+    },
+    progressTrack: {
+      backgroundColor: dark ? "#303541" : "#E4E6EC",
+      borderRadius: 999,
+      height: 6,
+      overflow: "hidden",
+    },
+    progressFill: {
+      borderRadius: 999,
+      height: "100%",
+    },
+    categoryPercent: {
+      color: theme.subText,
+      fontSize: 12,
+      fontWeight: "700",
+      marginLeft: 10,
+    },
+    categoryAmount: {
+      fontSize: compact ? 12 : 14,
+      fontWeight: "800",
+      marginTop: 3,
+    },
+    trendPill: {
+      alignItems: "center",
+      backgroundColor: dark ? "rgba(15,155,88,0.13)" : "#F1FAF6",
+      borderColor: dark ? "#28543F" : "#C9E9DA",
+      borderRadius: 14,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: 6,
+      maxWidth: compact ? 132 : 150,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+    },
+    trendPillText: {
+      color: GREEN,
+      flexShrink: 1,
+      fontSize: 14,
+      fontWeight: "900",
+    },
+    trendChart: {
+      height: 190,
+      marginTop: 2,
+      position: "relative",
+    },
+    yAxisLabels: {
+      height: 122,
+      justifyContent: "space-between",
+      left: 0,
+      position: "absolute",
+      top: 9,
+      width: 38,
+    },
+    axisText: {
+      color: theme.subText,
+      fontSize: 11,
+      fontWeight: "800",
+      textAlign: "left",
+    },
+    xAxisLabels: {
+      bottom: 0,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      left: 44,
+      position: "absolute",
+      right: 5,
+    },
+    monthLabel: {
+      color: theme.subText,
+      fontSize: compact ? 9 : 10,
+      fontWeight: "900",
+      textAlign: "center",
+      width: compact ? 40 : 44,
+    },
+    pointLabel: {
+      backgroundColor: theme.card,
+      borderRadius: 6,
+      color: GREEN,
+      fontSize: 11,
+      fontWeight: "900",
+      minWidth: 56,
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      position: "absolute",
+      textAlign: "center",
+      zIndex: 2,
+    },
+    emptyTrendText: {
+      color: theme.text,
+      fontSize: 14,
+      lineHeight: 21,
+    },
+    savingsCard: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderColor: dark ? "#252A35" : "#EAEDF3",
+      borderRadius: 22,
+      borderWidth: 1,
+      elevation: 2,
+      flexDirection: "row",
+      gap: compact ? 14 : 18,
+      marginTop: 22,
+      minHeight: 124,
+      padding: compact ? 16 : 18,
+      shadowColor: "#111827",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: dark ? 0.18 : 0.05,
+      shadowRadius: 18,
+    },
+    savingsLeft: {
+      alignItems: "center",
+      flex: compact ? undefined : 1,
+      flexDirection: "row",
+      gap: 14,
+      minWidth: 0,
+      width: compact ? "100%" : undefined,
+    },
+    savingsIcon: {
+      alignItems: "center",
+      backgroundColor: dark ? "rgba(15,155,88,0.15)" : "#EAF8F1",
+      borderRadius: 28,
+      height: compact ? 52 : 58,
+      justifyContent: "center",
+      width: compact ? 52 : 58,
+    },
+    savingsLabel: {
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: "800",
+    },
+    savingsPercent: {
+      color: GREEN,
+      fontSize: 20,
+      fontWeight: "900",
+      lineHeight: compact ? 30 : 40,
+      marginTop: 3,
+    },
+    savingsCaption: {
+      color: theme.subText,
+      fontSize: 12,
+      fontWeight: "700",
+      maxWidth: 170,
+    },
+    savingsDivider: {
+      alignSelf: "stretch",
+      backgroundColor: dark ? "#2A2F3B" : "#E5E7EF",
+      height: compact ? 1 : undefined,
+      width: compact ? undefined : 1,
+    },
+    savingsRight: {
+      flex: compact ? undefined : 1,
+      minWidth: 0,
+      width: compact ? "100%" : undefined,
+    },
+    savingsBarRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 12,
+      marginBottom: 14,
+    },
+    savingsTrack: {
+      backgroundColor: dark ? "#303541" : "#E1E4EA",
+      borderRadius: 999,
+      flex: 1,
+      height: 12,
+      overflow: "hidden",
+    },
+    savingsFill: {
+      backgroundColor: GREEN,
+      borderRadius: 999,
+      height: "100%",
+    },
+    savingsSmallPercent: {
+      color: GREEN,
+      fontSize: 12,
+
+      fontWeight: "900",
+    },
+    savingsAmount: {
+      color: theme.subText,
+      fontSize: compact ? 12 : 12,
+      fontWeight: "800",
+      lineHeight: 20,
+    },
+    cycleLabel: {
+      color: theme.subText,
+      fontSize: 11,
+      fontWeight: "700",
+      marginTop: 5,
+    },
+  });
