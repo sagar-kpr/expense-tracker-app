@@ -2,13 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { doc, updateDoc } from "firebase/firestore";
 import { useMemo } from "react";
-import {
-  ScrollView,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
 import PrivacyDataSection from "@/components/PrivacyDataSection";
@@ -66,7 +60,7 @@ export default function SelfEmployedProfileScreen() {
       style={{ flex: 1, backgroundColor: theme.background }}
       contentContainerStyle={{
         padding: 20,
-        paddingTop: 70,
+        paddingTop: 20,
         paddingBottom: 120,
       }}
       showsVerticalScrollIndicator={false}
@@ -261,8 +255,9 @@ export default function SelfEmployedProfileScreen() {
               textAlign: "left",
             }}
           >
-            {netProfit < 0 ? "-" : ""}
-            {formatMoney(Math.abs(netProfit))}
+            {netProfit < 0
+              ? `${RUPEE} -${Math.abs(netProfit).toLocaleString("en-IN")}`
+              : formatMoney(Math.abs(netProfit))}
           </Text>
         </View>
 
@@ -349,11 +344,7 @@ export default function SelfEmployedProfileScreen() {
         />
       </Animated.View>
 
-      <SettingsSection
-        dark={dark}
-        setDark={setDark}
-        theme={theme}
-      />
+      <SettingsSection dark={dark} setDark={setDark} theme={theme} />
 
       <PrivacyDataSection />
 

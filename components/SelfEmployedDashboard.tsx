@@ -23,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useAmountVisibilityStore } from "@/store/useAmountVisibilityStore";
 
 const RUPEE = "\u20B9";
 const ACCENT_GREEN = "#2DD4BF";
@@ -43,7 +44,15 @@ const formatMoney = (value: number) => {
   return `${RUPEE}${amount.toLocaleString("en-IN")}`;
 };
 
-const getRelativeDate = (value: string | Date | { toDate?: () => Date }) => {
+const formatMaskedMoney = () => `${RUPEE} ••••••`;
+
+const getRelativeDate = (
+  value: string | Date | { toDate?: () => Date } | undefined,
+) => {
+  if (!value) {
+    return "Unknown date";
+  }
+
   const expenseDate =
     typeof value === "object" && "toDate" in value && value.toDate
       ? value.toDate()
@@ -78,6 +87,8 @@ export default function SelfEmployedDashboard() {
   const { userData } = useAuth();
   const { pendingCount } = usePendingTransactions();
   const { theme, dark } = useTheme();
+  const hidden = useAmountVisibilityStore((state) => state.hidden);
+  const toggleVisibility = useAmountVisibilityStore((state) => state.toggle);
   const styles = useMemo(() => getStyles(theme, dark), [theme, dark]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -279,18 +290,38 @@ export default function SelfEmployedDashboard() {
           <View style={styles.balanceHeader}>
             <View style={styles.balanceTextWrap}>
               <Text style={styles.balanceLabel}>Profit This Month</Text>{" "}
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-                style={styles.balanceAmount}
-              >
-                {netProfit < 0 ? "-" : ""}
-                {formatMoney(Math.abs(netProfit))}
-              </Text>
+              <View style={styles.balanceAmountRow}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  style={styles.balanceAmount}
+                >
+                  {hidden
+                    ? formatMaskedMoney()
+                    : netProfit < 0
+                      ? `${RUPEE} -${Math.abs(netProfit).toLocaleString("en-IN")}`
+                      : formatMoney(Math.abs(netProfit))}
+                </Text>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    toggleVisibility();
+                  }}
+                  style={styles.inlineVisibilityButton}
+                >
+                  <Ionicons
+                    color="#F3F0FF"
+                    name={hidden ? "eye-outline" : "eye-off-outline"}
+                    size={18}
+                  />
+                </Pressable>
+              </View>
               <Text style={styles.balanceMeta}>
-                Income {formatMoney(income)} {"\u2022"} Expense{" "}
-                {formatMoney(expense)}
+                {hidden
+                  ? "Income hidden • Expense hidden"
+                  : `Income ${formatMoney(income)} • Expense ${formatMoney(expense)}`}
               </Text>
             </View>
 
@@ -362,7 +393,7 @@ export default function SelfEmployedDashboard() {
         <View style={styles.overviewRow}>
           <OverviewCard
             title="Income"
-            value={formatMoney(income)}
+            value={hidden ? formatMaskedMoney() : formatMoney(income)}
             caption="This month"
             icon="wallet-outline"
             iconColor="#159665"
@@ -372,7 +403,7 @@ export default function SelfEmployedDashboard() {
           />
           <OverviewCard
             title="Expense"
-            value={formatMoney(expense)}
+            value={hidden ? formatMaskedMoney() : formatMoney(expense)}
             caption="Spent"
             icon="arrow-down-circle"
             iconColor="#EF4444"
@@ -382,7 +413,13 @@ export default function SelfEmployedDashboard() {
           />
           <OverviewCard
             title="Profit Margin"
-            value={netProfit < 0 ? "Loss" : `${Math.round(profitMargin)}%`}
+            value={
+              hidden
+                ? "•••"
+                : netProfit < 0
+                  ? "Loss"
+                  : `${Math.round(profitMargin)}%`
+            }
             caption={netProfit < 0 ? "Negative" : "Healthy"}
             icon="trending-up-outline"
             iconColor="#7C3AED"
@@ -702,7 +739,7 @@ const getStyles = (theme: any, dark: boolean) =>
     content: {
       paddingBottom: 130,
       paddingHorizontal: 20,
-      paddingTop: 62,
+      paddingTop: 20,
     },
     headerRow: {
       alignItems: "flex-start",
@@ -776,6 +813,13 @@ const getStyles = (theme: any, dark: boolean) =>
       minWidth: 0,
       paddingRight: 16,
     },
+    balanceAmountRow: {
+      alignItems: "center",
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      gap: 8,
+      marginTop: 4,
+    },
     balanceLabel: {
       color: "rgba(255,255,255,0.86)",
       fontSize: 16,
@@ -785,7 +829,6 @@ const getStyles = (theme: any, dark: boolean) =>
       color: "#FFFFFF",
       fontSize: 34,
       fontWeight: "900",
-      marginTop: 4,
       letterSpacing: -1,
     },
     balanceMeta: {
@@ -800,6 +843,14 @@ const getStyles = (theme: any, dark: boolean) =>
       height: 56,
       justifyContent: "center",
       width: 56,
+    },
+    inlineVisibilityButton: {
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.12)",
+      borderRadius: 14,
+      height: 36,
+      justifyContent: "center",
+      width: 36,
     },
     balanceDetailGrid: {
       backgroundColor: "rgba(255,255,255,0.08)",

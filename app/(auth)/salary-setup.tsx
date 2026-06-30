@@ -8,6 +8,7 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 import * as Haptics from "expo-haptics";
 
+import SalaryDayPickerModal from "@/components/SalaryDayPickerModal";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 import { useOnboardingStore } from "@/store/useOnboardingStore";
@@ -17,6 +18,7 @@ import { auth, db } from "@/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 
 import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
+import { saveSalaryProfileChange } from "@/services/salaryLedger";
 
 export default function SalarySetupScreen() {
   useBlockAndroidBack();
@@ -29,6 +31,7 @@ export default function SalarySetupScreen() {
   const [error, setError] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [showSalaryDayPicker, setShowSalaryDayPicker] = useState(false);
   useEffect(() => {
     const user = auth.currentUser;
 
@@ -65,21 +68,30 @@ export default function SalarySetupScreen() {
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+      const salaryProfile = {
+        name,
+        salary: Number(salary),
+        salaryDate: Number(salaryDate),
+        type: "salary",
+        onboarding: true,
+      };
+
       await updateDoc(
         doc(db, "users", user.uid),
 
-        {
-          name,
-
-          salary: Number(salary),
-
-          salaryDate: Number(salaryDate),
-
-          type: "salary",
-
-          onboarding: true,
-        },
+        salaryProfile,
       );
+
+      await saveSalaryProfileChange({
+        uid: user.uid,
+        profile: {
+          salary: null,
+          salaryDate: null,
+        },
+        updates: salaryProfile,
+        expenses: [],
+        source: "onboarding",
+      });
 
       reset();
 
@@ -198,8 +210,6 @@ export default function SalarySetupScreen() {
 
                 paddingHorizontal: 18,
 
-                fontSize: 18,
-
                 borderWidth: 1,
 
                 borderColor: "#ECECEC",
@@ -242,8 +252,6 @@ export default function SalarySetupScreen() {
 
                 paddingHorizontal: 18,
 
-                fontSize: 18,
-
                 borderWidth: 1,
 
                 borderColor: "#ECECEC",
@@ -266,17 +274,11 @@ export default function SalarySetupScreen() {
               Salary Credit Date
             </Text>
 
-            <TextInput
-              value={salaryDate}
-              onChangeText={(text) => {
-                setSalaryDate(text.replace(/[^0-9]/g, ""));
-
-                setError("");
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowSalaryDayPicker(true);
               }}
-              keyboardType="decimal-pad"
-              returnKeyType="done"
-              placeholder="1"
-              placeholderTextColor="#AAA"
               style={{
                 backgroundColor: "white",
 
@@ -286,13 +288,23 @@ export default function SalarySetupScreen() {
 
                 paddingHorizontal: 18,
 
-                fontSize: 18,
-
                 borderWidth: 1,
 
                 borderColor: "#ECECEC",
+
+                justifyContent: "center",
               }}
-            />
+            >
+              <Text
+                style={{
+                  color: salaryDate ? "#111" : "#AAA",
+                  fontSize: 18,
+                  fontWeight: "600",
+                }}
+              >
+                {salaryDate ? `Every month on the ${salaryDate}${getDaySuffix(Number(salaryDate))}` : "Choose day"}
+              </Text>
+            </Pressable>
 
             <Text
               style={{
@@ -380,6 +392,36 @@ export default function SalarySetupScreen() {
           </Pressable>
         </Animated.View>
       </View>
+      <SalaryDayPickerModal
+        onClose={() => setShowSalaryDayPicker(false)}
+        onConfirm={(day) => {
+          setSalaryDate(String(day));
+          setError("");
+          setShowSalaryDayPicker(false);
+        }}
+        selectedDay={Number(salaryDate || 1)}
+        title="Pick Expected Salary Day"
+        visible={showSalaryDayPicker}
+      />
     </KeyboardAwareScrollView>
   );
 }
+
+const getDaySuffix = (day: number) => {
+  const lastTwo = day % 100;
+
+  if (lastTwo >= 11 && lastTwo <= 13) {
+    return "th";
+  }
+
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+};

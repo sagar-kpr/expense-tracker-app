@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,13 +19,24 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { getCategoryMeta } from "@/components/categoryMeta";
+import SalaryArrivalModal from "@/components/SalaryArrivalModal";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
+import { useSalary } from "@/context/SalaryContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useAmountVisibilityStore } from "@/store/useAmountVisibilityStore";
 
 const RUPEE = "\u20B9";
 const ACCENT_GREEN = "#2DD4BF"; //34D399
+type DashboardExpense = {
+  amount?: number | string | null;
+  category?: string;
+  createdAt?: string | Date | { toDate?: () => Date } | null;
+  description?: string;
+  id?: string;
+  type?: "income" | "expense" | string;
+};
 const formatMoney = (value: number) => {
   const amount = Number(value || 0);
 
@@ -41,10 +53,18 @@ const formatMoney = (value: number) => {
   return `${RUPEE}${amount.toLocaleString("en-IN")}`;
 };
 
+const formatMaskedMoney = () => `${RUPEE} ••••••`;
+
 // const formatMoney = (value: number) =>
 //   `${RUPEE}${Number(value || 0).toLocaleString("en-IN")}`;
 
-const getRelativeDate = (value: string | Date | { toDate?: () => Date }) => {
+const getRelativeDate = (
+  value: string | Date | { toDate?: () => Date } | null | undefined,
+) => {
+  if (!value) {
+    return "Unknown date";
+  }
+
   const expenseDate =
     typeof value === "object" && "toDate" in value && value.toDate
       ? value.toDate()
@@ -75,22 +95,37 @@ const getRelativeDate = (value: string | Date | { toDate?: () => Date }) => {
 
 export default function SalaryDashboard() {
   const router = useRouter();
-  const { salaryCycleExpenses } = useExpense();
+  const { expenses } = useExpense();
   const { userData } = useAuth();
+  const {
+    confirmSalaryArrival,
+    getCurrentArrivalStatus,
+    getCycleExpenses,
+    getCycleSummary,
+  } = useSalary();
   const { pendingCount } = usePendingTransactions();
   const { theme, dark } = useTheme();
+  const hidden = useAmountVisibilityStore((state) => state.hidden);
+  const toggleVisibility = useAmountVisibilityStore((state) => state.toggle);
   const styles = useMemo(() => getStyles(theme, dark), [theme, dark]);
   const [refreshing, setRefreshing] = useState(false);
+  const [arrivalModalVisible, setArrivalModalVisible] = useState(false);
+  const [confirmingArrival, setConfirmingArrival] = useState(false);
+  const [reminderModalVisible, setReminderModalVisible] = useState(false);
+  const [dismissedReminderCycleKey, setDismissedReminderCycleKey] = useState<
+    string | null
+  >(null);
 
-  const expenseItems = useMemo(
-    () =>
-      salaryCycleExpenses.filter(
-        (item) => (item.type || "expense") === "expense",
-      ),
-    [salaryCycleExpenses],
+  const arrivalStatus = getCurrentArrivalStatus();
+  const expenseItems = useMemo<DashboardExpense[]>(
+    () => getCycleExpenses(arrivalStatus, expenses) as DashboardExpense[],
+    [arrivalStatus, expenses, getCycleExpenses],
   );
-
-  const salary = Number(userData?.salary || 0);
+  const cycleSummary = getCycleSummary(arrivalStatus.start, {
+    expectedCycleStart: arrivalStatus.expectedStart,
+    preferCurrentProfile: true,
+  });
+  const salary = Number(cycleSummary.salary || userData?.salary || 0);
   const spent = useMemo(
     () => expenseItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
     [expenseItems],
@@ -119,17 +154,10 @@ export default function SalaryDashboard() {
         : "🌙 Good Evening";
 
   const today = new Date();
-  const currentDay = today.getDate();
-  const salaryDate = Number(userData?.salaryDate || 1);
-  const daysInMonth = new Date(
-    today.getFullYear(),
-    today.getMonth() + 1,
+  const daysLeft = Math.max(
     0,
-  ).getDate();
-  const daysLeft =
-    currentDay <= salaryDate
-      ? salaryDate - currentDay
-      : daysInMonth - currentDay + salaryDate;
+    Math.ceil((arrivalStatus.end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)),
+  );
   const safeToSpend = daysLeft > 0 ? remaining / daysLeft : remaining;
   const safeToSpendDisplay = Math.max(0, Math.round(safeToSpend));
 
@@ -138,6 +166,22 @@ export default function SalaryDashboard() {
   useEffect(() => {
     progress.value = withTiming(progressWidth, { duration: 900 });
   }, [progress, progressWidth]);
+
+  useEffect(() => {
+    if (
+      arrivalStatus.needsConfirmation &&
+      dismissedReminderCycleKey !== arrivalStatus.expectedCycleKey
+    ) {
+      setReminderModalVisible(true);
+      return;
+    }
+
+    setReminderModalVisible(false);
+  }, [
+    arrivalStatus.expectedCycleKey,
+    arrivalStatus.needsConfirmation,
+    dismissedReminderCycleKey,
+  ]);
 
   const progressStyle = useAnimatedStyle(() => ({
     width: `${progress.value}%`,
@@ -232,22 +276,23 @@ export default function SalaryDashboard() {
   };
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-          progressBackgroundColor={theme.card}
-          progressViewOffset={70}
-        />
-      }
-    >
-      <Animated.View entering={FadeInUp.duration(500)}>
+    <>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressBackgroundColor={theme.card}
+            progressViewOffset={70}
+          />
+        }
+      >
+        <Animated.View entering={FadeInUp.duration(500)}>
         <View style={styles.headerRow}>
           <View style={styles.headerTextWrap}>
             <Text style={styles.greeting}>
@@ -286,18 +331,36 @@ export default function SalaryDashboard() {
           <View style={styles.balanceHeader}>
             <View style={styles.balanceTextWrap}>
               <Text style={styles.balanceLabel}>Remaining Balance</Text>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-                style={styles.balanceAmount}
-              >
-                {remaining < 0 ? "-" : ""}
-                {formatMoney(Math.abs(remaining))}
-              </Text>
+              <View style={styles.balanceAmountRow}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                  style={styles.balanceAmount}
+                >
+                  {hidden
+                    ? formatMaskedMoney()
+                    : `${remaining < 0 ? "-" : ""}${formatMoney(Math.abs(remaining))}`}
+                </Text>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    toggleVisibility();
+                  }}
+                  style={styles.inlineVisibilityButton}
+                >
+                  <Ionicons
+                    color="#F3F0FF"
+                    name={hidden ? "eye-outline" : "eye-off-outline"}
+                    size={18}
+                  />
+                </Pressable>
+              </View>
               <Text style={styles.balanceMeta}>
-                Income {formatMoney(salary)} {"\u2022"} Spent{" "}
-                {formatMoney(spent)}
+                {hidden
+                  ? "Income hidden • Spent hidden"
+                  : `Income ${formatMoney(salary)} • Spent ${formatMoney(spent)}`}
               </Text>
             </View>
 
@@ -359,18 +422,18 @@ export default function SalaryDashboard() {
             </View>
           </View>
         </View>
-      </Animated.View>
+        </Animated.View>
 
-      <Animated.View
-        entering={FadeInUp.delay(80).duration(500)}
-        style={styles.section}
+        <Animated.View
+          entering={FadeInUp.delay(80).duration(500)}
+          style={styles.section}
       >
         <Text style={styles.sectionTitle}>Quick Overview</Text>
 
         <View style={styles.overviewRow}>
           <OverviewCard
             title="Income"
-            value={formatMoney(salary)}
+            value={hidden ? formatMaskedMoney() : formatMoney(salary)}
             caption="Salary"
             icon="wallet-outline"
             iconColor="#159665"
@@ -380,7 +443,7 @@ export default function SalaryDashboard() {
           />
           <OverviewCard
             title="Spent"
-            value={formatMoney(spent)}
+            value={hidden ? formatMaskedMoney() : formatMoney(spent)}
             caption="Used"
             icon="arrow-down-circle"
             iconColor="#EF4444"
@@ -390,7 +453,7 @@ export default function SalaryDashboard() {
           />
           <OverviewCard
             title="Daily Budget"
-            value={formatMoney(safeToSpendDisplay)}
+            value={hidden ? formatMaskedMoney() : formatMoney(safeToSpendDisplay)}
             caption={`${daysLeft} days left`}
             icon="calendar-outline"
             iconColor="#7C3AED"
@@ -545,7 +608,80 @@ export default function SalaryDashboard() {
           })
         )}
       </Animated.View>
-    </ScrollView>
+      </ScrollView>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setReminderModalVisible(false)}
+        transparent
+        visible={reminderModalVisible}
+      >
+        <View
+          style={{
+            alignItems: "center",
+            backgroundColor: "rgba(0,0,0,0.48)",
+            flex: 1,
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <Animated.View
+            entering={FadeInUp.duration(320)}
+            style={styles.reminderModal}
+          >
+            <View style={styles.reminderIconWrap}>
+              <Ionicons name="wallet-outline" size={28} color="#159665" />
+            </View>
+            <Text style={styles.reminderTitle}>Salary day check-in</Text>
+            <Text style={styles.reminderText}>
+              Has your salary arrived for this cycle?
+            </Text>
+
+            <View style={styles.reminderActions}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setDismissedReminderCycleKey(arrivalStatus.expectedCycleKey);
+                  setReminderModalVisible(false);
+                }}
+                style={[styles.reminderButton, styles.notYetButton]}
+              >
+                <Text style={styles.notYetButtonText}>Not yet</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setReminderModalVisible(false);
+                  setArrivalModalVisible(true);
+                }}
+                style={[styles.reminderButton, styles.arrivedButton]}
+              >
+                <Text style={styles.arrivedButtonText}>Arrived</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+      <SalaryArrivalModal
+        onClose={() => setArrivalModalVisible(false)}
+        onConfirm={async (arrivedAtMs) => {
+          try {
+            setConfirmingArrival(true);
+            await confirmSalaryArrival({
+              arrivedAtMs,
+              source: "dashboard",
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setDismissedReminderCycleKey(arrivalStatus.expectedCycleKey);
+            setArrivalModalVisible(false);
+          } finally {
+            setConfirmingArrival(false);
+          }
+        }}
+        saving={confirmingArrival}
+        title="Confirm Salary Arrival"
+        visible={arrivalModalVisible}
+      />
+    </>
   );
 }
 
@@ -704,7 +840,7 @@ const getStyles = (theme: any, dark: boolean) =>
     content: {
       paddingBottom: 130,
       paddingHorizontal: 20,
-      paddingTop: 62,
+      paddingTop: 20,
     },
     headerRow: {
       alignItems: "flex-start",
@@ -778,6 +914,13 @@ const getStyles = (theme: any, dark: boolean) =>
       minWidth: 0,
       paddingRight: 16,
     },
+    balanceAmountRow: {
+      alignItems: "center",
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      gap: 8,
+      marginTop: 4,
+    },
     balanceLabel: {
       color: "rgba(255,255,255,0.86)",
       fontSize: 16,
@@ -787,7 +930,6 @@ const getStyles = (theme: any, dark: boolean) =>
       color: "#FFFFFF",
       fontSize: 34,
       fontWeight: "900",
-      marginTop: 4,
       letterSpacing: -1,
     },
     balanceMeta: {
@@ -802,6 +944,14 @@ const getStyles = (theme: any, dark: boolean) =>
       height: 56,
       justifyContent: "center",
       width: 56,
+    },
+    inlineVisibilityButton: {
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.12)",
+      borderRadius: 14,
+      height: 36,
+      justifyContent: "center",
+      width: 36,
     },
     balanceDetailGrid: {
       backgroundColor: "rgba(255,255,255,0.08)",
@@ -892,6 +1042,110 @@ const getStyles = (theme: any, dark: boolean) =>
       marginTop: 18,
       paddingHorizontal: 16,
       paddingVertical: 14,
+    },
+    reminderModal: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      borderRadius: 24,
+      borderWidth: 1,
+      paddingHorizontal: 22,
+      paddingVertical: 24,
+      width: "100%",
+    },
+    reminderIconWrap: {
+      alignItems: "center",
+      backgroundColor: dark ? "rgba(21,150,101,0.15)" : "#E7F8F0",
+      borderRadius: 28,
+      height: 56,
+      justifyContent: "center",
+      width: 56,
+    },
+    reminderTitle: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: "900",
+      marginTop: 16,
+    },
+    reminderText: {
+      color: theme.subText,
+      fontSize: 14,
+      lineHeight: 22,
+      marginTop: 8,
+      textAlign: "center",
+    },
+    reminderActions: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 24,
+      width: "100%",
+    },
+    reminderButton: {
+      alignItems: "center",
+      borderRadius: 16,
+      flex: 1,
+      minHeight: 48,
+      justifyContent: "center",
+      paddingHorizontal: 12,
+    },
+    notYetButton: {
+      backgroundColor: theme.border,
+    },
+    notYetButtonText: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: "800",
+    },
+    arrivedButton: {
+      backgroundColor: "#159665",
+    },
+    arrivedButtonText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "800",
+    },
+    arrivalPrompt: {
+      alignItems: "center",
+      backgroundColor: dark ? "#1A2730" : "#E9F6FF",
+      borderColor: dark ? "#244655" : "#C7E7FA",
+      borderRadius: 18,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: 14,
+      marginTop: 18,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+    },
+    arrivalPromptLeft: {
+      flex: 1,
+      minWidth: 0,
+    },
+    arrivalPromptTitle: {
+      color: dark ? "#F5FBFF" : "#0F2940",
+      fontSize: 15,
+      fontWeight: "900",
+    },
+    arrivalPromptText: {
+      color: dark ? "#C7D7E2" : "#35556B",
+      fontSize: 13,
+      lineHeight: 20,
+      marginTop: 4,
+    },
+    arrivalPromptButton: {
+      alignItems: "center",
+      backgroundColor: "#159665",
+      borderRadius: 14,
+      flexDirection: "row",
+      gap: 6,
+      height: 42,
+      justifyContent: "center",
+      minWidth: 104,
+      paddingHorizontal: 14,
+    },
+    arrivalPromptButtonText: {
+      color: "#FFFFFF",
+      fontSize: 13,
+      fontWeight: "900",
     },
     insightHeader: {
       alignItems: "center",

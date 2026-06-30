@@ -26,13 +26,13 @@ type Expense = {
 
   amount: number;
 
-  description: string;
+  description?: string;
 
   category?: string;
 
   type?: "income" | "expense";
 
-  createdAt: string | Date | { toDate?: () => Date };
+  createdAt?: string | Date | { toDate?: () => Date };
 };
 
 type ExpenseContextType = {
@@ -52,7 +52,7 @@ type ExpenseContextType = {
     type?: "income" | "expense",
   ) => Promise<void>;
 
-  deleteExpense: (id: string) => Promise<void>;
+  deleteExpense: (expenseOrId: Expense | string) => Promise<void>;
 };
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
@@ -225,12 +225,20 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const deleteExpense = async (id: string) => {
+  const deleteExpense = async (expenseOrId: Expense | string) => {
     const user = auth.currentUser;
 
     if (!user) return;
 
-    await deleteDoc(doc(db, "users", user.uid, "expenses", id));
+    const expense =
+      typeof expenseOrId === "string"
+        ? expenses.find((item) => item.id === expenseOrId) || null
+        : expenseOrId;
+    const expenseId =
+      typeof expenseOrId === "string" ? expenseOrId : expenseOrId.id;
+
+    await deleteDoc(doc(db, "users", user.uid, "expenses", expenseId));
+
   };
 
   return (

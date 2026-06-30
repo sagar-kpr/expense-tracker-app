@@ -22,6 +22,7 @@ import Svg, { Circle, Path, Polyline } from "react-native-svg";
 import { getCategoryMeta } from "@/components/categoryMeta";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
+import { useSalary } from "@/context/SalaryContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 import { useFocusEffect } from "@react-navigation/native";
@@ -34,34 +35,6 @@ const PURPLE_DARK = "#371872"; //"#35108E";
 const GREEN = "#0F9B58";
 const BLUE = "#1877F2";
 const ORANGE = "#F97316";
-
-const getSafeCycleDate = (year: number, month: number, salaryDate: number) => {
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  return new Date(year, month, Math.min(salaryDate, lastDay));
-};
-
-const getCurrentCycleStart = (salaryDate: number) => {
-  const now = new Date();
-  let start = getSafeCycleDate(now.getFullYear(), now.getMonth(), salaryDate);
-
-  if (now < start) {
-    start = getSafeCycleDate(now.getFullYear(), now.getMonth() - 1, salaryDate);
-  }
-
-  start.setHours(0, 0, 0, 0);
-  return start;
-};
-
-const getNextCycleStart = (cycleStart: Date, salaryDate: number) => {
-  const next = getSafeCycleDate(
-    cycleStart.getFullYear(),
-    cycleStart.getMonth() + 1,
-    salaryDate,
-  );
-
-  next.setHours(0, 0, 0, 0);
-  return next;
-};
 
 const formatCycleDate = (date: Date) =>
   date.toLocaleDateString("en-IN", {
@@ -146,13 +119,9 @@ export default function SalaryAnalyticsScreen() {
   const { expenses } = useExpense();
   const { theme, dark } = useTheme();
   const { userData } = useAuth();
+  const { getCycleExpenses, getCycleSummary, getCycleTimeline } = useSalary();
   const { salary: onboardingSalary } = useOnboardingStore();
   const { width } = useWindowDimensions();
-
-  const salaryDate = Number(userData?.salaryDate || 1);
-  const [selectedDate, setSelectedDate] = useState(() =>
-    getCurrentCycleStart(salaryDate),
-  );
 
   const [refreshing, setRefreshing] = useState(false);
   const progress = useSharedValue(0);
@@ -163,38 +132,32 @@ export default function SalaryAnalyticsScreen() {
     [compact, dark, theme],
   );
 
-  const salaryCycles = useMemo(() => {
-    const currentCycleStart = getCurrentCycleStart(salaryDate);
-
-    return Array.from({ length: 12 }, (_value, index) => {
-      const monthOffset = index - 8;
-      const start = getSafeCycleDate(
-        currentCycleStart.getFullYear(),
-        currentCycleStart.getMonth() + monthOffset,
-        salaryDate,
-      );
-      const end = getNextCycleStart(start, salaryDate);
-      const displayEnd = new Date(end.getTime() - MS_PER_DAY);
-
-      return {
-        end,
-        label: `${formatCycleDate(start)} - ${formatCycleDate(displayEnd)}`,
+  const salaryCycles = useMemo(
+    () =>
+      getCycleTimeline(12).map((cycle, index, array) => ({
+        ...cycle,
+        end: cycle.end,
+        label: `${formatCycleDate(cycle.start)} - ${formatCycleDate(
+          new Date(cycle.end.getTime() - MS_PER_DAY),
+        )}`,
         shortLabel:
-          start.getTime() === currentCycleStart.getTime()
+          index === array.length - 1
             ? "This Month"
-            : start.toLocaleDateString("en-IN", {
+            : cycle.start.toLocaleDateString("en-IN", {
                 month: "short",
                 year: "2-digit",
               }),
-        start,
-      };
-    });
-  }, [salaryDate]);
+      })),
+    [getCycleTimeline],
+  );
+  const [selectedDate, setSelectedDate] = useState(
+    () => salaryCycles[salaryCycles.length - 1]?.start || new Date(),
+  );
 
   useFocusEffect(
     React.useCallback(() => {
-      setSelectedDate(getCurrentCycleStart(salaryDate));
-    }, [salaryDate]),
+      setSelectedDate(salaryCycles[salaryCycles.length - 1]?.start || new Date());
+    }, [salaryCycles]),
   );
 
   useEffect(() => {
@@ -202,22 +165,21 @@ export default function SalaryAnalyticsScreen() {
     progress.value = withTiming(1, { duration: 1200 });
   }, [progress, selectedDate]);
 
+  const selectedCycle = salaryCycles.find(
+    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
+  );
   const selectedCycleEnd = useMemo(
-    () => getNextCycleStart(selectedDate, salaryDate),
-    [salaryDate, selectedDate],
+    () => selectedCycle?.end || new Date(selectedDate),
+    [selectedCycle, selectedDate],
   );
 
   const filteredExpenses = useMemo(() => {
-    return expenses.filter((item) => {
-      const date = getExpenseDate(item.createdAt);
+    if (!selectedCycle) {
+      return [];
+    }
 
-      if (!date || (item.type || "expense") !== "expense") {
-        return false;
-      }
-
-      return date >= selectedDate && date < selectedCycleEnd;
-    });
-  }, [expenses, selectedCycleEnd, selectedDate]);
+    return getCycleExpenses(selectedCycle, expenses);
+  }, [expenses, getCycleExpenses, selectedCycle, selectedCycleEnd, selectedDate]);
 
   const groupedCategories = useMemo(
     () =>
@@ -237,8 +199,14 @@ export default function SalaryAnalyticsScreen() {
     [groupedCategories],
   );
 
-  const salaryAmount = Number(userData?.salary ?? onboardingSalary ?? 0);
   const totalSpent = ranges.reduce((sum, item) => sum + item[1], 0);
+  const selectedCycleSummary = getCycleSummary(selectedDate, {
+    expectedCycleStart: selectedCycle?.expectedStart,
+    referenceDate: selectedDate,
+  });
+  const salaryAmount = Number(
+    selectedCycleSummary.salary || userData?.salary || onboardingSalary || 0,
+  );
   const remaining = salaryAmount - totalSpent;
   const salaryUsed =
     salaryAmount > 0 ? Math.min((totalSpent / salaryAmount) * 100, 100) : 0;
@@ -307,23 +275,25 @@ export default function SalaryAnalyticsScreen() {
   }, [filteredExpenses, selectedCycleEnd, selectedDate]);
   const showTrend = trendBuckets.some((item) => item.value > 0);
   const previousCycleSpend = useMemo(() => {
-    const previousStart = getSafeCycleDate(
-      selectedDate.getFullYear(),
-      selectedDate.getMonth() - 1,
-      salaryDate,
+    const selectedCycleIndex = salaryCycles.findIndex(
+      (cycle) => cycle.start.getTime() === selectedDate.getTime(),
     );
-    previousStart.setHours(0, 0, 0, 0);
+    const previousCycle = salaryCycles[selectedCycleIndex - 1];
+
+    if (!previousCycle) {
+      return 0;
+    }
 
     return expenses.reduce((sum, item: any) => {
       const date = getExpenseDate(item.createdAt);
 
       if (!date || (item.type || "expense") !== "expense") return sum;
 
-      return date >= previousStart && date < selectedDate
+      return date >= previousCycle.start && date < previousCycle.end
         ? sum + Number(item.amount || 0)
         : sum;
     }, 0);
-  }, [expenses, salaryDate, selectedDate]);
+  }, [expenses, salaryCycles, selectedDate]);
 
   const hasPreviousCycle = previousCycleSpend > 0;
   const comparisonPercent =
@@ -333,9 +303,6 @@ export default function SalaryAnalyticsScreen() {
         )
       : 0;
   const comparisonUp = comparisonPercent >= 0;
-  const selectedCycle = salaryCycles.find(
-    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
-  );
   const selectedCycleIndex = salaryCycles.findIndex(
     (cycle) => cycle.start.getTime() === selectedDate.getTime(),
   );
@@ -352,7 +319,7 @@ export default function SalaryAnalyticsScreen() {
   const onRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
-    setSelectedDate(getCurrentCycleStart(salaryDate));
+    setSelectedDate(salaryCycles[salaryCycles.length - 1]?.start || new Date());
     setTimeout(() => setRefreshing(false), 700);
   };
 
@@ -840,7 +807,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
     content: {
       paddingBottom: 138,
       paddingHorizontal: compact ? 10 : 14,
-      paddingTop: 62,
+      paddingTop: 20,
     },
     headerRow: {
       alignItems: "center",

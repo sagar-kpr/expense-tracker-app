@@ -18,6 +18,7 @@ import {
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
 import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
+import { SalaryProvider } from "@/context/SalaryContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ExpenseProvider } from "../context/ExpenseContext";
 
@@ -126,9 +127,11 @@ export default function RootLayout() {
         <AuthProvider>
           <ThemeProvider>
             <ExpenseProvider>
-              <PendingTransactionProvider>
-                <RootNavigator />
-              </PendingTransactionProvider>
+              <SalaryProvider>
+                <PendingTransactionProvider>
+                  <RootNavigator />
+                </PendingTransactionProvider>
+              </SalaryProvider>
             </ExpenseProvider>
           </ThemeProvider>
         </AuthProvider>

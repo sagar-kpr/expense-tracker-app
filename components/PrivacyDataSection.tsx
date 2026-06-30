@@ -25,6 +25,13 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { useTheme } from "@/context/ThemeContext";
 import { auth, db } from "@/firebase";
+import {
+  buildSalaryCycleSnapshot,
+  getResolvedCycleBoundary,
+  SalaryCycleSnapshot,
+  SalaryArrivalEntry,
+  SalaryHistoryEntry,
+} from "@/services/salaryLedger";
 
 const deleteCollectionInBatches = async (path: string) => {
   const snapshot = await getDocs(collection(db, path));
@@ -162,15 +169,51 @@ const buildPdfHtml = ({
   expenses,
   pending,
   profile,
+  salaryArrivals,
+  salaryCycleSnapshots,
+  salaryHistory,
 }: {
   expenses: ExportTransaction[];
   pending: ExportTransaction[];
   profile: Record<string, unknown>;
+  salaryArrivals: SalaryArrivalEntry[];
+  salaryCycleSnapshots: SalaryCycleSnapshot[];
+  salaryHistory: SalaryHistoryEntry[];
 }) => {
   const exportedAt = new Date();
   const accountType = String(profile.type || "");
   const isSalary = accountType === "salary";
-  const salaryCycle = getCurrentSalaryCycle(profile.salaryDate);
+  const resolvedCycle = getResolvedCycleBoundary({
+    profile,
+    salaryArrivals,
+    salaryHistory,
+    cycleStart: new Date(),
+    referenceDate: new Date(),
+    preferCurrentProfile: true,
+  });
+  const salaryCycle = {
+    end: resolvedCycle.end,
+    start: resolvedCycle.start,
+  };
+  const cycleKey = resolvedCycle.cycleKey;
+  const storedSalarySnapshot = salaryCycleSnapshots.find(
+    (item) => item.cycleKey === cycleKey,
+  );
+  const fallbackSalarySnapshot = buildSalaryCycleSnapshot({
+    profile,
+    salaryArrivals,
+    salaryHistory,
+    expenses: expenses.map((item) => ({
+      amount: Number(item.amount || 0),
+      createdAt: item.createdAt as any,
+      type: String(item.type || "expense"),
+    })),
+    cycleStart: resolvedCycle.start,
+    expectedCycleStart: resolvedCycle.expectedStart,
+    referenceDate: resolvedCycle.start,
+    preferCurrentProfile: true,
+  });
+  const salarySnapshot = storedSalarySnapshot || fallbackSalarySnapshot;
   const reportExpenses = isSalary
     ? expenses.filter((item) => {
         const date = getExportDate(item.createdAt);
@@ -184,7 +227,7 @@ const buildPdfHtml = ({
       })
     : expenses;
   const income = isSalary
-    ? Number(profile.salary || 0)
+    ? Number(salarySnapshot.salary || profile.salary || 0)
     : reportExpenses
         .filter((item) => item.type === "income")
         .reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -554,8 +597,8 @@ const buildPdfHtml = ({
               ${
                 isSalary
                   ? `
-                    <tr><th>Monthly Salary</th><td>${escapeHtml(formatMoney(profile.salary))}</td></tr>
-                    <tr><th>Salary Date</th><td>${escapeHtml(profile.salaryDate || "")}</td></tr>
+                    <tr><th>Monthly Salary</th><td>${escapeHtml(formatMoney(salarySnapshot.salary))}</td></tr>
+                    <tr><th>Salary Date</th><td>${escapeHtml(salarySnapshot.salaryDate || profile.salaryDate || "")}</td></tr>
                     <tr><th>Cycle</th><td>${escapeHtml(`${formatDate(salaryCycle.start)} to ${formatDate(salaryCycle.end)}`)}</td></tr>
                   `
                   : `
@@ -637,6 +680,9 @@ export default function PrivacyDataSection() {
     await Promise.all([
       deleteCollectionInBatches(`users/${uid}/expenses`),
       deleteCollectionInBatches(`users/${uid}/pendingTransactions`),
+      deleteCollectionInBatches(`users/${uid}/salaryHistory`),
+      deleteCollectionInBatches(`users/${uid}/salaryArrivals`),
+      deleteCollectionInBatches(`users/${uid}/salaryCycleSnapshots`),
     ]);
 
     await deleteDoc(doc(db, "users", uid));
@@ -665,10 +711,20 @@ export default function PrivacyDataSection() {
       setExporting(true);
       setNotice("");
 
-      const [profileSnap, expensesSnap, pendingSnap] = await Promise.all([
+      const [
+        profileSnap,
+        expensesSnap,
+        pendingSnap,
+        salaryArrivalsSnap,
+        salaryHistorySnap,
+        salaryCycleSnapshotsSnap,
+      ] = await Promise.all([
         getDoc(doc(db, "users", user.uid)),
         getDocs(collection(db, `users/${user.uid}/expenses`)),
         getDocs(collection(db, `users/${user.uid}/pendingTransactions`)),
+        getDocs(collection(db, `users/${user.uid}/salaryArrivals`)),
+        getDocs(collection(db, `users/${user.uid}/salaryHistory`)),
+        getDocs(collection(db, `users/${user.uid}/salaryCycleSnapshots`)),
       ]);
 
       const profile = profileSnap.exists()
@@ -682,10 +738,25 @@ export default function PrivacyDataSection() {
         id: item.id,
         ...item.data(),
       })) as Record<string, unknown>[];
+      const salaryArrivals = salaryArrivalsSnap.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      })) as SalaryArrivalEntry[];
+      const salaryHistory = salaryHistorySnap.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      })) as SalaryHistoryEntry[];
+      const salaryCycleSnapshots = salaryCycleSnapshotsSnap.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      })) as SalaryCycleSnapshot[];
 
       const html = buildPdfHtml({
         expenses,
         pending,
+        salaryArrivals,
+        salaryCycleSnapshots,
+        salaryHistory,
         profile: {
           ...profile,
           email: profile.email || user.email || "",
@@ -751,6 +822,9 @@ export default function PrivacyDataSection() {
       await Promise.all([
         deleteCollectionInBatches(`users/${user.uid}/expenses`),
         deleteCollectionInBatches(`users/${user.uid}/pendingTransactions`),
+        deleteCollectionInBatches(`users/${user.uid}/salaryHistory`),
+        deleteCollectionInBatches(`users/${user.uid}/salaryArrivals`),
+        deleteCollectionInBatches(`users/${user.uid}/salaryCycleSnapshots`),
       ]);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

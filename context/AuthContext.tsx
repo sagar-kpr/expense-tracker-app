@@ -22,6 +22,7 @@ import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import * as Google from "expo-auth-session/providers/google";
 
 import { auth, db } from "@/firebase";
+import { useAmountVisibilityStore } from "@/store/useAmountVisibilityStore";
 
 type UserData = {
   email: string;
@@ -70,6 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const resetAmountVisibility = useAmountVisibilityStore((state) => state.reset);
 
   const [, response, promptAsync] = Google.useAuthRequest({
     androidClientId: "YOUR_ANDROID_CLIENT_ID",
@@ -87,6 +89,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       async (firebaseUser) => {
         try {
+          if (!firebaseUser || firebaseUser.uid !== user?.uid) {
+            resetAmountVisibility();
+          }
+
           if (firebaseUser) {
             if (unsubUser) {
               unsubUser();
@@ -150,7 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubUser();
       }
     };
-  }, []);
+  }, [resetAmountVisibility, user?.uid]);
 
   useEffect(() => {
     const signIn = async () => {

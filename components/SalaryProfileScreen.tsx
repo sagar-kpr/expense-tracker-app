@@ -13,24 +13,31 @@ import {
 
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import SalaryDayPickerModal from "@/components/SalaryDayPickerModal";
 import { useTheme } from "@/context/ThemeContext";
 import { useMemo, useState } from "react";
 
-import { doc, updateDoc } from "firebase/firestore";
-
 import * as Haptics from "expo-haptics";
 
-import { auth, db } from "@/firebase";
-
+import SalaryArrivalModal from "@/components/SalaryArrivalModal";
 import { useExpense } from "@/context/ExpenseContext";
+import { useSalary } from "@/context/SalaryContext";
+import { auth, db } from "@/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 
 import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ProfileScreen() {
-  const { expenses, salaryCycleExpenses } = useExpense();
+  const { expenses } = useExpense();
 
   const { userData, logout } = useAuth();
+  const {
+    confirmSalaryArrival,
+    getCurrentArrivalStatus,
+    getCycleExpenses,
+    saveSalaryProfile,
+  } = useSalary();
 
   const { theme, dark, setDark } = useTheme();
 
@@ -41,17 +48,22 @@ export default function ProfileScreen() {
   const [editError, setEditError] = useState("");
 
   const [editSaving, setEditSaving] = useState(false);
+  const [showSalaryDayPicker, setShowSalaryDayPicker] = useState(false);
+  const [arrivalModalVisible, setArrivalModalVisible] = useState(false);
+  const [confirmingArrival, setConfirmingArrival] = useState(false);
 
   const totalSpent = useMemo(() => {
     return expenses.reduce((sum, item) => sum + Number(item.amount), 0);
   }, [expenses]);
 
+  const arrivalStatus = getCurrentArrivalStatus();
+
   const currentCycleSpent = useMemo(() => {
-    return salaryCycleExpenses.reduce(
+    return getCycleExpenses(arrivalStatus, expenses).reduce(
       (sum, item) => sum + Number(item.amount),
       0,
     );
-  }, [salaryCycleExpenses]);
+  }, [arrivalStatus, expenses, getCycleExpenses]);
 
   const remaining = Number(userData?.salary || 0) - currentCycleSpent;
 
@@ -82,12 +94,8 @@ export default function ProfileScreen() {
 
   const handleEditSalaryDate = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    setEditValue(String(userData?.salaryDate || "1"));
-
     setEditError("");
-
-    setEditModal("date");
+    setShowSalaryDayPicker(true);
   };
 
   const closeEditModal = () => {
@@ -123,24 +131,20 @@ export default function ProfileScreen() {
       return;
     }
 
-    if (editModal === "date" && (parsedValue < 1 || parsedValue > 31)) {
-      setEditError("Salary date must be between 1 and 31.");
-
-      return;
-    }
-
     const user = auth.currentUser;
 
-    if (!user || !editModal) {
+    if (!user || editModal !== "salary") {
       return;
     }
 
     setEditSaving(true);
 
     try {
-      await updateDoc(doc(db, "users", user.uid), {
-        [editModal === "salary" ? "salary" : "salaryDate"]:
-          editModal === "salary" ? parsedValue : Math.round(parsedValue),
+      await saveSalaryProfile({
+        ...(editModal === "salary"
+          ? { salary: parsedValue }
+          : {}),
+        source: "profile-edit",
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -169,7 +173,7 @@ export default function ProfileScreen() {
       contentContainerStyle={{
         padding: 20,
 
-        paddingTop: 70,
+        paddingTop: 20,
 
         paddingBottom: 120,
       }}
@@ -675,6 +679,32 @@ export default function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setArrivalModalVisible(true);
+          }}
+          style={{
+            alignItems: "center",
+            backgroundColor: "#E9F6FF",
+            borderRadius: 20,
+            marginTop: 14,
+            minHeight: 52,
+            justifyContent: "center",
+          }}
+        >
+          <Text
+            style={{
+              color: "#0F5E8C",
+              fontSize: 15,
+              fontWeight: "800",
+            }}
+          >
+            Salary Arrived
+          </Text>
+        </TouchableOpacity>
       </Animated.View>
 
       <Animated.View
@@ -1012,7 +1042,7 @@ export default function ProfileScreen() {
 
       <Modal
         transparent
-        visible={!!editModal}
+        visible={editModal === "salary"}
         animationType="fade"
         onRequestClose={closeEditModal}
       >
@@ -1041,7 +1071,7 @@ export default function ProfileScreen() {
                 fontWeight: "800",
               }}
             >
-              {editModal === "salary" ? "Edit Salary" : "Edit Salary Date"}
+              Edit Salary
             </Text>
 
             <Text
@@ -1052,9 +1082,7 @@ export default function ProfileScreen() {
                 marginTop: 8,
               }}
             >
-              {editModal === "salary"
-                ? "Update your monthly income amount."
-                : "Changing this date recalculates your current salary cycle."}
+              Update your monthly income amount.
             </Text>
 
             <TextInput
@@ -1064,7 +1092,7 @@ export default function ProfileScreen() {
                 setEditError("");
               }}
               keyboardType="number-pad"
-              placeholder={editModal === "salary" ? "Monthly salary" : "1-31"}
+              placeholder="Monthly salary"
               placeholderTextColor={theme.subText}
               autoFocus
               style={{
@@ -1156,6 +1184,47 @@ export default function ProfileScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <SalaryDayPickerModal
+        onClose={() => setShowSalaryDayPicker(false)}
+        onConfirm={async (day) => {
+          try {
+            setEditSaving(true);
+            await saveSalaryProfile({
+              salaryDate: day,
+              source: "profile-edit",
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setShowSalaryDayPicker(false);
+          } catch (error) {
+            console.log("Salary date update error:", error);
+            setEditError("Could not save right now. Please try again.");
+          } finally {
+            setEditSaving(false);
+          }
+        }}
+        selectedDay={Number(userData?.salaryDate || 1)}
+        title="Pick Expected Salary Day"
+        visible={showSalaryDayPicker}
+      />
+      <SalaryArrivalModal
+        onClose={() => setArrivalModalVisible(false)}
+        onConfirm={async (arrivedAtMs) => {
+          try {
+            setConfirmingArrival(true);
+            await confirmSalaryArrival({
+              arrivedAtMs,
+              source: "profile",
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setArrivalModalVisible(false);
+          } finally {
+            setConfirmingArrival(false);
+          }
+        }}
+        saving={confirmingArrival}
+        title="Mark Salary As Arrived"
+        visible={arrivalModalVisible}
+      />
     </ScrollView>
   );
 }

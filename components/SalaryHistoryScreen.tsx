@@ -22,6 +22,7 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { getCategoryMeta } from "@/components/categoryMeta";
 import { useExpense } from "@/context/ExpenseContext";
+import { useSalary } from "@/context/SalaryContext";
 import { useTheme } from "@/context/ThemeContext";
 
 type Expense = {
@@ -132,6 +133,7 @@ const escapeHtml = (value: unknown) =>
 export default function SalaryHistoryScreen() {
   const { width } = useWindowDimensions();
   const { expenses, deleteExpense } = useExpense();
+  const { rebuildCycleSnapshotForExpense } = useSalary();
   const { theme, dark } = useTheme();
   const styles = useMemo(() => getStyles(theme, dark), [theme, dark]);
   const [search, setSearch] = useState("");
@@ -1038,7 +1040,21 @@ export default function SalaryHistoryScreen() {
                   if (!deleteItem) return;
 
                   try {
-                    await deleteExpense(deleteItem.id);
+                    const normalizedExpense = {
+                      ...deleteItem,
+                      amount: Number(deleteItem.amount || 0),
+                    };
+                    const remainingExpenses = expenseItems
+                      .filter((item) => item.id !== deleteItem.id)
+                      .map((item) => ({
+                        ...item,
+                        amount: Number(item.amount || 0),
+                      }));
+
+                    await deleteExpense(normalizedExpense);
+                    await rebuildCycleSnapshotForExpense(normalizedExpense, {
+                      remainingExpenses,
+                    });
                     Haptics.notificationAsync(
                       Haptics.NotificationFeedbackType.Success,
                     );
@@ -1073,7 +1089,7 @@ const getStyles = (theme: any, dark: boolean) =>
     content: {
       paddingBottom: 140,
       paddingHorizontal: 20,
-      paddingTop: 62,
+      paddingTop: 20,
     },
     headerRow: {
       alignItems: "center",
