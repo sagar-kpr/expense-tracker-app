@@ -10,14 +10,14 @@ import * as Haptics from "expo-haptics";
 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
-import { auth, db } from "@/firebase";
-
-import { doc, updateDoc } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
 
 import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
+import { saveProfile } from "@/repositories/profileRepository";
 
 export default function BusinessSetupScreen() {
   useBlockAndroidBack();
+  const { user } = useAuth();
 
   const [name, setName] = useState("");
 
@@ -40,9 +40,7 @@ export default function BusinessSetupScreen() {
       return;
     }
 
-    const user = auth.currentUser;
-
-    if (!user) return;
+    if (!user?.uid) return;
 
     try {
       setLoading(true);
@@ -51,13 +49,10 @@ export default function BusinessSetupScreen() {
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      await updateDoc(doc(db, "users", user.uid), {
+      await saveProfile(user.uid, {
         name: name.trim(),
-
         businessName: businessName.trim(),
-
         type: "self-employed",
-
         onboarding: true,
       });
 
@@ -81,7 +76,7 @@ export default function BusinessSetupScreen() {
 
         paddingHorizontal: 24,
 
-        paddingTop: 70,
+        paddingTop: 60,
 
         paddingBottom: 40,
       }}

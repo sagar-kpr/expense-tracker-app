@@ -1,6 +1,8 @@
 import { Tabs } from "expo-router";
 
 import { useRef } from "react";
+import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
+import { SalaryProvider } from "@/context/SalaryContext";
 import { useExpense } from "../../context/ExpenseContext";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
 
@@ -10,8 +12,9 @@ import BottomNavbar from "../../components/BottomNavbar";
 
 import ExpenseModal from "../../components/ExpenseModal";
 import ScreenSkeleton from "@/components/ScreenSkeleton";
+import { ExpenseProvider } from "@/context/ExpenseContext";
 
-export default function TabLayout() {
+function TabShell() {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const { addExpense, loading: expensesLoading } = useExpense();
   const { loading: pendingLoading } = usePendingTransactions();
@@ -70,5 +73,17 @@ export default function TabLayout() {
 
       <ExpenseModal ref={bottomSheetRef} handleAddExpense={addExpense} />
     </>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <ExpenseProvider>
+      <SalaryProvider>
+        <PendingTransactionProvider>
+          <TabShell />
+        </PendingTransactionProvider>
+      </SalaryProvider>
+    </ExpenseProvider>
   );
 }

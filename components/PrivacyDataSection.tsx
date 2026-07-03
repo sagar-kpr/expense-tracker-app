@@ -4,14 +4,6 @@ import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { deleteUser } from "firebase/auth";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  writeBatch,
-} from "firebase/firestore";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -24,7 +16,7 @@ import {
 import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { useTheme } from "@/context/ThemeContext";
-import { auth, db } from "@/firebase";
+import { auth } from "@/firebase";
 import {
   buildSalaryCycleSnapshot,
   getResolvedCycleBoundary,
@@ -32,32 +24,11 @@ import {
   SalaryArrivalEntry,
   SalaryHistoryEntry,
 } from "@/services/salaryLedger";
-
-const deleteCollectionInBatches = async (path: string) => {
-  const snapshot = await getDocs(collection(db, path));
-
-  if (snapshot.empty) {
-    return;
-  }
-
-  let batch = writeBatch(db);
-  let operationCount = 0;
-
-  for (const item of snapshot.docs) {
-    batch.delete(item.ref);
-    operationCount += 1;
-
-    if (operationCount === 450) {
-      await batch.commit();
-      batch = writeBatch(db);
-      operationCount = 0;
-    }
-  }
-
-  if (operationCount > 0) {
-    await batch.commit();
-  }
-};
+import {
+  clearLocalAccountData,
+  deleteRemoteAccountData,
+  exportAccountData,
+} from "@/repositories/accountRepository";
 
 type ExportTransaction = Record<string, unknown> & {
   amount?: unknown;
@@ -676,18 +647,6 @@ export default function PrivacyDataSection() {
   >(null);
   const [notice, setNotice] = useState("");
 
-  const deleteUserFirestoreData = async (uid: string) => {
-    await Promise.all([
-      deleteCollectionInBatches(`users/${uid}/expenses`),
-      deleteCollectionInBatches(`users/${uid}/pendingTransactions`),
-      deleteCollectionInBatches(`users/${uid}/salaryHistory`),
-      deleteCollectionInBatches(`users/${uid}/salaryArrivals`),
-      deleteCollectionInBatches(`users/${uid}/salaryCycleSnapshots`),
-    ]);
-
-    await deleteDoc(doc(db, "users", uid));
-  };
-
   const handleDeleteTransactionData = () => {
     setNotice("");
     setConfirmAction("transactions");
@@ -711,45 +670,14 @@ export default function PrivacyDataSection() {
       setExporting(true);
       setNotice("");
 
-      const [
-        profileSnap,
-        expensesSnap,
-        pendingSnap,
-        salaryArrivalsSnap,
-        salaryHistorySnap,
-        salaryCycleSnapshotsSnap,
-      ] = await Promise.all([
-        getDoc(doc(db, "users", user.uid)),
-        getDocs(collection(db, `users/${user.uid}/expenses`)),
-        getDocs(collection(db, `users/${user.uid}/pendingTransactions`)),
-        getDocs(collection(db, `users/${user.uid}/salaryArrivals`)),
-        getDocs(collection(db, `users/${user.uid}/salaryHistory`)),
-        getDocs(collection(db, `users/${user.uid}/salaryCycleSnapshots`)),
-      ]);
-
-      const profile = profileSnap.exists()
-        ? (profileSnap.data() as Record<string, unknown>)
-        : {};
-      const expenses = expensesSnap.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-      })) as Record<string, unknown>[];
-      const pending = pendingSnap.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-      })) as Record<string, unknown>[];
-      const salaryArrivals = salaryArrivalsSnap.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-      })) as SalaryArrivalEntry[];
-      const salaryHistory = salaryHistorySnap.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-      })) as SalaryHistoryEntry[];
-      const salaryCycleSnapshots = salaryCycleSnapshotsSnap.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-      })) as SalaryCycleSnapshot[];
+      const {
+        expenses,
+        pending,
+        profile,
+        salaryArrivals,
+        salaryCycleSnapshots,
+        salaryHistory,
+      } = await exportAccountData(user.uid);
 
       const html = buildPdfHtml({
         expenses,
@@ -758,8 +686,8 @@ export default function PrivacyDataSection() {
         salaryCycleSnapshots,
         salaryHistory,
         profile: {
-          ...profile,
-          email: profile.email || user.email || "",
+          ...(profile || {}),
+          email: profile?.email || user.email || "",
         },
       });
 
@@ -819,13 +747,8 @@ export default function PrivacyDataSection() {
     try {
       setDeleting(true);
 
-      await Promise.all([
-        deleteCollectionInBatches(`users/${user.uid}/expenses`),
-        deleteCollectionInBatches(`users/${user.uid}/pendingTransactions`),
-        deleteCollectionInBatches(`users/${user.uid}/salaryHistory`),
-        deleteCollectionInBatches(`users/${user.uid}/salaryArrivals`),
-        deleteCollectionInBatches(`users/${user.uid}/salaryCycleSnapshots`),
-      ]);
+      await clearLocalAccountData(user.uid);
+      await deleteRemoteAccountData(user.uid);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -866,7 +789,8 @@ export default function PrivacyDataSection() {
     try {
       setDeletingAccount(true);
 
-      await deleteUserFirestoreData(user.uid);
+      await clearLocalAccountData(user.uid);
+      await deleteRemoteAccountData(user.uid);
       await deleteUser(user);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

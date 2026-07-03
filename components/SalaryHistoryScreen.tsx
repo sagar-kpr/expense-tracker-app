@@ -1089,7 +1089,7 @@ const getStyles = (theme: any, dark: boolean) =>
     content: {
       paddingBottom: 140,
       paddingHorizontal: 20,
-      paddingTop: 20,
+      paddingTop: 60,
     },
     headerRow: {
       alignItems: "center",

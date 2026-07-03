@@ -289,7 +289,7 @@ export default function SelfEmployedDashboard() {
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeader}>
             <View style={styles.balanceTextWrap}>
-              <Text style={styles.balanceLabel}>Profit This Month</Text>{" "}
+              <Text style={styles.balanceLabel}>Profit This Month</Text>
               <View style={styles.balanceAmountRow}>
                 <Text
                   numberOfLines={1}
@@ -739,7 +739,7 @@ const getStyles = (theme: any, dark: boolean) =>
     content: {
       paddingBottom: 130,
       paddingHorizontal: 20,
-      paddingTop: 20,
+      paddingTop: 60,
     },
     headerRow: {
       alignItems: "flex-start",

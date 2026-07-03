@@ -22,11 +22,11 @@ import * as Haptics from "expo-haptics";
 import SalaryArrivalModal from "@/components/SalaryArrivalModal";
 import { useExpense } from "@/context/ExpenseContext";
 import { useSalary } from "@/context/SalaryContext";
-import { auth, db } from "@/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { auth } from "@/firebase";
 
 import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
+import { saveProfile } from "@/repositories/profileRepository";
 
 export default function ProfileScreen() {
   const { expenses } = useExpense();
@@ -141,9 +141,7 @@ export default function ProfileScreen() {
 
     try {
       await saveSalaryProfile({
-        ...(editModal === "salary"
-          ? { salary: parsedValue }
-          : {}),
+        ...(editModal === "salary" ? { salary: parsedValue } : {}),
         source: "profile-edit",
       });
 
@@ -173,7 +171,7 @@ export default function ProfileScreen() {
       contentContainerStyle={{
         padding: 20,
 
-        paddingTop: 20,
+        paddingTop: 60,
 
         paddingBottom: 120,
       }}
@@ -974,17 +972,12 @@ export default function ProfileScreen() {
               setDark(value);
 
               const user = auth.currentUser;
-
-              if (!user) return;
+              if (!user?.uid) return;
 
               try {
-                await updateDoc(
-                  doc(db, "users", user.uid),
-
-                  {
-                    darkMode: value,
-                  },
-                );
+                await saveProfile(user.uid, {
+                  darkMode: value,
+                });
               } catch (error) {
                 console.log("Theme update error:", error);
               }
@@ -1207,6 +1200,9 @@ export default function ProfileScreen() {
         visible={showSalaryDayPicker}
       />
       <SalaryArrivalModal
+        initialDate={new Date()}
+        maximumDate={new Date()}
+        minimumDate={new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)}
         onClose={() => setArrivalModalVisible(false)}
         onConfirm={async (arrivedAtMs) => {
           try {
@@ -1217,6 +1213,9 @@ export default function ProfileScreen() {
             });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setArrivalModalVisible(false);
+          } catch (error) {
+            console.log("Profile salary arrival error:", error);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           } finally {
             setConfirmingArrival(false);
           }

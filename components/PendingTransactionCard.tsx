@@ -55,7 +55,9 @@ export default function PendingTransactionCard({ transaction }: Props) {
   const [amount, setAmount] = useState(String(transaction.amount));
   const [category, setCategory] = useState(transaction.category);
   const [description, setDescription] = useState(transaction.description);
-  const [type, setType] = useState<"expense" | "income">(transaction.type);
+  const [type, setType] = useState<"expense" | "income">(
+    transaction.type || "expense",
+  );
   const [saving, setSaving] = useState<"add" | "ignore" | "edit" | null>(
     null,
   );

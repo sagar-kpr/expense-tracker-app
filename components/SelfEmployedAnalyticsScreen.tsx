@@ -22,7 +22,6 @@ import Svg, { Circle, Path, Polyline } from "react-native-svg";
 import { getCategoryMeta } from "@/components/categoryMeta";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useFocusEffect } from "@react-navigation/native";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -296,12 +295,6 @@ export default function SelfEmployedAnalyticsScreen() {
     () => currentTimelineMonth.start,
   );
 
-  useFocusEffect(
-    React.useCallback(() => {
-      setSelectedDate(currentTimelineMonth.start);
-    }, [currentTimelineMonth.start]),
-  );
-
   useEffect(() => {
     progress.value = 0;
     progress.value = withTiming(1, { duration: 1200 });
@@ -314,6 +307,12 @@ export default function SelfEmployedAnalyticsScreen() {
       ) || months[months.length - 1],
     [months, selectedDate],
   );
+
+  useEffect(() => {
+    if (!selectedMonth) {
+      setSelectedDate(currentTimelineMonth.start);
+    }
+  }, [currentTimelineMonth.start, selectedMonth]);
 
   const filteredTransactions = useMemo(
     () =>
@@ -702,24 +701,24 @@ export default function SelfEmployedAnalyticsScreen() {
               stroke="#F3F4F1"
               strokeWidth={donutStrokeWidth}
             />
-              {(heroMode === "balanced" || heroMode === "incomeOnly") && (
-                <IncomeProgress
-                  circumference={donutCircumference}
-                  incomeShare={visualArcShares.income}
-                  progress={progress}
-                  radius={donutRadius}
-                  strokeWidth={donutStrokeWidth}
-                />
-              )}
-              {(heroMode === "balanced" || heroMode === "expenseOnly") && (
-                <DonutProgress
-                  circumference={donutCircumference}
-                  expenseShare={visualArcShares.expense}
-                  progress={progress}
-                  radius={donutRadius}
-                  strokeWidth={donutStrokeWidth}
-                />
-              )}
+            {(heroMode === "balanced" || heroMode === "incomeOnly") && (
+              <IncomeProgress
+                circumference={donutCircumference}
+                incomeShare={visualArcShares.income}
+                progress={progress}
+                radius={donutRadius}
+                strokeWidth={donutStrokeWidth}
+              />
+            )}
+            {(heroMode === "balanced" || heroMode === "expenseOnly") && (
+              <DonutProgress
+                circumference={donutCircumference}
+                expenseShare={visualArcShares.expense}
+                progress={progress}
+                radius={donutRadius}
+                strokeWidth={donutStrokeWidth}
+              />
+            )}
           </Svg>
           <View style={styles.donutCenter}>
             <View style={styles.walletIcon}>
@@ -1084,7 +1083,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
     content: {
       paddingBottom: 138,
       paddingHorizontal: compact ? 10 : 14,
-      paddingTop: 20,
+      paddingTop: 60,
     },
     headerRow: {
       alignItems: "center",

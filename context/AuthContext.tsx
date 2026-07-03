@@ -17,46 +17,28 @@ import {
   User,
 } from "firebase/auth";
 
-import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
-
 import * as Google from "expo-auth-session/providers/google";
 
-import { auth, db } from "@/firebase";
+import { auth } from "@/firebase";
+import {
+  ensureLocalProfile,
+  getLocalProfile,
+  isSyncEnabled,
+  saveProfile,
+  subscribeLocalProfile,
+  type UserProfile,
+} from "@/repositories/profileRepository";
+import { bootstrapSyncedAccount, pushDirtyRows } from "@/services/sync/syncEngine";
 import { useAmountVisibilityStore } from "@/store/useAmountVisibilityStore";
-
-type UserData = {
-  email: string;
-
-  onboarding: boolean;
-
-  type?: string;
-
-  salary?: number | null;
-
-  salaryDate?: number | null;
-
-  name?: string;
-
-  businessName?: string;
-
-  darkMode?: boolean;
-};
 
 type AuthContextType = {
   user: User | null;
-
-  userData: UserData | null;
-
+  userData: UserProfile | null;
   loading: boolean;
-
   login: () => Promise<void>;
-
   signup: (email: string, password: string) => Promise<void>;
-
   loginWithEmail: (email: string, password: string) => Promise<void>;
-
   forgotPassword: (email: string) => Promise<void>;
-
   logout: () => Promise<void>;
 };
 
@@ -65,174 +47,137 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const MISSING_USER_PROFILE_MESSAGE =
   "User account does not exist. Please contact support or sign up again.";
 
+const createProfile = (email: string, name = ""): UserProfile => ({
+  email,
+  onboarding: false,
+  type: "",
+  salary: null,
+  salaryDate: null,
+  name,
+  businessName: "",
+  darkMode: false,
+  syncMode: "local_only",
+});
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-
-  const [userData, setUserData] = useState<UserData | null>(null);
-
+  const [userData, setUserData] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const resetAmountVisibility = useAmountVisibilityStore((state) => state.reset);
 
   const [, response, promptAsync] = Google.useAuthRequest({
     androidClientId: "YOUR_ANDROID_CLIENT_ID",
-
     iosClientId: "YOUR_IOS_CLIENT_ID",
-
     webClientId: "YOUR_WEB_CLIENT_ID",
   });
 
   useEffect(() => {
-    let unsubUser: (() => void) | undefined;
-
-    const unsubscribe = onAuthStateChanged(
-      auth,
-
-      async (firebaseUser) => {
-        try {
-          if (!firebaseUser || firebaseUser.uid !== user?.uid) {
-            resetAmountVisibility();
-          }
-
-          if (firebaseUser) {
-            if (unsubUser) {
-              unsubUser();
-            }
-
-            setUser(firebaseUser);
-
-            unsubUser = onSnapshot(
-              doc(db, "users", firebaseUser.uid),
-
-              async (snapshot) => {
-                if (snapshot.exists()) {
-                  setUserData(snapshot.data() as UserData);
-
-                  setLoading(false);
-                } else {
-                  console.log("User profile document missing. Signing out.");
-
-                  if (unsubUser) {
-                    unsubUser();
-                    unsubUser = undefined;
-                  }
-
-                  await signOut(auth);
-
-                  setUser(null);
-
-                  setUserData(null);
-
-                  setLoading(false);
-                }
-              },
-
-              (error) => {
-                console.log("Snapshot error:", error);
-
-                setUserData(null);
-
-                setLoading(false);
-              },
-            );
-          } else {
-            setUser(null);
-
-            setUserData(null);
-
-            setLoading(false);
-          }
-        } catch (error) {
-          console.log("Auth listener error:", error);
-
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (!firebaseUser) {
+          resetAmountVisibility();
+          setUser(null);
+          setUserData(null);
           setLoading(false);
+          return;
         }
+
+        setUser(firebaseUser);
+
+        const localProfile =
+          (await getLocalProfile(firebaseUser.uid)) ||
+          (await ensureLocalProfile({
+            userId: firebaseUser.uid,
+            email: firebaseUser.email ?? "",
+            name: firebaseUser.displayName ?? "",
+          }));
+
+        setUserData(localProfile);
+
+        if (isSyncEnabled(localProfile)) {
+          await bootstrapSyncedAccount(firebaseUser.uid);
+          await pushDirtyRows(firebaseUser.uid);
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.log("Auth listener error:", error);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [resetAmountVisibility]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      return;
+    }
+
+    const subscription = subscribeLocalProfile(
+      user.uid,
+      (profile) => {
+        setUserData(profile);
+      },
+      (error) => {
+        console.log("Profile listener error:", error);
       },
     );
 
     return () => {
-      unsubscribe();
-
-      if (unsubUser) {
-        unsubUser();
-      }
+      subscription.remove?.();
     };
-  }, [resetAmountVisibility, user?.uid]);
+  }, [user?.uid]);
 
   useEffect(() => {
     const signIn = async () => {
-      if (response?.type === "success") {
-        const { id_token } = response.params;
+      if (response?.type !== "success") {
+        return;
+      }
 
-        const credential = GoogleAuthProvider.credential(id_token);
+      const { id_token } = response.params;
+      const credential = GoogleAuthProvider.credential(id_token);
+      const result = await signInWithCredential(auth, credential);
+      const profile = await ensureLocalProfile({
+        userId: result.user.uid,
+        email: result.user.email ?? "",
+        name: result.user.displayName ?? "",
+      });
 
-        const result = await signInWithCredential(auth, credential);
+      setUser(result.user);
+      setUserData(profile);
 
-        const docRef = doc(db, "users", result.user.uid);
-
-        const snap = await getDoc(docRef);
-
-        if (!snap.exists()) {
-          const newUserData: UserData = {
-            email: result.user.email ?? "",
-
-            onboarding: false,
-
-            type: "",
-
-            salary: null,
-
-            salaryDate: null,
-
-            name: result.user.displayName || "",
-            darkMode: false,
-          };
-
-          await setDoc(docRef, newUserData);
-
-          setUserData(newUserData);
-        } else {
-          setUserData(snap.data() as UserData);
-        }
+      if (isSyncEnabled(profile)) {
+        await bootstrapSyncedAccount(result.user.uid);
+        await pushDirtyRows(result.user.uid);
       }
     };
 
-    signIn();
+    signIn().catch((error) => console.log("Google sign-in error:", error));
   }, [response]);
 
   const signup = async (email: string, password: string) => {
     const result = await createUserWithEmailAndPassword(auth, email, password);
-
-    const newUserData: UserData = {
-      email,
-
-      onboarding: false,
-
-      type: "",
-
-      salary: null,
-
-      salaryDate: null,
-
-      name: "",
-      darkMode: false,
-    };
+    const profile = createProfile(email, "");
 
     setUser(result.user);
-
-    await setDoc(doc(db, "users", result.user.uid), newUserData);
-
-    setUserData(newUserData);
+    setUserData(profile);
+    await saveProfile(result.user.uid, profile);
   };
 
   const loginWithEmail = async (email: string, password: string) => {
     const result = await signInWithEmailAndPassword(auth, email, password);
-    const snap = await getDoc(doc(db, "users", result.user.uid));
+    const profile = await getLocalProfile(result.user.uid);
 
-    if (!snap.exists()) {
+    if (!profile) {
       await signOut(auth);
-
       throw new Error(MISSING_USER_PROFILE_MESSAGE);
     }
+
+    setUser(result.user);
+    setUserData(profile);
   };
 
   const forgotPassword = async (email: string) => {
@@ -241,25 +186,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await signOut(auth);
+    resetAmountVisibility();
+    setUser(null);
+    setUserData(null);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-
         userData,
-
         loading,
-
         login: promptAsync as any,
-
         signup,
-
         loginWithEmail,
-
         forgotPassword,
-
         logout,
       }}
     >

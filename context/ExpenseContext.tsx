@@ -7,51 +7,29 @@ import {
   useState,
 } from "react";
 
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-} from "firebase/firestore";
-
-import { auth, db } from "@/firebase";
-
 import { useAuth } from "@/context/AuthContext";
+import {
+  deleteExpense as removeExpenseRecord,
+  listExpenses,
+  subscribeExpenses,
+  type ExpenseRecord,
+  upsertExpense,
+} from "@/repositories/expenseRepository";
+import { createId } from "@/repositories/shared";
 
-type Expense = {
-  id: string;
-
-  amount: number;
-
-  description?: string;
-
-  category?: string;
-
-  type?: "income" | "expense";
-
-  createdAt?: string | Date | { toDate?: () => Date };
-};
+type Expense = ExpenseRecord;
 
 type ExpenseContextType = {
   expenses: Expense[];
-
   salaryCycleExpenses: Expense[];
-
   currentMonthExpenses: Expense[];
-
   loading: boolean;
-
   addExpense: (
     amount: string,
     description: string,
     category?: string,
-
     type?: "income" | "expense",
   ) => Promise<void>;
-
   deleteExpense: (expenseOrId: Expense | string) => Promise<void>;
 };
 
@@ -59,7 +37,7 @@ const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
 
 const getExpenseDate = (value: Expense["createdAt"]) => {
   const date =
-    typeof value === "object" && "toDate" in value && value.toDate
+    typeof value === "object" && value && "toDate" in value && value.toDate
       ? value.toDate()
       : new Date(value as string | Date);
 
@@ -67,90 +45,43 @@ const getExpenseDate = (value: Expense["createdAt"]) => {
 };
 
 export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
-  const { userData } = useAuth();
-
+  const { user, userData } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
-
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let unsubscribeSnapshot: (() => void) | undefined;
+    if (!user?.uid) {
+      setExpenses([]);
+      setLoading(false);
+      return;
+    }
 
-    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-      }
+    setLoading(true);
 
-      if (!user?.uid) {
-        setExpenses([]);
-
+    const subscription = subscribeExpenses(
+      user.uid,
+      (items) => {
+        setExpenses(items);
         setLoading(false);
+      },
+      (error) => {
+        console.log("Expense listener error:", error);
+        setLoading(false);
+      },
+    );
 
+    return () => {
+      if (typeof subscription === "function") {
+        subscription();
         return;
       }
 
-      setLoading(true);
-
-      const q = query(
-        collection(db, "users", user.uid, "expenses"),
-
-        orderBy("createdAt", "desc"),
-      );
-
-      unsubscribeSnapshot = onSnapshot(
-        q,
-
-        (snapshot) => {
-          if (snapshot.empty) {
-            setExpenses([]);
-
-            setLoading(false);
-
-            return;
-          }
-
-          const expenseData = snapshot.docs.map((doc) => ({
-            id: doc.id,
-
-            ...doc.data(),
-
-            type: doc.data()?.type || "expense",
-          })) as Expense[];
-
-          setExpenses(expenseData);
-
-          setLoading(false);
-        },
-
-        (error) => {
-          console.log("Expense listener error:", error);
-
-          setExpenses([]);
-
-          setLoading(false);
-        },
-      );
-    });
-
-    return () => {
-      unsubscribeAuth();
-
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-      }
+      subscription.remove?.();
     };
-  }, []);
-
-  /*
-    SALARY CYCLE FILTER
-    Example:
-    salary date = 5
-    cycle = 5th → next 5th
-  */
+  }, [user?.uid]);
 
   const salaryCycleExpenses = useMemo(() => {
     const salaryDate = Number(userData?.salaryDate || 1);
-
     const now = new Date();
 
     let cycleStart = new Date(now.getFullYear(), now.getMonth(), salaryDate);
@@ -160,7 +91,6 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     }
 
     let cycleEnd = new Date(cycleStart);
-
     cycleEnd.setMonth(cycleEnd.getMonth() + 1);
 
     return expenses.filter((item) => {
@@ -174,16 +104,9 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [expenses, userData?.salaryDate]);
 
-  /*
-    CURRENT MONTH FILTER
-    FOR SELF-EMPLOYED USERS
-  */
-
   const currentMonthExpenses = useMemo(() => {
     const now = new Date();
-
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
     const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     return expenses.filter((item) => {
@@ -201,59 +124,46 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     amount: string,
     description: string,
     category = "Other",
-
     type: "income" | "expense" = "expense",
   ) => {
-    const user = auth.currentUser;
+    if (!user?.uid) {
+      return;
+    }
 
-    if (!user) return;
-
-    await addDoc(
-      collection(db, "users", user.uid, "expenses"),
-
-      {
-        amount: Number(amount),
-
-        description,
-
-        category,
-
-        type,
-
-        createdAt: new Date().toISOString(),
-      },
-    );
+    await upsertExpense(user.uid, {
+      id: createId(),
+      amount: Number(amount),
+      description,
+      category,
+      type,
+      createdAt: new Date().toISOString(),
+      updatedAt: Date.now(),
+      deletedAt: null,
+      dirty: true,
+      syncState: "local_only",
+      version: 1,
+    });
   };
 
   const deleteExpense = async (expenseOrId: Expense | string) => {
-    const user = auth.currentUser;
+    if (!user?.uid) {
+      return;
+    }
 
-    if (!user) return;
-
-    const expense =
-      typeof expenseOrId === "string"
-        ? expenses.find((item) => item.id === expenseOrId) || null
-        : expenseOrId;
     const expenseId =
       typeof expenseOrId === "string" ? expenseOrId : expenseOrId.id;
 
-    await deleteDoc(doc(db, "users", user.uid, "expenses", expenseId));
-
+    await removeExpenseRecord(user.uid, expenseId);
   };
 
   return (
     <ExpenseContext.Provider
       value={{
         expenses,
-
         salaryCycleExpenses,
-
         currentMonthExpenses,
-
         loading,
-
         addExpense,
-
         deleteExpense,
       }}
     >

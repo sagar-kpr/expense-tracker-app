@@ -156,7 +156,9 @@ export default function SalaryDashboard() {
   const today = new Date();
   const daysLeft = Math.max(
     0,
-    Math.ceil((arrivalStatus.end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)),
+    Math.ceil(
+      (arrivalStatus.end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+    ),
   );
   const safeToSpend = daysLeft > 0 ? remaining / daysLeft : remaining;
   const safeToSpendDisplay = Math.max(0, Math.round(safeToSpend));
@@ -293,193 +295,196 @@ export default function SalaryDashboard() {
         }
       >
         <Animated.View entering={FadeInUp.duration(500)}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.greeting}>
-              {greeting}
-              {firstName ? `, ${firstName}` : ""}
-            </Text>
-            <Text style={styles.title}>Dashboard</Text>
+          <View style={styles.headerRow}>
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.greeting}>
+                {greeting}
+                {firstName ? `, ${firstName}` : ""}
+              </Text>
+              <Text style={styles.title}>Dashboard</Text>
+            </View>
+
+            <Pressable
+              hitSlop={10}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (pendingCount > 0) {
+                  router.push("/pending-transactions" as any);
+                }
+              }}
+              style={styles.notificationButton}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={22}
+                color={theme.text}
+              />
+              {pendingCount > 0 && (
+                <View style={styles.notificationDot}>
+                  <Text style={styles.notificationCount}>
+                    {pendingCount > 9 ? "9+" : pendingCount}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
           </View>
 
-          <Pressable
-            hitSlop={10}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              if (pendingCount > 0) {
-                router.push("/pending-transactions" as any);
-              }
-            }}
-            style={styles.notificationButton}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={22}
-              color={theme.text}
-            />
-            {pendingCount > 0 && (
-              <View style={styles.notificationDot}>
-                <Text style={styles.notificationCount}>
-                  {pendingCount > 9 ? "9+" : pendingCount}
+          <View style={styles.balanceCard}>
+            <View style={styles.balanceHeader}>
+              <View style={styles.balanceTextWrap}>
+                <Text style={styles.balanceLabel}>Remaining Balance</Text>
+                <View style={styles.balanceAmountRow}>
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                    style={styles.balanceAmount}
+                  >
+                    {hidden
+                      ? formatMaskedMoney()
+                      : `${remaining < 0 ? "-" : ""}${formatMoney(Math.abs(remaining))}`}
+                  </Text>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      toggleVisibility();
+                    }}
+                    style={styles.inlineVisibilityButton}
+                  >
+                    <Ionicons
+                      color="#F3F0FF"
+                      name={hidden ? "eye-outline" : "eye-off-outline"}
+                      size={18}
+                    />
+                  </Pressable>
+                </View>
+                <Text style={styles.balanceMeta}>
+                  {hidden
+                    ? "Income hidden • Spent hidden"
+                    : `Income ${formatMoney(salary)} • Spent ${formatMoney(spent)}`}
                 </Text>
               </View>
-            )}
-          </Pressable>
-        </View>
 
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceHeader}>
-            <View style={styles.balanceTextWrap}>
-              <Text style={styles.balanceLabel}>Remaining Balance</Text>
-              <View style={styles.balanceAmountRow}>
+              <View style={styles.walletIconWrap}>
+                <Ionicons name="wallet-outline" size={24} color="#F3F0FF" />
+              </View>
+            </View>
+
+            <View style={styles.balanceDetailGrid}>
+              <View style={styles.detailPanel}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={styles.detailLabel}
+                >
+                  Safe to Spend Today
+                </Text>
                 <Text
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
-                  style={styles.balanceAmount}
+                  style={styles.safeSpendValue}
                 >
-                  {hidden
-                    ? formatMaskedMoney()
-                    : `${remaining < 0 ? "-" : ""}${formatMoney(Math.abs(remaining))}`}
+                  {formatMoney(safeToSpendDisplay)}
+                  <Text style={styles.detailUnit}>/day</Text>
                 </Text>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    toggleVisibility();
-                  }}
-                  style={styles.inlineVisibilityButton}
-                >
-                  <Ionicons
-                    color="#F3F0FF"
-                    name={hidden ? "eye-outline" : "eye-off-outline"}
-                    size={18}
+                <Text style={styles.detailCaption}>{daysLeft} days left</Text>
+              </View>
+
+              <View style={styles.detailDivider} />
+
+              <View style={styles.detailPanel}>
+                <Text style={styles.detailLabel}>Monthly Usage</Text>
+                <Text style={styles.usageValue}>
+                  {usageLabel}
+                  {usagePercent > 999 ? "+" : "%"}
+                </Text>
+                <View style={styles.progressTrack}>
+                  <Animated.View
+                    style={[
+                      styles.progressFill,
+                      progressStyle,
+                      {
+                        backgroundColor:
+                          remaining < 0 ? "#F87171" : ACCENT_GREEN,
+                      },
+                    ]}
                   />
-                </Pressable>
-              </View>
-              <Text style={styles.balanceMeta}>
-                {hidden
-                  ? "Income hidden • Spent hidden"
-                  : `Income ${formatMoney(salary)} • Spent ${formatMoney(spent)}`}
-              </Text>
-            </View>
-
-            <View style={styles.walletIconWrap}>
-              <Ionicons name="wallet-outline" size={24} color="#F3F0FF" />
-            </View>
-          </View>
-
-          <View style={styles.balanceDetailGrid}>
-            <View style={styles.detailPanel}>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={styles.detailLabel}
-              >
-                Safe to Spend Today
-              </Text>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-                style={styles.safeSpendValue}
-              >
-                {formatMoney(safeToSpendDisplay)}
-                <Text style={styles.detailUnit}>/day</Text>
-              </Text>
-              <Text style={styles.detailCaption}>{daysLeft} days left</Text>
-            </View>
-
-            <View style={styles.detailDivider} />
-
-            <View style={styles.detailPanel}>
-              <Text style={styles.detailLabel}>Monthly Usage</Text>
-              <Text style={styles.usageValue}>
-                {usageLabel}
-                {usagePercent > 999 ? "+" : "%"}
-              </Text>
-              <View style={styles.progressTrack}>
-                <Animated.View
-                  style={[
-                    styles.progressFill,
-                    progressStyle,
-                    {
-                      backgroundColor: remaining < 0 ? "#F87171" : ACCENT_GREEN,
-                    },
-                  ]}
-                />
-              </View>
-              <View style={styles.limitRow}>
-                <Ionicons
-                  name={remaining < 0 ? "warning" : "shield-checkmark"}
-                  size={14}
-                  color={remaining < 0 ? "#FECACA" : "#86EFAC"}
-                />
-                <Text style={styles.limitText}>
-                  {remaining < 0 ? "Limit Crossed" : "Within Limit"}
-                </Text>
+                </View>
+                <View style={styles.limitRow}>
+                  <Ionicons
+                    name={remaining < 0 ? "warning" : "shield-checkmark"}
+                    size={14}
+                    color={remaining < 0 ? "#FECACA" : "#86EFAC"}
+                  />
+                  <Text style={styles.limitText}>
+                    {remaining < 0 ? "Limit Crossed" : "Within Limit"}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
-        </View>
         </Animated.View>
 
         <Animated.View
           entering={FadeInUp.delay(80).duration(500)}
           style={styles.section}
-      >
-        <Text style={styles.sectionTitle}>Quick Overview</Text>
+        >
+          <Text style={styles.sectionTitle}>Quick Overview</Text>
 
-        <View style={styles.overviewRow}>
-          <OverviewCard
-            title="Income"
-            value={hidden ? formatMaskedMoney() : formatMoney(salary)}
-            caption="Salary"
-            icon="wallet-outline"
-            iconColor="#159665"
-            iconBackground="#C4F1DE"
-            backgroundColor="#ECFCF6"
-            borderColor="rgba(21,150,101,0.12)"
-          />
-          <OverviewCard
-            title="Spent"
-            value={hidden ? formatMaskedMoney() : formatMoney(spent)}
-            caption="Used"
-            icon="arrow-down-circle"
-            iconColor="#EF4444"
-            iconBackground="#FFD9D6"
-            backgroundColor="#FFF1F0"
-            borderColor="rgba(239,68,68,0.12)"
-          />
-          <OverviewCard
-            title="Daily Budget"
-            value={hidden ? formatMaskedMoney() : formatMoney(safeToSpendDisplay)}
-            caption={`${daysLeft} days left`}
-            icon="calendar-outline"
-            iconColor="#7C3AED"
-            iconBackground="#E4D5FF"
-            backgroundColor="#F6F1FF"
-            borderColor="rgba(124,58,237,0.12)"
-          />
-        </View>
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInUp.delay(140).duration(500)}
-        style={styles.insightCard}
-      >
-        <View style={styles.insightHeader}>
-          <View style={styles.insightIconWrap}>
-            <Animated.View entering={FadeInUp.delay(300).duration(600)}>
-              <Ionicons name="sparkles" size={22} color="#10B981" />
-            </Animated.View>
+          <View style={styles.overviewRow}>
+            <OverviewCard
+              title="Income"
+              value={hidden ? formatMaskedMoney() : formatMoney(salary)}
+              caption="Salary"
+              icon="wallet-outline"
+              iconColor="#159665"
+              iconBackground="#C4F1DE"
+              backgroundColor="#ECFCF6"
+              borderColor="rgba(21,150,101,0.12)"
+            />
+            <OverviewCard
+              title="Spent"
+              value={hidden ? formatMaskedMoney() : formatMoney(spent)}
+              caption="Used"
+              icon="arrow-down-circle"
+              iconColor="#EF4444"
+              iconBackground="#FFD9D6"
+              backgroundColor="#FFF1F0"
+              borderColor="rgba(239,68,68,0.12)"
+            />
+            <OverviewCard
+              title="Daily Budget"
+              value={
+                hidden ? formatMaskedMoney() : formatMoney(safeToSpendDisplay)
+              }
+              caption={`${daysLeft} days left`}
+              icon="calendar-outline"
+              iconColor="#7C3AED"
+              iconBackground="#E4D5FF"
+              backgroundColor="#F6F1FF"
+              borderColor="rgba(124,58,237,0.12)"
+            />
           </View>
-          <Text style={styles.insightTitle}>Insight</Text>
-        </View>
-        <View style={styles.insightBody}>
-          <Text style={styles.insightText}>{insightSummary}</Text>
-        </View>
-        {/* {pendingCount >= 0 ? (
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInUp.delay(140).duration(500)}
+          style={styles.insightCard}
+        >
+          <View style={styles.insightHeader}>
+            <View style={styles.insightIconWrap}>
+              <Animated.View entering={FadeInUp.delay(300).duration(600)}>
+                <Ionicons name="sparkles" size={22} color="#10B981" />
+              </Animated.View>
+            </View>
+            <Text style={styles.insightTitle}>Insight</Text>
+          </View>
+          <View style={styles.insightBody}>
+            <Text style={styles.insightText}>{insightSummary}</Text>
+          </View>
+          {/* {pendingCount >= 0 ? (
           <Pressable
             hitSlop={8}
             onPress={() => router.push("/pending-transactions" as any)}
@@ -490,124 +495,124 @@ export default function SalaryDashboard() {
           ""
           // <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         )} */}
-      </Animated.View>
+        </Animated.View>
 
-      <Animated.View
-        entering={FadeInUp.delay(200).duration(500)}
-        style={styles.section}
-      >
-        <SectionHeader
-          title="By Category"
-          action="See All"
-          onPress={() => router.push("/analytics")}
-        />
+        <Animated.View
+          entering={FadeInUp.delay(200).duration(500)}
+          style={styles.section}
+        >
+          <SectionHeader
+            title="By Category"
+            action="See All"
+            onPress={() => router.push("/analytics")}
+          />
 
-        {categoryData.length === 0 ? (
-          <EmptyState label="No category data yet" />
-        ) : (
-          categoryData.map((item) => (
-            <View key={item.key} style={styles.categoryRow}>
-              <View style={styles.categoryLeft}>
-                <View
-                  style={[
-                    styles.categoryIconWrap,
-                    {
-                      backgroundColor: item.meta.tint,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={item.meta.icon}
-                    size={18}
-                    color={item.meta.color}
-                  />
-                </View>
-
-                <View style={styles.categoryContent}>
-                  <View style={styles.categoryTopRow}>
-                    <View>
-                      <Text style={styles.categoryName}>{item.key}</Text>
-
-                      <Text
-                        style={[
-                          styles.categoryAmount,
-                          { color: item.meta.color },
-                        ]}
-                      >
-                        {formatMoney(item.value)}
-                      </Text>
-                    </View>
-
-                    <Text style={styles.categoryPercent}>
-                      {item.percent.toFixed(1)}%
-                    </Text>
-                  </View>
-
-                  <View style={styles.categoryTrack}>
-                    <View
-                      style={[
-                        styles.categoryFill,
-                        {
-                          width: `${Math.min(item.percent, 100)}%`,
-                          backgroundColor: item.meta.color,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              </View>
-            </View>
-          ))
-        )}
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInUp.delay(260).duration(500)}
-        style={styles.section}
-      >
-        <SectionHeader
-          title="Recent Transactions"
-          action="See All"
-          onPress={() => router.push("/history")}
-        />
-
-        {recentTransactions.length === 0 ? (
-          <EmptyState label="No transactions yet" />
-        ) : (
-          recentTransactions.map((item) => {
-            const meta = getCategoryMeta(item.category || "Other");
-
-            return (
-              <View key={item.id} style={styles.transactionRow}>
-                <View style={styles.transactionLeft}>
+          {categoryData.length === 0 ? (
+            <EmptyState label="No category data yet" />
+          ) : (
+            categoryData.map((item) => (
+              <View key={item.key} style={styles.categoryRow}>
+                <View style={styles.categoryLeft}>
                   <View
                     style={[
-                      styles.transactionIconWrap,
+                      styles.categoryIconWrap,
                       {
-                        backgroundColor: meta.tint,
+                        backgroundColor: item.meta.tint,
                       },
                     ]}
                   >
-                    <Ionicons name={meta.icon} size={20} color={meta.color} />
+                    <Ionicons
+                      name={item.meta.icon}
+                      size={18}
+                      color={item.meta.color}
+                    />
                   </View>
-                  <View style={styles.transactionTextWrap}>
-                    <Text numberOfLines={1} style={styles.transactionTitle}>
-                      {item.description || item.category || "Expense"}
-                    </Text>
-                    <Text style={styles.transactionMeta}>
-                      {getRelativeDate(item.createdAt)} {"\u2022"} Expense
-                    </Text>
+
+                  <View style={styles.categoryContent}>
+                    <View style={styles.categoryTopRow}>
+                      <View>
+                        <Text style={styles.categoryName}>{item.key}</Text>
+
+                        <Text
+                          style={[
+                            styles.categoryAmount,
+                            { color: item.meta.color },
+                          ]}
+                        >
+                          {formatMoney(item.value)}
+                        </Text>
+                      </View>
+
+                      <Text style={styles.categoryPercent}>
+                        {item.percent.toFixed(1)}%
+                      </Text>
+                    </View>
+
+                    <View style={styles.categoryTrack}>
+                      <View
+                        style={[
+                          styles.categoryFill,
+                          {
+                            width: `${Math.min(item.percent, 100)}%`,
+                            backgroundColor: item.meta.color,
+                          },
+                        ]}
+                      />
+                    </View>
                   </View>
                 </View>
-
-                <Text style={styles.transactionAmount}>
-                  -{formatMoney(Number(item.amount || 0))}
-                </Text>
               </View>
-            );
-          })
-        )}
-      </Animated.View>
+            ))
+          )}
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInUp.delay(260).duration(500)}
+          style={styles.section}
+        >
+          <SectionHeader
+            title="Recent Transactions"
+            action="See All"
+            onPress={() => router.push("/history")}
+          />
+
+          {recentTransactions.length === 0 ? (
+            <EmptyState label="No transactions yet" />
+          ) : (
+            recentTransactions.map((item) => {
+              const meta = getCategoryMeta(item.category || "Other");
+
+              return (
+                <View key={item.id} style={styles.transactionRow}>
+                  <View style={styles.transactionLeft}>
+                    <View
+                      style={[
+                        styles.transactionIconWrap,
+                        {
+                          backgroundColor: meta.tint,
+                        },
+                      ]}
+                    >
+                      <Ionicons name={meta.icon} size={20} color={meta.color} />
+                    </View>
+                    <View style={styles.transactionTextWrap}>
+                      <Text numberOfLines={1} style={styles.transactionTitle}>
+                        {item.description || item.category || "Expense"}
+                      </Text>
+                      <Text style={styles.transactionMeta}>
+                        {getRelativeDate(item.createdAt)} {"\u2022"} Expense
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.transactionAmount}>
+                    -{formatMoney(Number(item.amount || 0))}
+                  </Text>
+                </View>
+              );
+            })
+          )}
+        </Animated.View>
       </ScrollView>
       <Modal
         animationType="fade"
@@ -662,6 +667,9 @@ export default function SalaryDashboard() {
         </View>
       </Modal>
       <SalaryArrivalModal
+        initialDate={new Date()}
+        maximumDate={new Date()}
+        minimumDate={new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)}
         onClose={() => setArrivalModalVisible(false)}
         onConfirm={async (arrivedAtMs) => {
           try {
@@ -673,6 +681,9 @@ export default function SalaryDashboard() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setDismissedReminderCycleKey(arrivalStatus.expectedCycleKey);
             setArrivalModalVisible(false);
+          } catch (error) {
+            console.log("Dashboard salary arrival error:", error);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           } finally {
             setConfirmingArrival(false);
           }
@@ -840,7 +851,7 @@ const getStyles = (theme: any, dark: boolean) =>
     content: {
       paddingBottom: 130,
       paddingHorizontal: 20,
-      paddingTop: 20,
+      paddingTop: 60,
     },
     headerRow: {
       alignItems: "flex-start",

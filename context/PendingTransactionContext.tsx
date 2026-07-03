@@ -1,18 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
-import {
   createContext,
   ReactNode,
   useContext,
@@ -21,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+
 import {
   Alert,
   AppState,
@@ -31,7 +19,15 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/context/AuthContext";
-import { auth, db } from "@/firebase";
+import {
+  deletePendingTransaction,
+  listPendingTransactions,
+  subscribePendingTransactions,
+  updatePendingTransaction,
+  upsertPendingTransaction,
+  type PendingTransactionRecord,
+} from "@/repositories/pendingTransactionRepository";
+import { createId } from "@/repositories/shared";
 import {
   getSmsDuplicateId,
   getSmsDuplicateKey,
@@ -41,11 +37,7 @@ import {
   NativeSmsMessage,
 } from "@/utils/smsParser";
 
-export type PendingTransaction = ParsedSmsTransaction & {
-  id: string;
-  createdAt?: unknown;
-  status?: "pending";
-};
+export type PendingTransaction = PendingTransactionRecord;
 
 type PendingTransactionInput = Omit<PendingTransaction, "id">;
 type PendingSmsResult =
@@ -117,19 +109,6 @@ const hasSmsEventApi =
 const NOTIFICATION_ACCESS_PROMPTED_KEY =
   "bank_message_notification_access_prompted";
 
-const getUserCollections = () => {
-  const user = auth.currentUser;
-
-  if (!user) {
-    return null;
-  }
-
-  return {
-    expenses: collection(db, "users", user.uid, "expenses"),
-    pending: collection(db, "users", user.uid, "pendingTransactions"),
-  };
-};
-
 const getPendingDuplicateId = (transaction: ParsedSmsTransaction) => {
   if (transaction.source !== "sms-auto") {
     return null;
@@ -143,11 +122,10 @@ export const PendingTransactionProvider = ({
 }: {
   children: ReactNode;
 }) => {
-  const { loading: authLoading, userData } = useAuth();
+  const { loading: authLoading, user, userData } = useAuth();
   const [pendingTransactions, setPendingTransactions] = useState<
     PendingTransaction[]
   >([]);
-
   const [loading, setLoading] = useState(true);
   const processedNativeMessagesRef = useRef<string[]>([]);
   const requestedStartupImportRef = useRef(false);
@@ -169,58 +147,36 @@ export const PendingTransactionProvider = ({
   }, [userData?.type]);
 
   useEffect(() => {
-    let unsubscribeSnapshot: (() => void) | undefined;
+    if (!user?.uid) {
+      setPendingTransactions([]);
+      setLoading(false);
+      return;
+    }
 
-    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-      }
+    setLoading(true);
 
-      if (!user?.uid) {
-        setPendingTransactions([]);
-
+    const subscription = subscribePendingTransactions(
+      user.uid,
+      (items) => {
+        setPendingTransactions(items);
         setLoading(false);
+      },
+      (error) => {
+        console.log("Pending transaction listener error:", error);
+        setPendingTransactions([]);
+        setLoading(false);
+      },
+    );
 
+    return () => {
+      if (typeof subscription === "function") {
+        subscription();
         return;
       }
 
-      setLoading(true);
-
-      const pendingQuery = query(
-        collection(db, "users", user.uid, "pendingTransactions"),
-        orderBy("createdAt", "desc"),
-      );
-
-      unsubscribeSnapshot = onSnapshot(
-        pendingQuery,
-        (snapshot) => {
-          setPendingTransactions(
-            snapshot.docs.map((item) => ({
-              id: item.id,
-              ...item.data(),
-            })) as PendingTransaction[],
-          );
-
-          setLoading(false);
-        },
-        (error) => {
-          console.log("Pending transaction listener error:", error);
-
-          setPendingTransactions([]);
-
-          setLoading(false);
-        },
-      );
-    });
-
-    return () => {
-      unsubscribeAuth();
-
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-      }
+      subscription.remove?.();
     };
-  }, []);
+  }, [user?.uid]);
 
   const pendingDebits = useMemo(
     () => pendingTransactions.filter((item) => item.type === "expense"),
@@ -233,9 +189,7 @@ export const PendingTransactionProvider = ({
   );
 
   const addPendingTransaction = async (transaction: ParsedSmsTransaction) => {
-    const collections = getUserCollections();
-
-    if (!collections) {
+    if (!user?.uid) {
       return null;
     }
 
@@ -252,37 +206,22 @@ export const PendingTransactionProvider = ({
       ...transaction,
       duplicateKey:
         transaction.duplicateKey || getSmsDuplicateKey(transaction.rawMessage),
-      createdAt: serverTimestamp(),
-      status: "pending",
-    };
-
-    if (duplicateId) {
-      const docRef = doc(collections.pending, duplicateId);
-      const existing = await getDoc(docRef);
-
-      if (existing.exists()) {
-        return {
-          id: docRef.id,
-          ...(existing.data() as PendingTransactionInput),
-        } as PendingTransaction;
-      }
-
-      await setDoc(docRef, payload);
-
-      return {
-        ...transaction,
-        id: docRef.id,
-        status: "pending" as const,
-      };
-    }
-
-    const docRef = await addDoc(collections.pending, payload);
-
-    return {
-      ...transaction,
-      id: docRef.id,
+      createdAt: new Date().toISOString(),
       status: "pending" as const,
+      updatedAt: Date.now(),
+      deletedAt: null,
+      dirty: true,
+      syncState: "local_only" as const,
+      version: 1,
     };
+
+    const id = duplicateId || createId();
+    const pending = await upsertPendingTransaction(user.uid, {
+      ...payload,
+      id,
+    });
+
+    return pending as PendingTransaction;
   };
 
   const addPendingFromSms = async (
@@ -302,7 +241,7 @@ export const PendingTransactionProvider = ({
     rawMessage: string | NativeSmsMessage,
     source: "manual-paste" | "sms-auto" = "manual-paste",
   ): Promise<PendingSmsResult> => {
-    if (!auth.currentUser) {
+    if (!user) {
       return { pending: null, reason: "missing-user" };
     }
 
@@ -374,7 +313,8 @@ export const PendingTransactionProvider = ({
     if (
       Platform.OS !== "android" ||
       !SmsTransactionModule ||
-      !hasSmsQueueApi
+      !hasSmsQueueApi ||
+      !user?.uid
     ) {
       return;
     }
@@ -414,7 +354,7 @@ export const PendingTransactionProvider = ({
       typeof SmsTransactionModule.isNotificationAccessEnabled !== "function" ||
       typeof SmsTransactionModule.openNotificationAccessSettings !==
         "function" ||
-      !auth.currentUser
+      !user
     ) {
       return;
     }
@@ -454,6 +394,9 @@ export const PendingTransactionProvider = ({
 
   const refreshPendingTransactions = async () => {
     await importNativeSmsMessages();
+    if (user?.uid) {
+      setPendingTransactions(await listPendingTransactions(user.uid));
+    }
   };
 
   useEffect(() => {
@@ -473,7 +416,7 @@ export const PendingTransactionProvider = ({
     }, 700);
 
     return () => clearTimeout(timeout);
-  }, [authLoading]);
+  }, [authLoading, user?.uid]);
 
   useEffect(() => {
     const nativeSmsSubscription =
@@ -510,49 +453,52 @@ export const PendingTransactionProvider = ({
       nativeSmsSubscription?.remove();
       subscription.remove();
     };
-  }, []);
+  }, [user?.uid]);
 
   const approvePendingTransaction = async (transaction: PendingTransaction) => {
-    const collections = getUserCollections();
-
-    if (!collections) {
+    if (!user?.uid) {
       return;
     }
 
-    await addDoc(collections.expenses, {
-      amount: Number(transaction.amount),
-      category: transaction.category,
-      createdAt: transaction.transactionDate || new Date().toISOString(),
-      description: transaction.description,
-      source: transaction.source,
-      type: transaction.type,
+    await upsertPendingTransaction(user.uid, {
+      ...transaction,
+      syncState: "local_only",
+      dirty: true,
+      updatedAt: Date.now(),
     });
-
-    await deleteDoc(doc(collections.pending, transaction.id));
+    await deletePendingTransaction(user.uid, transaction.id);
   };
 
   const ignorePendingTransaction = async (id: string) => {
-    const collections = getUserCollections();
-
-    if (!collections) {
+    if (!user?.uid) {
       return;
     }
 
-    await deleteDoc(doc(collections.pending, id));
+    await deletePendingTransaction(user.uid, id);
   };
 
-  const updatePendingTransaction = async (
+  const updateTransaction = async (
     id: string,
     data: Partial<PendingTransactionInput>,
   ) => {
-    const collections = getUserCollections();
-
-    if (!collections) {
+    if (!user?.uid) {
       return;
     }
 
-    await updateDoc(doc(collections.pending, id), data);
+    await updatePendingTransaction(user.uid, id, data);
   };
+
+  useEffect(() => {
+    if (!user?.uid) {
+      return;
+    }
+
+    listPendingTransactions(user.uid)
+      .then(setPendingTransactions)
+      .catch((error) => {
+        console.log("Pending refresh error:", error);
+      });
+  }, [user?.uid]);
 
   return (
     <PendingTransactionContext.Provider
@@ -567,7 +513,7 @@ export const PendingTransactionProvider = ({
         pendingDebits,
         pendingTransactions,
         refreshPendingTransactions,
-        updatePendingTransaction,
+        updatePendingTransaction: updateTransaction,
       }}
     >
       {children}

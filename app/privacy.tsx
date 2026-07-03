@@ -44,7 +44,7 @@ export default function PrivacyScreen() {
       contentContainerStyle={{
         padding: 20,
         paddingBottom: 80,
-        paddingTop: 20,
+        paddingTop: 60,
       }}
       showsVerticalScrollIndicator={false}
     >

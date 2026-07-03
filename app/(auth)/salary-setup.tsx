@@ -9,19 +9,24 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 
 import SalaryDayPickerModal from "@/components/SalaryDayPickerModal";
+import { useAuth } from "@/context/AuthContext";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 import { useOnboardingStore } from "@/store/useOnboardingStore";
-
-import { auth, db } from "@/firebase";
-
-import { doc, updateDoc } from "firebase/firestore";
+import { auth } from "@/firebase";
 
 import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
-import { saveSalaryProfileChange } from "@/services/salaryLedger";
+import { saveProfile } from "@/repositories/profileRepository";
+import { createId } from "@/repositories/shared";
+import {
+  upsertSalaryHistory,
+  upsertSalarySnapshot,
+} from "@/repositories/salaryRepository";
+import { buildSalaryCycleSnapshot, getCurrentSalaryCycle } from "@/services/salaryLedger";
 
 export default function SalarySetupScreen() {
   useBlockAndroidBack();
+  const { user } = useAuth();
 
   const { salary, salaryDate, setSalary, setSalaryDate, reset } =
     useOnboardingStore();
@@ -33,9 +38,7 @@ export default function SalarySetupScreen() {
   const [loading, setLoading] = useState(false);
   const [showSalaryDayPicker, setShowSalaryDayPicker] = useState(false);
   useEffect(() => {
-    const user = auth.currentUser;
-
-    if (!user) return;
+    if (!user?.uid) return;
   }, []);
 
   const handleContinue = async () => {
@@ -76,27 +79,44 @@ export default function SalarySetupScreen() {
         onboarding: true,
       };
 
-      await updateDoc(
-        doc(db, "users", user.uid),
+      await saveProfile(user.uid, salaryProfile);
 
-        salaryProfile,
-      );
+      const now = Date.now();
 
-      await saveSalaryProfileChange({
-        uid: user.uid,
-        profile: {
-          salary: null,
-          salaryDate: null,
-        },
-        updates: salaryProfile,
-        expenses: [],
+      await upsertSalaryHistory(user.uid, {
+        id: createId(),
+        salary: Number(salary),
+        salaryDate: Number(salaryDate),
+        effectiveFromMs: now,
+        createdAtMs: now,
         source: "onboarding",
+        note: "Baseline salary profile created during onboarding.",
+      });
+
+      const cycle = getCurrentSalaryCycle(Number(salaryDate));
+
+      const snapshot = buildSalaryCycleSnapshot({
+        profile: {
+          salary: Number(salary),
+          salaryDate: Number(salaryDate),
+        },
+        salaryHistory: [],
+        expenses: [],
+        cycleStart: cycle.start,
+        referenceDate: cycle.start,
+        preferCurrentProfile: true,
+      });
+
+      await upsertSalarySnapshot(user.uid, {
+        ...(snapshot as any),
+        userId: user.uid,
       });
 
       reset();
 
       router.replace("/(auth)/success" as any);
     } catch (err) {
+      console.log("Salary setup error:", err);
       setError("Something went wrong");
     } finally {
       setLoading(false);

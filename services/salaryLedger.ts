@@ -1,15 +1,4 @@
-import {
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  limit,
-  query,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
-
-import { db } from "@/firebase";
+import { createId } from "@/repositories/shared";
 
 export type SalaryHistoryEntry = {
   id: string;
@@ -145,13 +134,13 @@ export const getSalaryCycleKey = (cycleStart: Date) => {
 };
 
 export const getSalaryCycleCollection = (uid: string) =>
-  collection(db, "users", uid, "salaryCycleSnapshots");
+  uid;
 
 export const getSalaryHistoryCollection = (uid: string) =>
-  collection(db, "users", uid, "salaryHistory");
+  uid;
 
 export const getSalaryArrivalCollection = (uid: string) =>
-  collection(db, "users", uid, "salaryArrivals");
+  uid;
 
 const toDate = (value: ExpenseLike["createdAt"] | number | string | Date) => {
   if (value instanceof Date) {
@@ -516,7 +505,7 @@ export const resolveSalaryCycleSummary = ({
     boundary.start,
   );
 
-  if (stored) {
+  if (stored && !preferCurrentProfile) {
     return stored;
   }
 
@@ -548,9 +537,12 @@ export const appendSalaryHistoryEntry = async ({
     ),
   };
 
-  const historyRef = getSalaryHistoryCollection(uid);
+  const { upsertSalaryHistory } = await import(
+    "@/repositories/salaryRepository"
+  );
 
-  const result = await addDoc(historyRef, {
+  return upsertSalaryHistory(uid, {
+    id: createId(),
     salary: mergedProfile.salary,
     salaryDate: mergedProfile.salaryDate,
     effectiveFromMs: now,
@@ -558,15 +550,6 @@ export const appendSalaryHistoryEntry = async ({
     source,
     note: note || "",
   });
-
-  return {
-    id: result.id,
-    ...mergedProfile,
-    effectiveFromMs: now,
-    createdAtMs: now,
-    source,
-    note,
-  } satisfies SalaryHistoryEntry;
 };
 
 export const upsertSalaryCycleSnapshot = async ({
@@ -600,11 +583,14 @@ export const upsertSalaryCycleSnapshot = async ({
     referenceDate,
     preferCurrentProfile,
   });
-  const cycleRef = doc(getSalaryCycleCollection(uid), snapshot.cycleKey);
+  const { upsertSalarySnapshot } = await import(
+    "@/repositories/salaryRepository"
+  );
 
-  await setDoc(cycleRef, snapshot);
-
-  return snapshot;
+  return upsertSalarySnapshot(uid, {
+    ...snapshot,
+    userId: uid,
+  });
 };
 
 export const rebuildSalaryCycleSnapshot = async ({
@@ -648,7 +634,6 @@ export const saveSalaryProfileChange = async ({
   source = "salary-update",
   note,
 }: SalarySaveInput) => {
-  const userRef = doc(db, "users", uid);
   const nextProfile = {
     salary: Math.floor(Number(updates.salary ?? profile.salary ?? 0)),
     salaryDate: Math.max(
@@ -658,24 +643,33 @@ export const saveSalaryProfileChange = async ({
   };
   const currentCycle = getCurrentSalaryCycle(nextProfile.salaryDate);
 
-  await updateDoc(userRef, updates);
+  const { saveProfile } = await import("@/repositories/profileRepository");
+  const { upsertSalaryHistory, upsertSalarySnapshot } = await import(
+    "@/repositories/salaryRepository"
+  );
 
-  const history = await appendSalaryHistoryEntry({
-    uid,
-    profile,
-    updates,
+  await saveProfile(uid, updates);
+
+  const history = await upsertSalaryHistory(uid, {
+    id: createId(),
+    salary: nextProfile.salary,
+    salaryDate: nextProfile.salaryDate,
+    effectiveFromMs: Date.now(),
+    createdAtMs: Date.now(),
     source,
-    note,
+    note: note || "",
   });
 
   const snapshot = expenses
-    ? await upsertSalaryCycleSnapshot({
-        uid,
-        profile: nextProfile,
-        salaryHistory: [history],
-        expenses,
-        cycleStart: currentCycle.start,
-        preferCurrentProfile: true,
+    ? await upsertSalarySnapshot(uid, {
+        ...buildSalaryCycleSnapshot({
+          profile: nextProfile,
+          salaryHistory: [history],
+          expenses,
+          cycleStart: currentCycle.start,
+          preferCurrentProfile: true,
+        }),
+        userId: uid,
       })
     : null;
 
@@ -694,11 +688,12 @@ export const seedSalaryHistoryIfMissing = async ({
   profile: SalaryProfileLike;
   expenses?: ExpenseLike[];
 }) => {
-  const existing = await getDocs(
-    query(getSalaryHistoryCollection(uid), limit(1)),
+  const { listSalaryHistory, upsertSalarySnapshot } = await import(
+    "@/repositories/salaryRepository"
   );
+  const existing = await listSalaryHistory(uid);
 
-  if (!existing.empty) {
+  if (existing.length > 0) {
     return null;
   }
 
@@ -714,14 +709,16 @@ export const seedSalaryHistoryIfMissing = async ({
   });
 
   const snapshot = expenses
-    ? await upsertSalaryCycleSnapshot({
-        uid,
-        profile,
-        salaryHistory: [seededHistory],
-        expenses,
-        cycleStart: getCurrentSalaryCycle(Number(profile.salaryDate || 1))
-          .start,
-        preferCurrentProfile: true,
+    ? await upsertSalarySnapshot(uid, {
+        ...buildSalaryCycleSnapshot({
+          profile,
+          salaryHistory: [seededHistory],
+          expenses,
+          cycleStart: getCurrentSalaryCycle(Number(profile.salaryDate || 1))
+            .start,
+          preferCurrentProfile: true,
+        }),
+        userId: uid,
       })
     : null;
 

@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { doc, updateDoc } from "firebase/firestore";
 import { useMemo } from "react";
 import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -9,7 +8,8 @@ import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-import { auth, db } from "@/firebase";
+import { auth } from "@/firebase";
+import { saveProfile } from "@/repositories/profileRepository";
 
 const RUPEE = "\u20B9";
 
@@ -60,7 +60,7 @@ export default function SelfEmployedProfileScreen() {
       style={{ flex: 1, backgroundColor: theme.background }}
       contentContainerStyle={{
         padding: 20,
-        paddingTop: 20,
+        paddingTop: 60,
         paddingBottom: 120,
       }}
       showsVerticalScrollIndicator={false}
@@ -563,10 +563,10 @@ function SettingsSection({
             setDark(value);
 
             const user = auth.currentUser;
-            if (!user) return;
+            if (!user?.uid) return;
 
             try {
-              await updateDoc(doc(db, "users", user.uid), {
+              await saveProfile(user.uid, {
                 darkMode: value,
               });
             } catch (error) {

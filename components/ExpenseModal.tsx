@@ -202,7 +202,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
             paddingHorizontal: 28,
 
-            paddingTop: 20,
+            paddingTop: 60,
 
             paddingBottom: 30,
           }}

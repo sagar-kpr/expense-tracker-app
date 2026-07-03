@@ -19,8 +19,15 @@ import { useEffect } from "react";
 import * as Haptics from "expo-haptics";
 
 import Svg, { Circle } from "react-native-svg";
+import { useAuth } from "@/context/AuthContext";
+import { markProfileSyncMode } from "@/repositories/profileRepository";
+import {
+  bootstrapSyncedAccount,
+  pushDirtyRows,
+} from "@/services/sync/syncEngine";
 
 export default function SuccessScreen() {
+  const { user } = useAuth();
   const scale = useSharedValue(0.7);
 
   const rotate = useSharedValue(0);
@@ -87,6 +94,24 @@ export default function SuccessScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     router.replace("/(tabs)" as any);
+  };
+
+  const handleEnableSync = async () => {
+    if (!user?.uid) {
+      router.replace("/(tabs)" as any);
+      return;
+    }
+
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await markProfileSyncMode(user.uid, "sync_enabled");
+      await bootstrapSyncedAccount(user.uid);
+      await pushDirtyRows(user.uid);
+    } catch (error) {
+      console.log("Enable sync error:", error);
+    } finally {
+      router.replace("/(tabs)" as any);
+    }
   };
 
   return (
@@ -297,6 +322,31 @@ export default function SuccessScreen() {
             }}
           >
             Continue
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={handleEnableSync}
+          style={{
+            backgroundColor: "#FFFFFF",
+            borderColor: "#159B7D22",
+            borderRadius: 22,
+            borderWidth: 1,
+            marginTop: 14,
+            paddingVertical: 18,
+            width: "100%",
+          }}
+        >
+          <Text
+            style={{
+              color: "#159B7D",
+              textAlign: "center",
+              fontSize: 16,
+              fontWeight: "800",
+              letterSpacing: 0.2,
+            }}
+          >
+            Enable Cloud Sync
           </Text>
         </Pressable>
       </Animated.View>

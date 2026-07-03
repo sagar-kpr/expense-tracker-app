@@ -25,7 +25,6 @@ import { useExpense } from "@/context/ExpenseContext";
 import { useSalary } from "@/context/SalaryContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
-import { useFocusEffect } from "@react-navigation/native";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -154,12 +153,6 @@ export default function SalaryAnalyticsScreen() {
     () => salaryCycles[salaryCycles.length - 1]?.start || new Date(),
   );
 
-  useFocusEffect(
-    React.useCallback(() => {
-      setSelectedDate(salaryCycles[salaryCycles.length - 1]?.start || new Date());
-    }, [salaryCycles]),
-  );
-
   useEffect(() => {
     progress.value = 0;
     progress.value = withTiming(1, { duration: 1200 });
@@ -168,6 +161,12 @@ export default function SalaryAnalyticsScreen() {
   const selectedCycle = salaryCycles.find(
     (cycle) => cycle.start.getTime() === selectedDate.getTime(),
   );
+
+  useEffect(() => {
+    if (!selectedCycle) {
+      setSelectedDate(salaryCycles[salaryCycles.length - 1]?.start || new Date());
+    }
+  }, [salaryCycles, selectedCycle]);
   const selectedCycleEnd = useMemo(
     () => selectedCycle?.end || new Date(selectedDate),
     [selectedCycle, selectedDate],
@@ -179,7 +178,13 @@ export default function SalaryAnalyticsScreen() {
     }
 
     return getCycleExpenses(selectedCycle, expenses);
-  }, [expenses, getCycleExpenses, selectedCycle, selectedCycleEnd, selectedDate]);
+  }, [
+    expenses,
+    getCycleExpenses,
+    selectedCycle,
+    selectedCycleEnd,
+    selectedDate,
+  ]);
 
   const groupedCategories = useMemo(
     () =>
@@ -216,6 +221,7 @@ export default function SalaryAnalyticsScreen() {
       : String(Math.round(salaryUsed));
   const savingsRate =
     salaryAmount > 0 ? Math.round((remaining / salaryAmount) * 100) : 0;
+  const savingsBarWidth = Math.min(Math.max(savingsRate, 0), 100);
 
   const isOverspent = remaining < 0;
   const topCategory = ranges[0];
@@ -641,7 +647,13 @@ export default function SalaryAnalyticsScreen() {
           <View style={styles.savingsBarRow}>
             <View style={styles.savingsTrack}>
               <View
-                style={[styles.savingsFill, { width: `${savingsRate}%` }]}
+                style={[
+                  styles.savingsFill,
+                  {
+                    backgroundColor: GREEN,
+                    width: `${savingsBarWidth}%`,
+                  },
+                ]}
               />
             </View>
             <Text style={styles.savingsSmallPercent}>{savingsRate}%</Text>
@@ -807,7 +819,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
     content: {
       paddingBottom: 138,
       paddingHorizontal: compact ? 10 : 14,
-      paddingTop: 20,
+      paddingTop: 60,
     },
     headerRow: {
       alignItems: "center",
@@ -1183,7 +1195,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       borderRadius: 22,
       borderWidth: 1,
       elevation: 2,
-      flexDirection: "row",
+      flexDirection: compact ? "column" : "row",
       gap: compact ? 14 : 18,
       marginTop: 22,
       minHeight: 124,
@@ -1252,14 +1264,12 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       overflow: "hidden",
     },
     savingsFill: {
-      backgroundColor: GREEN,
       borderRadius: 999,
       height: "100%",
     },
     savingsSmallPercent: {
       color: GREEN,
       fontSize: 12,
-
       fontWeight: "900",
     },
     savingsAmount: {
