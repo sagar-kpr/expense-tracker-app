@@ -79,7 +79,7 @@ export default function SelfEmployedProfileScreen() {
       <Animated.View
         entering={FadeInUp.delay(100).duration(700)}
         style={{
-          backgroundColor: "#159665",
+          backgroundColor: "#371872",
 
           borderRadius: 34,
 

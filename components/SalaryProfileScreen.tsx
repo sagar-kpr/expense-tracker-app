@@ -38,6 +38,7 @@ export default function ProfileScreen() {
     getCycleExpenses,
     saveSalaryProfile,
   } = useSalary();
+  const PURPLE_DARK = "#371872";
 
   const { theme, dark, setDark } = useTheme();
 
@@ -194,7 +195,7 @@ export default function ProfileScreen() {
       <Animated.View
         entering={FadeInUp.delay(100).duration(700)}
         style={{
-          backgroundColor: theme.primary,
+          backgroundColor: PURPLE_DARK,
 
           borderRadius: 34,
 
