@@ -28,7 +28,7 @@ export default function SalarySetupScreen() {
   useBlockAndroidBack();
   const { user } = useAuth();
 
-  const { salary, salaryDate, setSalary, setSalaryDate, reset } =
+  const { salary, salaryDate, setSalary, setSalaryDate } =
     useOnboardingStore();
   const setShowSuccess = useOnboardingStore((state) => state.setShowSuccess);
 
@@ -71,6 +71,7 @@ export default function SalarySetupScreen() {
       setError("");
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowSuccess(true);
 
       const salaryProfile = {
         name,
@@ -113,8 +114,8 @@ export default function SalarySetupScreen() {
         userId: user.uid,
       });
 
-      reset();
-      setShowSuccess(true);
+      setSalary("");
+      setSalaryDate("");
 
       router.replace("/(auth)/success" as any);
     } catch (err) {

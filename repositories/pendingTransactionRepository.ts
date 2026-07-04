@@ -14,7 +14,7 @@ import {
 
 import { db } from "@/firebase";
 import { getLocalDatabase } from "@/database/localDb";
-import { getLocalProfile } from "@/repositories/profileRepository";
+import { ensureLocalProfile, getLocalProfile } from "@/repositories/profileRepository";
 import { nowMs } from "@/repositories/shared";
 
 export type PendingTransactionRecord = {
@@ -97,6 +97,15 @@ export const upsertPendingTransaction = async (
 
   const dbx = await getLocalDatabase();
   const timestamp = nowMs();
+  const existingProfile = await getLocalProfile(userId);
+
+  if (!existingProfile) {
+    await ensureLocalProfile({
+      userId,
+      email: "",
+    });
+  }
+
   const payload = {
     ...transaction,
     userId,
@@ -129,7 +138,7 @@ export const upsertPendingTransaction = async (
     ],
   );
 
-  const profile = await getLocalProfile(userId);
+  const profile = existingProfile || (await getLocalProfile(userId));
 
   if (profile?.syncMode === "sync_enabled") {
     const docRef = transaction.id

@@ -15,6 +15,7 @@ import {
 } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
 
 import { ThemeProvider } from "@/context/ThemeContext";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
@@ -33,7 +34,8 @@ function RootNavigator() {
 
   const inAuthGroup = segments?.[0] === "(auth)";
   const inTabsGroup = segments?.[0] === "(tabs)";
-  const currentScreen = segments?.[1];
+  const currentScreen = inAuthGroup || inTabsGroup ? segments?.[1] : segments?.[0];
+  const allowedStandaloneScreens = ["privacy", "pending-transactions"];
 
   useEffect(() => {
     if (loading) {
@@ -48,7 +50,7 @@ function RootNavigator() {
     }
 
     if (userData.onboarding && !showSuccess) {
-      if (!inTabsGroup) {
+      if (!inTabsGroup && !allowedStandaloneScreens.includes(currentScreen || "")) {
         router.replace("/(tabs)");
       }
       return;
@@ -115,9 +117,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <AuthProvider>
-          <ThemeProvider>
-            <RootNavigator />
-          </ThemeProvider>
+          <PendingTransactionProvider>
+            <ThemeProvider>
+              <RootNavigator />
+            </ThemeProvider>
+          </PendingTransactionProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

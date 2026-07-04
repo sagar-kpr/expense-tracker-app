@@ -77,8 +77,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        setUser(firebaseUser);
-
         let localProfile = await ensureLocalProfile({
           userId: firebaseUser.uid,
           email: firebaseUser.email ?? "",
@@ -91,6 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           syncMode: localProfile.syncMode ?? "local_only",
         }, localProfile);
 
+        setUser(firebaseUser);
         setUserData(localProfile);
 
         setLoading(false);
@@ -158,9 +157,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const result = await createUserWithEmailAndPassword(auth, email, password);
     const profile = createProfile(email, "");
 
+    await saveProfile(result.user.uid, profile);
     setUser(result.user);
     setUserData(profile);
-    await saveProfile(result.user.uid, profile);
   };
 
   const loginWithEmail = async (email: string, password: string) => {

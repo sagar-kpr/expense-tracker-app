@@ -379,7 +379,16 @@ export const ensureLocalProfile = async (params: {
   const remote = await getRemoteProfile(params.userId);
 
   if (remote) {
-    return remote;
+    if (Platform.OS === "web") {
+      return remote;
+    }
+
+    return upsertLocalProfile(params.userId, {
+      ...defaultProfile(params.email, params.name ?? ""),
+      ...remote,
+      email: remote.email || params.email,
+      name: remote.name ?? params.name ?? "",
+    });
   }
 
   if (Platform.OS === "web") {

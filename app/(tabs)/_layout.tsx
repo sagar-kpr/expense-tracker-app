@@ -1,7 +1,6 @@
 import { Tabs } from "expo-router";
 
 import { useRef } from "react";
-import { PendingTransactionProvider } from "@/context/PendingTransactionContext";
 import { SalaryProvider } from "@/context/SalaryContext";
 import { useExpense } from "../../context/ExpenseContext";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
@@ -80,9 +79,7 @@ export default function TabLayout() {
   return (
     <ExpenseProvider>
       <SalaryProvider>
-        <PendingTransactionProvider>
-          <TabShell />
-        </PendingTransactionProvider>
+        <TabShell />
       </SalaryProvider>
     </ExpenseProvider>
   );

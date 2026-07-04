@@ -50,6 +50,7 @@ export default function BusinessSetupScreen() {
       setError("");
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowSuccess(true);
 
       await saveProfile(user.uid, {
         name: name.trim(),
@@ -58,7 +59,6 @@ export default function BusinessSetupScreen() {
         onboarding: true,
       });
 
-      setShowSuccess(true);
       router.replace("/(auth)/success" as any);
     } catch {
       setError("Something went wrong");

@@ -27,6 +27,7 @@ import {
   upsertPendingTransaction,
   type PendingTransactionRecord,
 } from "@/repositories/pendingTransactionRepository";
+import { upsertExpense } from "@/repositories/expenseRepository";
 import { createId } from "@/repositories/shared";
 import {
   getSmsDuplicateId,
@@ -456,8 +457,14 @@ export const PendingTransactionProvider = ({
       return;
     }
 
-    await upsertPendingTransaction(user.uid, {
-      ...transaction,
+    await upsertExpense(user.uid, {
+      id: transaction.id,
+      amount: transaction.amount,
+      description: transaction.description,
+      category: transaction.category,
+      type: transaction.type || "expense",
+      createdAt:
+        transaction.createdAt || new Date().toISOString(),
       updatedAt: Date.now(),
     });
     await deletePendingTransaction(user.uid, transaction.id);
