@@ -131,11 +131,15 @@ const escapeHtml = (value: unknown) =>
     .replaceAll("'", "&#039;");
 
 export default function SalaryHistoryScreen() {
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const { expenses, deleteExpense } = useExpense();
   const { rebuildCycleSnapshotForExpense } = useSalary();
   const { theme, dark } = useTheme();
-  const styles = useMemo(() => getStyles(theme, dark), [theme, dark]);
+  const compactLayout = width < 422 || fontScale > 1.05;
+  const styles = useMemo(
+    () => getStyles(theme, dark, compactLayout),
+    [theme, dark, compactLayout],
+  );
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -150,8 +154,6 @@ export default function SalaryHistoryScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteItem, setDeleteItem] = useState<Expense | null>(null);
-
-  const compactLayout = width < 422;
 
   const expenseItems = useMemo(
     () =>
@@ -951,7 +953,7 @@ export default function SalaryHistoryScreen() {
                           </Text>
                           <Text style={styles.metaDot}>{"\u2022"}</Text>
                           <Text
-                            numberOfLines={1}
+                            numberOfLines={compactLayout ? 2 : 1}
                             style={styles.transactionDate}
                           >
                             {dateValue
@@ -1080,7 +1082,7 @@ export default function SalaryHistoryScreen() {
   );
 }
 
-const getStyles = (theme: any, dark: boolean) =>
+const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
   StyleSheet.create({
     screen: {
       backgroundColor: dark ? "#111316" : "#FBFCFB",
@@ -1498,6 +1500,7 @@ const getStyles = (theme: any, dark: boolean) =>
     transactionMetaRow: {
       alignItems: "center",
       flexDirection: "row",
+      flexWrap: compactLayout ? "wrap" : "nowrap",
       marginTop: 7,
       minWidth: 0,
     },
@@ -1515,6 +1518,7 @@ const getStyles = (theme: any, dark: boolean) =>
       color: theme.subText,
       flexShrink: 1,
       fontSize: 11,
+      marginTop: compactLayout ? 2 : 0,
     },
     transactionRight: {
       alignItems: "flex-end",

@@ -276,9 +276,9 @@ function IncomeProgress({
 export default function SelfEmployedAnalyticsScreen() {
   const { expenses } = useExpense();
   const { theme, dark } = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const [refreshing, setRefreshing] = useState(false);
-  const compact = width < 422;
+  const compact = width < 422 || fontScale > 1.05;
   const progress = useSharedValue(0);
 
   const styles = useMemo(
@@ -769,7 +769,7 @@ export default function SelfEmployedAnalyticsScreen() {
             )}
           </Text>
         </View>
-        <Ionicons color={GREEN} name="chevron-forward" size={25} />
+        {/* <Ionicons color={GREEN} name="chevron-forward" size={25} /> */}
       </Animated.View>
 
       <Animated.View
@@ -842,7 +842,7 @@ export default function SelfEmployedAnalyticsScreen() {
         style={styles.sectionCard}
       >
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Cash Flow Progress</Text>
+          <Text style={styles.sectionTitle}>Business Progress</Text>
           <View style={styles.trendPill}>
             <Ionicons color={GREEN} name="calendar-clear-outline" size={15} />
             <Text numberOfLines={1} style={styles.trendPillText}>
@@ -1395,7 +1395,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
     trendPillText: {
       color: GREEN,
       flexShrink: 1,
-      fontSize: 14,
+      fontSize: 11,
       fontWeight: "900",
     },
     trendChart: {
@@ -1456,11 +1456,11 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       borderRadius: 22,
       borderWidth: 1,
       elevation: 2,
-      flexDirection: compact ? "column" : "row",
-      gap: compact ? 14 : 18,
+      flexDirection: "column",
+      gap: 14,
       marginTop: 22,
       minHeight: 124,
-      padding: compact ? 16 : 18,
+      padding: 16,
       shadowColor: "#111827",
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: dark ? 0.18 : 0.05,
@@ -1468,19 +1468,19 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
     },
     savingsLeft: {
       alignItems: "center",
-      flex: compact ? undefined : 1,
+      flex: undefined,
       flexDirection: "row",
       gap: 14,
       minWidth: 0,
-      width: compact ? "100%" : undefined,
+      width: "100%",
     },
     savingsIcon: {
       alignItems: "center",
       backgroundColor: dark ? "rgba(15,155,88,0.15)" : "#EAF8F1",
       borderRadius: 28,
-      height: compact ? 52 : 58,
+      height: 52,
       justifyContent: "center",
-      width: compact ? 52 : 58,
+      width: 52,
     },
     savingsLabel: {
       color: theme.text,
@@ -1491,7 +1491,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       color: GREEN,
       fontSize: 20,
       fontWeight: "900",
-      lineHeight: compact ? 30 : 40,
+      lineHeight: 30,
       marginTop: 3,
     },
     savingsCaption: {
@@ -1503,13 +1503,13 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
     savingsDivider: {
       alignSelf: "stretch",
       backgroundColor: dark ? "#2A2F3B" : "#E5E7EF",
-      height: compact ? 1 : undefined,
-      width: compact ? undefined : 1,
+      height: 1,
+      width: undefined,
     },
     savingsRight: {
-      flex: compact ? undefined : 1,
+      flex: undefined,
       minWidth: 0,
-      width: compact ? "100%" : undefined,
+      width: "100%",
     },
     savingsBarRow: {
       alignItems: "center",

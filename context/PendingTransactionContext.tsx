@@ -18,6 +18,8 @@ import {
   Platform,
 } from "react-native";
 
+import * as Notifications from "expo-notifications";
+
 import { useAuth } from "@/context/AuthContext";
 import {
   deletePendingTransaction,
@@ -188,6 +190,18 @@ export const PendingTransactionProvider = ({
     () => pendingTransactions.filter((item) => item.type === "income"),
     [pendingTransactions],
   );
+
+  useEffect(() => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    Notifications.setBadgeCountAsync(user?.uid ? pendingTransactions.length : 0).catch(
+      (error) => {
+        console.log("Badge sync error:", error);
+      },
+    );
+  }, [pendingTransactions.length, user?.uid]);
 
   const addPendingTransaction = async (transaction: ParsedSmsTransaction) => {
     if (!user?.uid) {

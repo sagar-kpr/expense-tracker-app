@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, useWindowDimensions, View } from "react-native";
 
 import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,19 +17,31 @@ export default function BottomNavbar({
   openModal,
 }: Props) {
   const { theme, dark } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width < 390 || fontScale > 1.05;
+
+  const getLabel = (routeName: string) => {
+    if (routeName === "index") return "Home";
+    if (routeName === "history") return "History";
+    if (routeName === "analytics") return "Analytics";
+    if (routeName === "profile") return "Profile";
+    return "";
+  };
+
   return (
     <View
       style={{
         position: "absolute",
-        bottom: 20,
-        left: 20,
-        right: 20,
-        height: 85,
+        bottom: compact ? 10 : 20,
+        left: compact ? 8 : 20,
+        right: compact ? 8 : 20,
+        height: compact ? 82 : 85,
         backgroundColor: theme.card,
         borderRadius: 25,
         flexDirection: "row",
         justifyContent: "space-around",
         alignItems: "center",
+        paddingHorizontal: compact ? 10 : 0,
         elevation: 10,
       }}
     >
@@ -77,22 +89,21 @@ export default function BottomNavbar({
           >
             <Ionicons
               name={icons[route.name]}
-              size={24}
+              size={compact ? 22 : 24}
               color={isFocused ? theme.primary : theme.text}
             />
 
             <Text
               style={{
-                fontSize: 12,
+                fontSize: compact ? 9 : 12,
                 marginTop: 4,
                 color: isFocused ? theme.primary : theme.text,
+                maxWidth: compact ? 72 : 82,
+                textAlign: "center",
               }}
+              numberOfLines={1}
             >
-              {route.name === "index"
-                ? "Home"
-                : route.name === "add"
-                  ? ""
-                  : route.name.charAt(0).toUpperCase() + route.name.slice(1)}
+              {route.name === "add" ? "" : getLabel(route.name)}
             </Text>
           </Pressable>
         );
