@@ -392,7 +392,11 @@ const buildPdfHtml = ({
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: #f6f8fb;
           }
-          .page { padding: 28px; }
+          .page {
+            margin: 0 auto;
+            max-width: 980px;
+            padding: 28px;
+          }
           .hero {
             background: #172033;
             border-radius: 18px;
@@ -408,6 +412,7 @@ const buildPdfHtml = ({
             background: #ffffff;
             border: 1px solid #e7edf3;
             border-radius: 14px;
+            overflow: hidden;
             padding: 16px;
           }
           .metric-label { color: #667085; font-size: 11px; font-weight: 800; text-transform: uppercase; }
@@ -472,7 +477,11 @@ const buildPdfHtml = ({
           .bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
           .bar-track { background: #edf2f7; border-radius: 999px; height: 9px; overflow: hidden; }
           .bar-fill { background: #159665; border-radius: 999px; height: 100%; }
-          table { border-collapse: collapse; width: 100%; }
+          table {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
+          }
           th {
             background: #f0f4f8;
             color: #475467;
@@ -480,6 +489,9 @@ const buildPdfHtml = ({
             padding: 9px;
             text-align: left;
             text-transform: uppercase;
+            vertical-align: top;
+            width: 140px;
+            word-break: normal;
           }
           td {
             border-bottom: 1px solid #edf2f7;
@@ -487,11 +499,64 @@ const buildPdfHtml = ({
             font-size: 11px;
             padding: 9px;
             vertical-align: top;
+            overflow-wrap: anywhere;
           }
+          .data-table th { width: auto; }
+          .transactions-table th:nth-child(1) { width: 86px; }
+          .transactions-table th:nth-child(3) { width: 96px; }
+          .transactions-table th:nth-child(4) { width: 78px; }
+          .transactions-table th:nth-child(5) { width: 116px; }
+          .pending-table th:nth-child(1) { width: 86px; }
+          .pending-table th:nth-child(3) { width: 86px; }
+          .pending-table th:nth-child(4) { width: 116px; }
           .amount { font-weight: 900; text-align: right; white-space: nowrap; }
           .income { color: #159665; }
           .expense { color: #dc2626; }
           .footer { color: #98a2b3; font-size: 10px; margin-top: 22px; text-align: center; }
+          @media (max-width: 760px) {
+            .page { padding: 16px; }
+            .hero { border-radius: 14px; padding: 20px; }
+            h1 { font-size: 28px; line-height: 1.12; }
+            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .two-col { grid-template-columns: 1fr; }
+            .usage-hero { align-items: flex-start; }
+            .usage-ring { flex-basis: 112px; height: 112px; width: 112px; }
+            .usage-headline { font-size: 18px; }
+            th, td { font-size: 10px; padding: 8px 7px; }
+            th { width: 112px; }
+            .transactions-table th:nth-child(1),
+            .pending-table th:nth-child(1) { width: 74px; }
+            .transactions-table th:nth-child(3) { width: 74px; }
+            .transactions-table th:nth-child(4),
+            .pending-table th:nth-child(3) { width: 62px; }
+            .transactions-table th:nth-child(5),
+            .pending-table th:nth-child(4) { width: 92px; }
+          }
+          @media (max-width: 520px) {
+            .grid { grid-template-columns: 1fr; }
+            .usage-hero {
+              align-items: center;
+              flex-direction: column;
+              text-align: center;
+            }
+            .usage-split strong { margin-left: 0; }
+            .usage-item { align-items: flex-start; flex-direction: column; gap: 4px; }
+            .transactions-table th:nth-child(3),
+            .transactions-table td:nth-child(3),
+            .transactions-table th:nth-child(4),
+            .transactions-table td:nth-child(4) {
+              display: none;
+            }
+            .pending-table th:nth-child(3),
+            .pending-table td:nth-child(3) {
+              display: none;
+            }
+          }
+          @media print {
+            body { background: #ffffff; }
+            .page { max-width: none; padding: 0; }
+            .card, .hero { break-inside: avoid; }
+          }
         </style>
       </head>
       <body>
@@ -537,7 +602,7 @@ const buildPdfHtml = ({
 
           <div class="section card">
             <h2>Profile</h2>
-            <table>
+            <table class="profile-table">
               <tr><th>Name</th><td>${escapeHtml(personName)}</td></tr>
               <tr><th>Email</th><td>${escapeHtml(profile.email || "")}</td></tr>
               <tr><th>Account Type</th><td>${escapeHtml(isSalary ? "Salary" : "Self Employed")}</td></tr>
@@ -557,7 +622,7 @@ const buildPdfHtml = ({
 
           <div class="section card">
             <h2>Transactions</h2>
-            <table>
+            <table class="data-table transactions-table">
               <thead>
                 <tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th></tr>
               </thead>
@@ -569,7 +634,7 @@ const buildPdfHtml = ({
 
           <div class="section card">
             <h2>Pending Transactions</h2>
-            <table>
+            <table class="data-table pending-table">
               <thead>
                 <tr><th>Date</th><th>Description</th><th>Type</th><th>Amount</th></tr>
               </thead>

@@ -135,12 +135,12 @@ import * as Haptics from "expo-haptics";
 
 export default function WelcomeScreen() {
   const features = [
-    "Auto Detect SMS",
-    "Cloud Sync",
-    "Quick Add Expense",
-    "Smart Categories",
-    "Salary Cycle View",
-    "Beautiful Analytics",
+    "✓ Auto-detect Bank SMS",
+    "✓ Track Income & Expenses",
+    "✓ Secure Cloud Sync",
+    "✓ Smart Categories",
+    "✓ Powerful Analytics",
+    "✓ Budget & Cash Flow Tracking",
   ];
 
   return (
@@ -247,8 +247,8 @@ export default function WelcomeScreen() {
             lineHeight: 25,
           }}
         >
-          A smart expense tracker built for salaried professionals and
-          self-employed individuals.
+          Manage your income, expenses, and savings with ease. Built for
+          salaried professionals and business owners.
         </Animated.Text>
 
         <View

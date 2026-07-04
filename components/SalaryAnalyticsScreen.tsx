@@ -402,7 +402,9 @@ export default function SalaryAnalyticsScreen() {
             style={styles.monthArrow}
           >
             <Ionicons
-              color={visibleSelectedCycleIndex <= 0 ? theme.border : theme.subText}
+              color={
+                visibleSelectedCycleIndex <= 0 ? theme.border : theme.subText
+              }
               name="chevron-back"
               size={17}
             />
@@ -419,7 +421,9 @@ export default function SalaryAnalyticsScreen() {
           </View>
           <Pressable
             accessibilityLabel="Next salary cycle"
-            disabled={visibleSelectedCycleIndex >= visibleSalaryCycles.length - 1}
+            disabled={
+              visibleSelectedCycleIndex >= visibleSalaryCycles.length - 1
+            }
             hitSlop={8}
             onPress={() => selectAdjacentCycle(1)}
             style={styles.monthArrow}
@@ -638,7 +642,7 @@ export default function SalaryAnalyticsScreen() {
         style={styles.sectionCard}
       >
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Salary Cycle Progress</Text>
+          <Text style={styles.sectionTitle}>Salary Progress</Text>
           <View style={styles.trendPill}>
             <Ionicons color={GREEN} name="calendar-clear-outline" size={15} />
             <Text numberOfLines={1} style={styles.trendPillText}>
@@ -651,7 +655,8 @@ export default function SalaryAnalyticsScreen() {
           <TrendChart data={trendBuckets} styles={styles} />
         ) : (
           <Text style={styles.emptyTrendText}>
-            No spending recorded for {activeSelectedCycle?.label ?? "this cycle"}.
+            No spending recorded for{" "}
+            {activeSelectedCycle?.label ?? "this cycle"}.
           </Text>
         )}
       </Animated.View>
@@ -1175,7 +1180,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
     trendPillText: {
       color: GREEN,
       flexShrink: 1,
-      fontSize: 14,
+      fontSize: 11,
       fontWeight: "900",
     },
     trendChart: {
