@@ -25,7 +25,7 @@
         ]
       },
       {
-        "source": "/icon.png",
+        "source": "/adaptive-icon-foreground.png",
         "headers": [
           {
             "key": "Cache-Control",
