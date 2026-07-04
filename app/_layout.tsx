@@ -17,6 +17,7 @@ import {
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
 import { ThemeProvider } from "@/context/ThemeContext";
+import { useOnboardingStore } from "@/store/useOnboardingStore";
 
 SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({
@@ -26,12 +27,9 @@ SplashScreen.setOptions({
 
 function RootNavigator() {
   const { user, userData, loading } = useAuth();
+  const showSuccess = useOnboardingStore((state) => state.showSuccess);
 
   const segments: any = useSegments();
-
-  useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
 
   const inAuthGroup = segments?.[0] === "(auth)";
   const inTabsGroup = segments?.[0] === "(tabs)";
@@ -49,7 +47,7 @@ function RootNavigator() {
       return;
     }
 
-    if (userData.onboarding) {
+    if (userData.onboarding && !showSuccess) {
       if (!inTabsGroup) {
         router.replace("/(tabs)");
       }
@@ -91,6 +89,7 @@ function RootNavigator() {
     inAuthGroup,
     inTabsGroup,
     loading,
+    showSuccess,
     user,
     userData,
   ]);
@@ -106,6 +105,12 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {
+      // Ignore splash-screen state errors in development/native reloads.
+    });
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>

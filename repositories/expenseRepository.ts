@@ -11,8 +11,9 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-import { auth, db } from "@/firebase";
+import { db } from "@/firebase";
 import { getLocalDatabase } from "@/database/localDb";
+import { getLocalProfile } from "@/repositories/profileRepository";
 import { nowMs, toJson } from "@/repositories/shared";
 
 export type ExpenseRecord = {
@@ -24,11 +25,7 @@ export type ExpenseRecord = {
   type?: "income" | "expense";
   createdAt?: string | Date | { toDate?: () => Date };
   updatedAt?: number;
-  deletedAt?: number | null;
-  dirty?: boolean;
-  syncState?: "local_only" | "synced" | "dirty" | "pending_delete";
   source?: string;
-  version?: number;
 };
 
 const mapLocalExpense = (row: any): ExpenseRecord => ({
@@ -40,9 +37,6 @@ const mapLocalExpense = (row: any): ExpenseRecord => ({
   type: (row.type || "expense") as "income" | "expense",
   createdAt: row.createdAt,
   updatedAt: Number(row.updatedAt || 0),
-  deletedAt: row.deletedAt == null ? null : Number(row.deletedAt),
-  dirty: Boolean(row.dirty),
-  syncState: row.syncState,
 });
 
 export const listExpenses = async (userId: string) => {
@@ -60,7 +54,7 @@ export const listExpenses = async (userId: string) => {
 
   const dbx = await getLocalDatabase();
   const rows = await dbx.getAllAsync<any>(
-    "SELECT * FROM expenses WHERE userId = ? AND deletedAt IS NULL ORDER BY createdAt DESC",
+    "SELECT * FROM expenses WHERE userId = ? ORDER BY createdAt DESC",
     userId,
   );
 
@@ -96,17 +90,14 @@ export const upsertExpense = async (
   const payload = {
     ...expense,
     userId,
-    dirty: true,
-    syncState: "local_only",
     updatedAt: timestamp,
   };
 
   await dbx.runAsync(
     `
     INSERT INTO expenses (
-      id, userId, amount, description, category, type, createdAt, updatedAt,
-      deletedAt, dirty, syncState, version, payload
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, userId, amount, description, category, type, createdAt, updatedAt, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       userId = excluded.userId,
       amount = excluded.amount,
@@ -115,10 +106,6 @@ export const upsertExpense = async (
       type = excluded.type,
       createdAt = excluded.createdAt,
       updatedAt = excluded.updatedAt,
-      deletedAt = excluded.deletedAt,
-      dirty = excluded.dirty,
-      syncState = excluded.syncState,
-      version = expenses.version + 1,
       payload = excluded.payload
   `,
     [
@@ -130,13 +117,28 @@ export const upsertExpense = async (
       expense.type || "expense",
       String(expense.createdAt || new Date().toISOString()),
       timestamp,
-      expense.deletedAt ?? null,
-      1,
-      "local_only",
-      1,
       toJson(payload),
     ],
   );
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    const docRef = expense.id
+      ? doc(db, "users", userId, "expenses", expense.id)
+      : doc(collection(db, "users", userId, "expenses"));
+
+    await setDoc(
+      docRef,
+      {
+        ...payload,
+        id: docRef.id,
+      },
+      { merge: true },
+    );
+
+    payload.id = docRef.id;
+  }
 
   return payload;
 };
@@ -148,16 +150,13 @@ export const deleteExpense = async (userId: string, expenseId: string) => {
   }
 
   const dbx = await getLocalDatabase();
-  await dbx.runAsync(
-    `
-    UPDATE expenses
-    SET deletedAt = ?, dirty = 1, syncState = 'pending_delete', updatedAt = updatedAt + 1
-    WHERE id = ? AND userId = ?
-  `,
-    nowMs(),
-    expenseId,
-    userId,
-  );
+  await dbx.runAsync("DELETE FROM expenses WHERE id = ? AND userId = ?", expenseId, userId);
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    await deleteDoc(doc(db, "users", userId, "expenses", expenseId));
+  }
 };
 
 export const subscribeExpenses = (

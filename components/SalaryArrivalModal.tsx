@@ -82,7 +82,7 @@ export default function SalaryArrivalModal({
   const helperText = useMemo(
     () =>
       minimumDate && maximumDate
-        ? `Pick the actual arrival date between ${minimumDate.toLocaleDateString("en-IN")} and ${maximumDate.toLocaleDateString("en-IN")}.`
+        ? `Pick the actual arrival date within the salary window: ${minimumDate.toLocaleDateString("en-IN")} to ${maximumDate.toLocaleDateString("en-IN")}.`
         : "Use the real date and time when salary actually arrived.",
     [maximumDate, minimumDate],
   );

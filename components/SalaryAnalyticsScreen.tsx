@@ -118,7 +118,12 @@ export default function SalaryAnalyticsScreen() {
   const { expenses } = useExpense();
   const { theme, dark } = useTheme();
   const { userData } = useAuth();
-  const { getCycleExpenses, getCycleSummary, getCycleTimeline } = useSalary();
+  const {
+    getCurrentArrivalStatus,
+    getCycleExpenses,
+    getCycleSummary,
+    getCycleTimeline,
+  } = useSalary();
   const { salary: onboardingSalary } = useOnboardingStore();
   const { width } = useWindowDimensions();
 
@@ -130,6 +135,7 @@ export default function SalaryAnalyticsScreen() {
     () => getStyles(theme, dark, compact),
     [compact, dark, theme],
   );
+  const arrivalStatus = getCurrentArrivalStatus();
 
   const salaryCycles = useMemo(
     () =>
@@ -149,8 +155,26 @@ export default function SalaryAnalyticsScreen() {
       })),
     [getCycleTimeline],
   );
+  const visibleSalaryCycles = useMemo(() => {
+    if (!arrivalStatus.needsConfirmation) {
+      return salaryCycles;
+    }
+
+    const activeIndex = salaryCycles.findIndex(
+      (cycle) => cycle.start.getTime() === arrivalStatus.start.getTime(),
+    );
+
+    if (activeIndex < 0) {
+      return salaryCycles;
+    }
+
+    return salaryCycles.slice(0, activeIndex + 1);
+  }, [arrivalStatus.needsConfirmation, arrivalStatus.start, salaryCycles]);
   const [selectedDate, setSelectedDate] = useState(
-    () => salaryCycles[salaryCycles.length - 1]?.start || new Date(),
+    () =>
+      arrivalStatus.start ||
+      visibleSalaryCycles[visibleSalaryCycles.length - 1]?.start ||
+      new Date(),
   );
 
   useEffect(() => {
@@ -161,27 +185,43 @@ export default function SalaryAnalyticsScreen() {
   const selectedCycle = salaryCycles.find(
     (cycle) => cycle.start.getTime() === selectedDate.getTime(),
   );
+  const visibleSelectedCycle = visibleSalaryCycles.find(
+    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
+  );
+  const activeSelectedCycle =
+    visibleSelectedCycle &&
+    arrivalStatus.needsConfirmation &&
+    visibleSelectedCycle.start.getTime() === arrivalStatus.start.getTime()
+      ? {
+          ...visibleSelectedCycle,
+          end: arrivalStatus.end,
+        }
+      : visibleSelectedCycle;
 
   useEffect(() => {
-    if (!selectedCycle) {
-      setSelectedDate(salaryCycles[salaryCycles.length - 1]?.start || new Date());
+    if (!visibleSelectedCycle) {
+      setSelectedDate(
+        arrivalStatus.start ||
+          visibleSalaryCycles[visibleSalaryCycles.length - 1]?.start ||
+          new Date(),
+      );
     }
-  }, [salaryCycles, selectedCycle]);
+  }, [arrivalStatus.start, visibleSelectedCycle, visibleSalaryCycles]);
   const selectedCycleEnd = useMemo(
-    () => selectedCycle?.end || new Date(selectedDate),
-    [selectedCycle, selectedDate],
+    () => activeSelectedCycle?.end || new Date(selectedDate),
+    [activeSelectedCycle, selectedDate],
   );
 
   const filteredExpenses = useMemo(() => {
-    if (!selectedCycle) {
+    if (!activeSelectedCycle) {
       return [];
     }
 
-    return getCycleExpenses(selectedCycle, expenses);
+    return getCycleExpenses(activeSelectedCycle, expenses);
   }, [
     expenses,
     getCycleExpenses,
-    selectedCycle,
+    activeSelectedCycle,
     selectedCycleEnd,
     selectedDate,
   ]);
@@ -206,7 +246,7 @@ export default function SalaryAnalyticsScreen() {
 
   const totalSpent = ranges.reduce((sum, item) => sum + item[1], 0);
   const selectedCycleSummary = getCycleSummary(selectedDate, {
-    expectedCycleStart: selectedCycle?.expectedStart,
+    expectedCycleStart: activeSelectedCycle?.expectedStart,
     referenceDate: selectedDate,
   });
   const salaryAmount = Number(
@@ -281,10 +321,10 @@ export default function SalaryAnalyticsScreen() {
   }, [filteredExpenses, selectedCycleEnd, selectedDate]);
   const showTrend = trendBuckets.some((item) => item.value > 0);
   const previousCycleSpend = useMemo(() => {
-    const selectedCycleIndex = salaryCycles.findIndex(
+    const selectedCycleIndex = visibleSalaryCycles.findIndex(
       (cycle) => cycle.start.getTime() === selectedDate.getTime(),
     );
-    const previousCycle = salaryCycles[selectedCycleIndex - 1];
+    const previousCycle = visibleSalaryCycles[selectedCycleIndex - 1];
 
     if (!previousCycle) {
       return 0;
@@ -299,7 +339,7 @@ export default function SalaryAnalyticsScreen() {
         ? sum + Number(item.amount || 0)
         : sum;
     }, 0);
-  }, [expenses, salaryCycles, selectedDate]);
+  }, [expenses, selectedDate, visibleSalaryCycles]);
 
   const hasPreviousCycle = previousCycleSpend > 0;
   const comparisonPercent =
@@ -309,12 +349,12 @@ export default function SalaryAnalyticsScreen() {
         )
       : 0;
   const comparisonUp = comparisonPercent >= 0;
-  const selectedCycleIndex = salaryCycles.findIndex(
+  const visibleSelectedCycleIndex = visibleSalaryCycles.findIndex(
     (cycle) => cycle.start.getTime() === selectedDate.getTime(),
   );
 
   const selectAdjacentCycle = (offset: number) => {
-    const nextCycle = salaryCycles[selectedCycleIndex + offset];
+    const nextCycle = visibleSalaryCycles[visibleSelectedCycleIndex + offset];
 
     if (!nextCycle) return;
 
@@ -325,7 +365,9 @@ export default function SalaryAnalyticsScreen() {
   const onRefresh = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
-    setSelectedDate(salaryCycles[salaryCycles.length - 1]?.start || new Date());
+    setSelectedDate(
+      visibleSalaryCycles[visibleSalaryCycles.length - 1]?.start || new Date(),
+    );
     setTimeout(() => setRefreshing(false), 700);
   };
 
@@ -354,13 +396,13 @@ export default function SalaryAnalyticsScreen() {
         <View style={styles.monthSelector}>
           <Pressable
             accessibilityLabel="Previous salary cycle"
-            disabled={selectedCycleIndex <= 0}
+            disabled={visibleSelectedCycleIndex <= 0}
             hitSlop={8}
             onPress={() => selectAdjacentCycle(-1)}
             style={styles.monthArrow}
           >
             <Ionicons
-              color={selectedCycleIndex <= 0 ? theme.border : theme.subText}
+              color={visibleSelectedCycleIndex <= 0 ? theme.border : theme.subText}
               name="chevron-back"
               size={17}
             />
@@ -372,19 +414,19 @@ export default function SalaryAnalyticsScreen() {
               size={compact ? 17 : 19}
             />
             <Text numberOfLines={1} style={styles.monthButtonTextActive}>
-              {selectedCycle?.shortLabel ?? "This Month"}
+              {activeSelectedCycle?.shortLabel ?? "This Month"}
             </Text>
           </View>
           <Pressable
             accessibilityLabel="Next salary cycle"
-            disabled={selectedCycleIndex >= salaryCycles.length - 1}
+            disabled={visibleSelectedCycleIndex >= visibleSalaryCycles.length - 1}
             hitSlop={8}
             onPress={() => selectAdjacentCycle(1)}
             style={styles.monthArrow}
           >
             <Ionicons
               color={
-                selectedCycleIndex >= salaryCycles.length - 1
+                visibleSelectedCycleIndex >= visibleSalaryCycles.length - 1
                   ? theme.border
                   : theme.subText
               }
@@ -600,7 +642,7 @@ export default function SalaryAnalyticsScreen() {
           <View style={styles.trendPill}>
             <Ionicons color={GREEN} name="calendar-clear-outline" size={15} />
             <Text numberOfLines={1} style={styles.trendPillText}>
-              {selectedCycle?.shortLabel ?? "This Month"}
+              {activeSelectedCycle?.shortLabel ?? "This Month"}
             </Text>
           </View>
         </View>
@@ -609,7 +651,7 @@ export default function SalaryAnalyticsScreen() {
           <TrendChart data={trendBuckets} styles={styles} />
         ) : (
           <Text style={styles.emptyTrendText}>
-            No spending recorded for {selectedCycle?.label ?? "this cycle"}.
+            No spending recorded for {activeSelectedCycle?.label ?? "this cycle"}.
           </Text>
         )}
       </Animated.View>
@@ -668,7 +710,7 @@ export default function SalaryAnalyticsScreen() {
               : `${formatMoney(remaining)} remaining`}
           </Text>
           <Text numberOfLines={1} style={styles.cycleLabel}>
-            {selectedCycle?.label}
+            {activeSelectedCycle?.label}
           </Text>
         </View>
       </Animated.View>

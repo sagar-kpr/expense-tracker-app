@@ -209,10 +209,6 @@ export const PendingTransactionProvider = ({
       createdAt: new Date().toISOString(),
       status: "pending" as const,
       updatedAt: Date.now(),
-      deletedAt: null,
-      dirty: true,
-      syncState: "local_only" as const,
-      version: 1,
     };
 
     const id = duplicateId || createId();
@@ -462,8 +458,6 @@ export const PendingTransactionProvider = ({
 
     await upsertPendingTransaction(user.uid, {
       ...transaction,
-      syncState: "local_only",
-      dirty: true,
       updatedAt: Date.now(),
     });
     await deletePendingTransaction(user.uid, transaction.id);

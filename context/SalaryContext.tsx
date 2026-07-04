@@ -131,15 +131,12 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
     SalaryCycleSnapshot[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const seededRef = useRef("");
-
   useEffect(() => {
     if (!user?.uid) {
       setSalaryArrivals([]);
       setSalaryHistory([]);
       setSalaryCycleSnapshots([]);
       setLoading(false);
-      seededRef.current = "";
       return;
     }
 
@@ -163,43 +160,6 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
       subscription.remove?.();
     };
   }, [user?.uid]);
-
-  useEffect(() => {
-    const currentUser = user;
-
-    if (!currentUser?.uid || !userData || userData.type !== "salary") {
-      return;
-    }
-
-    if (userData.salary == null || userData.salaryDate == null) {
-      return;
-    }
-
-    if (seededRef.current === currentUser.uid || salaryHistory.length > 0) {
-      seededRef.current = currentUser.uid;
-      return;
-    }
-
-    const seedHistory = async () => {
-      const now = Date.now();
-      const seeded = await upsertSalaryHistory(currentUser.uid, {
-        id: createId(),
-        salary: Number(userData.salary || 0),
-        salaryDate: Number(userData.salaryDate || 1),
-        effectiveFromMs: now,
-        createdAtMs: now,
-        source: "seed",
-        note: "Baseline salary history created from the current profile.",
-      });
-
-      seededRef.current = currentUser.uid;
-      return seeded;
-    };
-
-    seedHistory().catch((error) => {
-      console.log("Salary history seed error:", error);
-    });
-  }, [salaryHistory.length, userData, user?.uid]);
 
   const getCycleSummary: SalaryContextType["getCycleSummary"] = (
     cycleStart,
@@ -265,12 +225,32 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
       expectedCycleStart: promptExpectedStart,
       referenceDate: promptExpectedStart,
     });
+    const previousReference = new Date(promptExpectedStart.getTime() - 1);
+    const previousBoundary = getResolvedCycleBoundary({
+      profile: userData || {},
+      salaryArrivals,
+      salaryHistory,
+      cycleStart: previousReference,
+      referenceDate: previousReference,
+    });
+    const needsConfirmation =
+      referenceDate.getTime() >= promptExpectedStart.getTime() &&
+      !promptBoundary.confirmed;
+    const activeBoundary = needsConfirmation
+      ? {
+          ...previousBoundary,
+          end: referenceDate,
+        }
+      : boundary;
 
     return {
-      ...boundary,
-      needsConfirmation:
-        referenceDate.getTime() >= promptExpectedStart.getTime() &&
-        !promptBoundary.confirmed,
+      ...activeBoundary,
+      confirmed: promptBoundary.confirmed,
+      arrival: promptBoundary.arrival,
+      expectedCycleKey: promptBoundary.expectedCycleKey,
+      expectedEnd: promptBoundary.expectedEnd,
+      expectedStart: promptBoundary.expectedStart,
+      needsConfirmation,
     };
   };
 

@@ -134,6 +134,15 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 
 export default function WelcomeScreen() {
+  const features = [
+    "Auto Detect SMS",
+    "Cloud Sync",
+    "Quick Add Expense",
+    "Smart Categories",
+    "Salary Cycle View",
+    "Beautiful Analytics",
+  ];
+
   return (
     <View
       style={{
@@ -238,42 +247,31 @@ export default function WelcomeScreen() {
             lineHeight: 25,
           }}
         >
-          A minimal and smart expense tracker for salary and self-employed
-          people.
+          A smart expense tracker built for salaried professionals and
+          self-employed individuals.
         </Animated.Text>
 
         <View
           style={{
             marginTop: 42,
-
             gap: 18,
           }}
         >
-          {[
-            "Quick Add Expense",
-            "Smart Categories",
-            "Salary Cycle View",
-            "Beautiful Analytics",
-          ].map((item, index) => (
+          {features.map((item, index) => (
             <Animated.View
               key={item}
               entering={FadeInDown.delay(180 + index * 70).duration(450)}
               style={{
                 flexDirection: "row",
-
                 alignItems: "center",
               }}
             >
               <View
                 style={{
                   width: 11,
-
                   height: 11,
-
                   borderRadius: 999,
-
                   backgroundColor: "#159B7D",
-
                   marginRight: 14,
                 }}
               />
@@ -281,9 +279,7 @@ export default function WelcomeScreen() {
               <Text
                 style={{
                   fontSize: 15,
-
                   color: "#444",
-
                   fontWeight: "600",
                 }}
               >

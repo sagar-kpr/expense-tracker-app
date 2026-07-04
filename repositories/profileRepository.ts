@@ -3,6 +3,7 @@ import * as SQLite from "expo-sqlite";
 import {
   doc,
   getDoc,
+  onSnapshot,
   setDoc,
 } from "firebase/firestore";
 
@@ -27,6 +28,15 @@ export type UserProfile = {
   businessName?: string;
   darkMode?: boolean;
   syncMode?: SyncMode;
+};
+
+export type AccountRecord = {
+  userId: string;
+  email: string;
+  displayName?: string;
+  syncMode?: SyncMode;
+  createdAt?: number;
+  updatedAt?: number;
 };
 
 const defaultProfile = (email = "", name = ""): UserProfile => ({
@@ -69,14 +79,7 @@ const mapRowToProfile = (row: any): UserProfile | null => {
 
 export const getLocalProfile = async (userId: string) => {
   if (Platform.OS === "web") {
-    const snapshot = await getDoc(doc(db, "users", userId));
-
-    return snapshot.exists()
-      ? mapRowToProfile({
-          ...(snapshot.data() as Record<string, unknown>),
-          userId,
-        })
-      : null;
+    return getRemoteProfile(userId);
   }
 
   const localDb = await getLocalDatabase();
@@ -88,28 +91,227 @@ export const getLocalProfile = async (userId: string) => {
   return mapRowToProfile(row);
 };
 
+export const getRemoteProfile = async (userId: string) => {
+  const snapshot = await getDoc(doc(db, "users", userId));
+
+  return snapshot.exists()
+    ? mapRowToProfile({
+        ...(snapshot.data() as Record<string, unknown>),
+        userId,
+      })
+      : null;
+};
+
+export const getRemoteAccountRecord = async (userId: string) => {
+  const snapshot = await getDoc(doc(db, "users", userId));
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  const data = snapshot.data() as Record<string, unknown>;
+
+  return {
+    userId,
+    email: String(data.email ?? ""),
+    displayName: data.displayName == null ? "" : String(data.displayName),
+    syncMode: (data.syncMode ?? "local_only") as SyncMode,
+    createdAt:
+      data.createdAt == null ? undefined : Number(data.createdAt),
+    updatedAt:
+      data.updatedAt == null ? undefined : Number(data.updatedAt),
+  } satisfies AccountRecord;
+};
+
+export const upsertRemoteAccountRecord = async (
+  userId: string,
+  account: Partial<Omit<AccountRecord, "userId">> & {
+    email: string;
+  },
+) => {
+  const current: AccountRecord | null = (await getRemoteAccountRecord(userId)) || {
+    userId,
+    email: "",
+    displayName: "",
+    syncMode: "local_only" as SyncMode,
+  };
+  const timestamp = nowMs();
+
+  const nextAccount: AccountRecord = {
+    userId,
+    email: account.email || current.email,
+    displayName: account.displayName ?? current.displayName ?? "",
+    syncMode: (account.syncMode ?? current.syncMode ?? "local_only") as SyncMode,
+    createdAt: current.createdAt ?? timestamp,
+    updatedAt: timestamp,
+  };
+
+  await setDoc(
+    doc(db, "users", userId),
+    {
+      ...nextAccount,
+      userId,
+    },
+    { merge: true },
+  );
+
+  return nextAccount;
+};
+
+export const ensureRemoteAccountRecord = async (
+  userId: string,
+  account: {
+    email: string;
+    displayName?: string;
+    syncMode?: SyncMode;
+  },
+  profile?: Partial<UserProfile>,
+) => {
+  const current = await getRemoteAccountRecord(userId);
+
+  if (current) {
+    const nextAccount = await upsertRemoteAccountRecord(userId, {
+      ...account,
+      email: account.email || current.email,
+      displayName: account.displayName ?? current.displayName,
+      syncMode: account.syncMode ?? current.syncMode,
+    });
+
+    if (profile) {
+      await mirrorProfileMetadataToRemote(userId, {
+        ...profile,
+        email: account.email || current.email,
+        name: profile.name ?? account.displayName ?? current.displayName,
+        syncMode: account.syncMode ?? current.syncMode,
+      });
+    }
+
+    return nextAccount;
+  }
+
+  const nextAccount = await upsertRemoteAccountRecord(userId, account);
+
+  if (profile) {
+    await mirrorProfileMetadataToRemote(userId, {
+      ...profile,
+      email: account.email,
+      name: profile.name ?? account.displayName ?? "",
+      syncMode: account.syncMode ?? "local_only",
+    });
+  }
+
+  return nextAccount;
+};
+
+export const setProfileSyncMode = async (
+  userId: string,
+  syncMode: SyncMode,
+) => {
+  const current = (await getLocalProfile(userId)) || defaultProfile();
+  const nextProfile = await saveProfile(userId, {
+    syncMode,
+  });
+
+  await upsertRemoteAccountRecord(userId, {
+    email: current.email,
+    displayName: current.name ?? "",
+    syncMode,
+  });
+
+  if (syncMode === "sync_enabled") {
+    const { uploadLocalAccountToFirestore } = await import(
+      "@/repositories/accountRepository"
+    );
+
+    await uploadLocalAccountToFirestore(userId);
+  }
+
+  return nextProfile;
+};
+
+export const mirrorProfileMetadataToRemote = async (
+  userId: string,
+  profile: Partial<UserProfile> & { email?: string; name?: string },
+) => {
+  const current = (await getRemoteAccountRecord(userId)) || {
+    userId,
+    email: "",
+    displayName: "",
+    syncMode: "local_only" as SyncMode,
+    createdAt: undefined,
+    updatedAt: undefined,
+  };
+  const timestamp = nowMs();
+  const nextName = profile.name ?? "";
+  const nextEmail = profile.email ?? current.email ?? "";
+
+  await setDoc(
+    doc(db, "users", userId),
+    {
+      userId,
+      email: nextEmail,
+      displayName: nextName,
+      name: nextName,
+      type: profile.type ?? "",
+      onboarding: Boolean(profile.onboarding),
+      businessName: profile.businessName ?? "",
+      darkMode: Boolean(profile.darkMode),
+      syncMode: (profile.syncMode ?? current.syncMode ?? "local_only") as SyncMode,
+      updatedAt: timestamp,
+      createdAt: current.createdAt ?? timestamp,
+    },
+    { merge: true },
+  );
+};
+
+export const upsertRemoteProfile = async (
+  userId: string,
+  profile: UserProfile,
+) => {
+  const current = (await getRemoteProfile(userId)) || defaultProfile();
+  const nextProfile = {
+    ...current,
+    ...profile,
+  };
+
+  if (!current.email && profile.email) {
+    nextProfile.email = profile.email;
+  }
+
+  if (!current.name && profile.name) {
+    nextProfile.name = profile.name;
+  }
+
+  if (nextProfile.onboarding == null) {
+    nextProfile.onboarding = current.onboarding ?? false;
+  }
+
+  if (nextProfile.darkMode == null) {
+    nextProfile.darkMode = current.darkMode ?? false;
+  }
+
+  if (!nextProfile.syncMode) {
+    nextProfile.syncMode = current.syncMode ?? "local_only";
+  }
+
+  await setDoc(
+    doc(db, "users", userId),
+    {
+      ...nextProfile,
+      userId,
+    },
+    { merge: true },
+  );
+
+  return nextProfile;
+};
+
 export const upsertLocalProfile = async (
   userId: string,
   profile: UserProfile,
 ) => {
   if (Platform.OS === "web") {
-    const current = (await getLocalProfile(userId)) || defaultProfile();
-    const nextProfile = {
-      ...current,
-      ...defaultProfile(profile.email, profile.name),
-      ...profile,
-    };
-
-    await setDoc(
-      doc(db, "users", userId),
-      {
-        ...nextProfile,
-        userId,
-      },
-      { merge: true },
-    );
-
-    return nextProfile;
+    return upsertRemoteProfile(userId, profile);
   }
 
   const localDb = await getLocalDatabase();
@@ -174,6 +376,20 @@ export const ensureLocalProfile = async (params: {
     return existing;
   }
 
+  const remote = await getRemoteProfile(params.userId);
+
+  if (remote) {
+    return remote;
+  }
+
+  if (Platform.OS === "web") {
+    return upsertRemoteProfile(params.userId, {
+      ...defaultProfile(params.email, params.name ?? ""),
+      email: params.email,
+      name: params.name ?? "",
+    });
+  }
+
   return upsertLocalProfile(params.userId, {
     ...defaultProfile(params.email, params.name ?? ""),
     email: params.email,
@@ -187,52 +403,20 @@ export const loadActiveProfile = async (userId: string) => {
 
 export const saveProfile = async (userId: string, updates: Partial<UserProfile>) => {
   if (Platform.OS === "web") {
-    const current = (await getLocalProfile(userId)) || defaultProfile();
-    const nextProfile = {
-      ...current,
-      ...updates,
-    };
+    const nextProfile = await upsertRemoteProfile(userId, updates as UserProfile);
 
-    await setDoc(
-      doc(db, "users", userId),
-      {
-        ...nextProfile,
-        userId,
-      },
-      { merge: true },
-    );
-
-    const snapshot = await getDoc(doc(db, "users", userId));
-
-    return snapshot.exists() ? (snapshot.data() as UserProfile) : null;
+    return nextProfile;
   }
 
   const current = (await getLocalProfile(userId)) || defaultProfile();
-  return upsertLocalProfile(userId, {
+  const nextProfile = await upsertLocalProfile(userId, {
     ...current,
     ...updates,
   });
-};
 
-export const markProfileSyncMode = async (userId: string, syncMode: SyncMode) =>
-  saveProfile(userId, { syncMode });
+  await mirrorProfileMetadataToRemote(userId, nextProfile);
 
-export const isSyncEnabled = (profile: UserProfile | null | undefined) =>
-  profile?.syncMode === "sync_enabled";
-
-export const resetLocalUserSession = async (userId: string) => {
-  if (Platform.OS === "web") {
-    return;
-  }
-
-  const localDb = await getLocalDatabase();
-
-  await localDb.runAsync(
-    "UPDATE user_profiles SET syncMode = ?, updatedAt = ? WHERE userId = ?",
-    "local_only",
-    nowMs(),
-    userId,
-  );
+  return nextProfile;
 };
 
 export const subscribeLocalProfile = (
@@ -240,6 +424,33 @@ export const subscribeLocalProfile = (
   onChange: (profile: UserProfile | null) => void,
   onError?: (error: unknown) => void,
 ) => {
+  if (Platform.OS === "web") {
+    const unsubscribe = onSnapshot(
+      doc(db, "users", userId),
+      (snapshot) => {
+        try {
+          onChange(
+            snapshot.exists()
+              ? mapRowToProfile({
+                  ...(snapshot.data() as Record<string, unknown>),
+                  userId,
+                })
+              : null,
+          );
+        } catch (error) {
+          onError?.(error);
+        }
+      },
+      (error) => {
+        onError?.(error);
+      },
+    );
+
+    return {
+      remove: unsubscribe,
+    };
+  }
+
   const run = async () => {
     try {
       onChange(await getLocalProfile(userId));
@@ -249,12 +460,6 @@ export const subscribeLocalProfile = (
   };
 
   run();
-
-  if (Platform.OS === "web") {
-    return {
-      remove() {},
-    };
-  }
 
   return SQLite.addDatabaseChangeListener((event) => {
     if (event.tableName === "user_profiles") {

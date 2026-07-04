@@ -95,30 +95,6 @@ const getExportDate = (value: unknown) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const getSafeCycleDate = (year: number, month: number, salaryDate: number) => {
-  const lastDay = new Date(year, month + 1, 0).getDate();
-
-  return new Date(year, month, Math.min(salaryDate, lastDay));
-};
-
-const getCurrentSalaryCycle = (salaryDateValue: unknown) => {
-  const salaryDate = Number(salaryDateValue || 1);
-  const now = new Date();
-  let start = getSafeCycleDate(now.getFullYear(), now.getMonth(), salaryDate);
-
-  if (now.getDate() < salaryDate) {
-    start = getSafeCycleDate(now.getFullYear(), now.getMonth() - 1, salaryDate);
-  }
-
-  const end = getSafeCycleDate(
-    start.getMonth() === 11 ? start.getFullYear() + 1 : start.getFullYear(),
-    (start.getMonth() + 1) % 12,
-    salaryDate,
-  );
-
-  return { end, start };
-};
-
 const getCategoryTotals = (transactions: ExportTransaction[]) => {
   const totals = transactions.reduce<Record<string, number>>((acc, item) => {
     if ((String(item.type || "expense") || "expense") !== "expense") {

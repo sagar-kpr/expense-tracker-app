@@ -30,6 +30,7 @@ export default function SalarySetupScreen() {
 
   const { salary, salaryDate, setSalary, setSalaryDate, reset } =
     useOnboardingStore();
+  const setShowSuccess = useOnboardingStore((state) => state.setShowSuccess);
 
   const [name, setName] = useState("");
 
@@ -113,11 +114,13 @@ export default function SalarySetupScreen() {
       });
 
       reset();
+      setShowSuccess(true);
 
       router.replace("/(auth)/success" as any);
     } catch (err) {
       console.log("Salary setup error:", err);
       setError("Something went wrong");
+      setShowSuccess(false);
     } finally {
       setLoading(false);
     }

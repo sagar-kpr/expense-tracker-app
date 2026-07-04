@@ -23,10 +23,10 @@ import SalaryArrivalModal from "@/components/SalaryArrivalModal";
 import { useExpense } from "@/context/ExpenseContext";
 import { useSalary } from "@/context/SalaryContext";
 import { auth } from "@/firebase";
-
 import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
-import { saveProfile } from "@/repositories/profileRepository";
+import { saveProfile, setProfileSyncMode } from "@/repositories/profileRepository";
+import { getSalaryArrivalWindow } from "@/services/salaryLedger";
 
 export default function ProfileScreen() {
   const { expenses } = useExpense();
@@ -52,12 +52,17 @@ export default function ProfileScreen() {
   const [showSalaryDayPicker, setShowSalaryDayPicker] = useState(false);
   const [arrivalModalVisible, setArrivalModalVisible] = useState(false);
   const [confirmingArrival, setConfirmingArrival] = useState(false);
+  const [syncSaving, setSyncSaving] = useState(false);
 
   const totalSpent = useMemo(() => {
     return expenses.reduce((sum, item) => sum + Number(item.amount), 0);
   }, [expenses]);
 
   const arrivalStatus = getCurrentArrivalStatus();
+  const arrivalWindow = getSalaryArrivalWindow({
+    profile: userData || {},
+    referenceDate: new Date(),
+  });
 
   const currentCycleSpent = useMemo(() => {
     return getCycleExpenses(arrivalStatus, expenses).reduce(
@@ -82,6 +87,7 @@ export default function ProfileScreen() {
       return date.toDateString();
     }),
   ).size;
+  const syncEnabled = userData?.syncMode === "sync_enabled";
 
   const handleEditSalary = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -991,6 +997,76 @@ export default function ProfileScreen() {
             thumbColor={theme.background}
           />
         </View>
+
+        {Platform.OS !== "web" && (
+          <>
+            <View
+              style={{
+                marginTop: 18,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: theme.text,
+                }}
+              >
+                Cloud Sync
+              </Text>
+
+              <Switch
+                value={syncEnabled}
+                onValueChange={async (value) => {
+                  const user = auth.currentUser;
+
+                  if (!user?.uid || syncSaving) {
+                    return;
+                  }
+
+                  try {
+                    setSyncSaving(true);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    await setProfileSyncMode(
+                      user.uid,
+                      value ? "sync_enabled" : "local_only",
+                    );
+                    Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Success,
+                    );
+                  } catch (error) {
+                    console.log("Cloud sync toggle error:", error);
+                    Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Error,
+                    );
+                  } finally {
+                    setSyncSaving(false);
+                  }
+                }}
+                disabled={syncSaving}
+                trackColor={{
+                  false: theme.border,
+                  true: theme.primary,
+                }}
+                thumbColor={theme.background}
+              />
+            </View>
+
+            <Text
+              style={{
+                color: theme.subText,
+                fontSize: 12,
+                lineHeight: 18,
+                marginTop: 8,
+              }}
+            >
+              Turn it on to back up local data to Firestore. Turn it off to
+              keep working locally only.
+            </Text>
+          </>
+        )}
       </Animated.View>
 
       <PrivacyDataSection />
@@ -1202,8 +1278,8 @@ export default function ProfileScreen() {
       />
       <SalaryArrivalModal
         initialDate={new Date()}
-        maximumDate={new Date()}
-        minimumDate={new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)}
+        maximumDate={arrivalWindow.maximumDate}
+        minimumDate={arrivalWindow.minimumDate}
         onClose={() => setArrivalModalVisible(false)}
         onConfirm={async (arrivedAtMs) => {
           try {

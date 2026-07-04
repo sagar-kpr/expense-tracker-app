@@ -1,7 +1,5 @@
 export type SyncMode = "local_only" | "sync_enabled" | "sync_paused";
 
-export type SyncState = "local_only" | "synced" | "dirty" | "pending_delete";
-
 export const nowMs = () => Date.now();
 
 export const createId = () => {

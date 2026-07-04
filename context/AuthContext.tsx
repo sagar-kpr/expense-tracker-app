@@ -22,13 +22,11 @@ import * as Google from "expo-auth-session/providers/google";
 import { auth } from "@/firebase";
 import {
   ensureLocalProfile,
-  getLocalProfile,
-  isSyncEnabled,
+  ensureRemoteAccountRecord,
   saveProfile,
   subscribeLocalProfile,
   type UserProfile,
 } from "@/repositories/profileRepository";
-import { bootstrapSyncedAccount, pushDirtyRows } from "@/services/sync/syncEngine";
 import { useAmountVisibilityStore } from "@/store/useAmountVisibilityStore";
 
 type AuthContextType = {
@@ -43,9 +41,6 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const MISSING_USER_PROFILE_MESSAGE =
-  "User account does not exist. Please contact support or sign up again.";
 
 const createProfile = (email: string, name = ""): UserProfile => ({
   email,
@@ -84,20 +79,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(firebaseUser);
 
-        const localProfile =
-          (await getLocalProfile(firebaseUser.uid)) ||
-          (await ensureLocalProfile({
-            userId: firebaseUser.uid,
-            email: firebaseUser.email ?? "",
-            name: firebaseUser.displayName ?? "",
-          }));
+        let localProfile = await ensureLocalProfile({
+          userId: firebaseUser.uid,
+          email: firebaseUser.email ?? "",
+          name: firebaseUser.displayName ?? "",
+        });
+
+        await ensureRemoteAccountRecord(firebaseUser.uid, {
+          email: firebaseUser.email ?? "",
+          displayName: firebaseUser.displayName ?? "",
+          syncMode: localProfile.syncMode ?? "local_only",
+        }, localProfile);
 
         setUserData(localProfile);
-
-        if (isSyncEnabled(localProfile)) {
-          await bootstrapSyncedAccount(firebaseUser.uid);
-          await pushDirtyRows(firebaseUser.uid);
-        }
 
         setLoading(false);
       } catch (error) {
@@ -140,19 +134,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { id_token } = response.params;
       const credential = GoogleAuthProvider.credential(id_token);
       const result = await signInWithCredential(auth, credential);
-      const profile = await ensureLocalProfile({
+      let profile = await ensureLocalProfile({
         userId: result.user.uid,
         email: result.user.email ?? "",
         name: result.user.displayName ?? "",
       });
 
+      await ensureRemoteAccountRecord(result.user.uid, {
+        email: result.user.email ?? "",
+        displayName: result.user.displayName ?? "",
+        syncMode: profile.syncMode ?? "local_only",
+      }, profile);
+
       setUser(result.user);
       setUserData(profile);
 
-      if (isSyncEnabled(profile)) {
-        await bootstrapSyncedAccount(result.user.uid);
-        await pushDirtyRows(result.user.uid);
-      }
     };
 
     signIn().catch((error) => console.log("Google sign-in error:", error));
@@ -169,12 +165,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loginWithEmail = async (email: string, password: string) => {
     const result = await signInWithEmailAndPassword(auth, email, password);
-    const profile = await getLocalProfile(result.user.uid);
+    let profile = await ensureLocalProfile({
+      userId: result.user.uid,
+      email: result.user.email ?? email,
+      name: result.user.displayName ?? "",
+    });
 
-    if (!profile) {
-      await signOut(auth);
-      throw new Error(MISSING_USER_PROFILE_MESSAGE);
-    }
+    await ensureRemoteAccountRecord(result.user.uid, {
+      email: result.user.email ?? email,
+      displayName: result.user.displayName ?? "",
+      syncMode: profile.syncMode ?? "local_only",
+    }, profile);
 
     setUser(result.user);
     setUserData(profile);

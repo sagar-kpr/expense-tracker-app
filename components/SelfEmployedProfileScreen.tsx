@@ -1,7 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useMemo } from "react";
-import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  Platform,
+  ScrollView,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
 import PrivacyDataSection from "@/components/PrivacyDataSection";
@@ -9,7 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
 import { auth } from "@/firebase";
-import { saveProfile } from "@/repositories/profileRepository";
+import { saveProfile, setProfileSyncMode } from "@/repositories/profileRepository";
 
 const RUPEE = "\u20B9";
 
@@ -20,6 +27,8 @@ export default function SelfEmployedProfileScreen() {
   const { expenses } = useExpense();
   const { userData, logout } = useAuth();
   const { theme, dark, setDark } = useTheme();
+  const [syncSaving, setSyncSaving] = useState(false);
+  const syncEnabled = userData?.syncMode === "sync_enabled";
 
   const totals = useMemo(
     () =>
@@ -344,7 +353,14 @@ export default function SelfEmployedProfileScreen() {
         />
       </Animated.View>
 
-      <SettingsSection dark={dark} setDark={setDark} theme={theme} />
+      <SettingsSection
+        dark={dark}
+        setDark={setDark}
+        syncEnabled={syncEnabled}
+        syncSaving={syncSaving}
+        setSyncSaving={setSyncSaving}
+        theme={theme}
+      />
 
       <PrivacyDataSection />
 
@@ -522,10 +538,16 @@ function SettingsRow({
 function SettingsSection({
   dark,
   setDark,
+  syncEnabled,
+  syncSaving,
+  setSyncSaving,
   theme,
 }: {
   dark: boolean;
   setDark: (value: boolean) => void;
+  syncEnabled: boolean;
+  syncSaving: boolean;
+  setSyncSaving: (value: boolean) => void;
   theme: any;
 }) {
   return (
@@ -577,6 +599,65 @@ function SettingsSection({
           thumbColor={dark ? theme.background : "#FFFFFF"}
         />
       </View>
+
+      {Platform.OS !== "web" && (
+        <>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 18,
+            }}
+          >
+            <Text style={{ fontSize: 16, color: theme.text }}>Cloud Sync</Text>
+            <Switch
+              value={syncEnabled}
+              onValueChange={async (value) => {
+                const user = auth.currentUser;
+
+                if (!user?.uid || syncSaving) {
+                  return;
+                }
+
+                try {
+                  setSyncSaving(true);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  await setProfileSyncMode(
+                    user.uid,
+                    value ? "sync_enabled" : "local_only",
+                  );
+                  Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Success,
+                  );
+                } catch (error) {
+                  console.log("Cloud sync toggle error:", error);
+                  Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Error,
+                  );
+                } finally {
+                  setSyncSaving(false);
+                }
+              }}
+              disabled={syncSaving}
+              trackColor={{ false: theme.border, true: theme.primary }}
+              thumbColor={syncEnabled ? theme.background : "#FFFFFF"}
+            />
+          </View>
+
+          <Text
+            style={{
+              color: theme.subText,
+              fontSize: 12,
+              lineHeight: 18,
+              marginTop: 8,
+            }}
+          >
+            Turn it on to back up business data to Firestore. Turn it off to
+            stay local only.
+          </Text>
+        </>
+      )}
     </Animated.View>
   );
 }

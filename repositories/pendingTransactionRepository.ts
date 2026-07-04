@@ -14,7 +14,8 @@ import {
 
 import { db } from "@/firebase";
 import { getLocalDatabase } from "@/database/localDb";
-import { nowMs, toJson } from "@/repositories/shared";
+import { getLocalProfile } from "@/repositories/profileRepository";
+import { nowMs } from "@/repositories/shared";
 
 export type PendingTransactionRecord = {
   id: string;
@@ -26,9 +27,6 @@ export type PendingTransactionRecord = {
   createdAt?: unknown;
   status?: "pending";
   updatedAt?: number;
-  deletedAt?: number | null;
-  dirty?: boolean;
-  syncState?: "local_only" | "synced" | "dirty" | "pending_delete";
   source?: string;
   duplicateKey?: string;
   transactionDate?: string;
@@ -45,9 +43,6 @@ const mapLocalPending = (row: any): PendingTransactionRecord => ({
   createdAt: row.createdAt,
   status: "pending",
   updatedAt: Number(row.updatedAt || 0),
-  deletedAt: row.deletedAt == null ? null : Number(row.deletedAt),
-  dirty: Boolean(row.dirty),
-  syncState: row.syncState,
 });
 
 export const listPendingTransactions = async (userId: string) => {
@@ -68,7 +63,7 @@ export const listPendingTransactions = async (userId: string) => {
 
   const dbx = await getLocalDatabase();
   const rows = await dbx.getAllAsync<any>(
-    "SELECT * FROM pending_transactions WHERE userId = ? AND deletedAt IS NULL ORDER BY createdAt DESC",
+    "SELECT * FROM pending_transactions WHERE userId = ? ORDER BY createdAt DESC",
     userId,
   );
 
@@ -105,17 +100,14 @@ export const upsertPendingTransaction = async (
   const payload = {
     ...transaction,
     userId,
-    dirty: true,
-    syncState: "local_only",
     updatedAt: timestamp,
   };
 
   await dbx.runAsync(
     `
     INSERT INTO pending_transactions (
-      id, userId, amount, description, category, type, createdAt, updatedAt,
-      deletedAt, dirty, syncState, version, payload
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, userId, amount, description, category, type, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       userId = excluded.userId,
       amount = excluded.amount,
@@ -123,12 +115,7 @@ export const upsertPendingTransaction = async (
       category = excluded.category,
       type = excluded.type,
       createdAt = excluded.createdAt,
-      updatedAt = excluded.updatedAt,
-      deletedAt = excluded.deletedAt,
-      dirty = excluded.dirty,
-      syncState = excluded.syncState,
-      version = pending_transactions.version + 1,
-      payload = excluded.payload
+      updatedAt = excluded.updatedAt
   `,
     [
       transaction.id,
@@ -139,13 +126,27 @@ export const upsertPendingTransaction = async (
       transaction.type || "expense",
       String(transaction.createdAt || new Date().toISOString()),
       timestamp,
-      transaction.deletedAt ?? null,
-      1,
-      "local_only",
-      1,
-      toJson(payload),
     ],
   );
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    const docRef = transaction.id
+      ? doc(db, "users", userId, "pendingTransactions", transaction.id)
+      : doc(collection(db, "users", userId, "pendingTransactions"));
+
+    await setDoc(
+      docRef,
+      {
+        ...payload,
+        id: docRef.id,
+      },
+      { merge: true },
+    );
+
+    payload.id = docRef.id;
+  }
 
   return payload;
 };
@@ -157,16 +158,13 @@ export const deletePendingTransaction = async (userId: string, id: string) => {
   }
 
   const dbx = await getLocalDatabase();
-  await dbx.runAsync(
-    `
-    UPDATE pending_transactions
-    SET deletedAt = ?, dirty = 1, syncState = 'pending_delete', updatedAt = updatedAt + 1
-    WHERE id = ? AND userId = ?
-  `,
-    nowMs(),
-    id,
-    userId,
-  );
+  await dbx.runAsync("DELETE FROM pending_transactions WHERE id = ? AND userId = ?", id, userId);
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    await deleteDoc(doc(db, "users", userId, "pendingTransactions", id));
+  }
 };
 
 export const updatePendingTransaction = async (
@@ -194,14 +192,12 @@ export const updatePendingTransaction = async (
     ...current,
     ...data,
     updatedAt: nowMs(),
-    dirty: 1,
-    syncState: "local_only",
   };
 
   await dbx.runAsync(
     `
     UPDATE pending_transactions
-    SET amount = ?, description = ?, category = ?, type = ?, createdAt = ?, updatedAt = ?, dirty = 1, syncState = 'local_only', payload = ?
+    SET amount = ?, description = ?, category = ?, type = ?, createdAt = ?, updatedAt = ?
     WHERE id = ? AND userId = ?
   `,
     [
@@ -211,11 +207,24 @@ export const updatePendingTransaction = async (
       next.type || "expense",
       String(next.createdAt || new Date().toISOString()),
       next.updatedAt,
-      toJson(next),
       id,
       userId,
     ],
   );
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    await setDoc(
+      doc(db, "users", userId, "pendingTransactions", id),
+      {
+        ...next,
+        id,
+        userId,
+      },
+      { merge: true },
+    );
+  }
 };
 
 export const subscribePendingTransactions = (

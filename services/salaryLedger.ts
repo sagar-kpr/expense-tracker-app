@@ -77,6 +77,49 @@ const getSafeCycleDate = (year: number, month: number, salaryDate: number) => {
   return new Date(year, month, Math.min(salaryDate, lastDay));
 };
 
+const startOfDay = (date: Date) => {
+  const next = new Date(date);
+
+  next.setHours(0, 0, 0, 0);
+
+  return next;
+};
+
+export type SalaryArrivalWindow = {
+  minimumDate: Date;
+  maximumDate: Date;
+};
+
+export const getSalaryArrivalWindow = ({
+  profile,
+  referenceDate = new Date(),
+}: {
+  profile: SalaryProfileLike;
+  referenceDate?: Date;
+}): SalaryArrivalWindow => {
+  const salaryDate = Math.max(1, Math.floor(Number(profile.salaryDate || 1)));
+  const today = startOfDay(referenceDate);
+  const salaryDay = getSafeCycleDate(
+    today.getFullYear(),
+    today.getMonth(),
+    salaryDate,
+  );
+
+  salaryDay.setHours(0, 0, 0, 0);
+
+  if (today.getTime() <= salaryDay.getTime()) {
+    return {
+      minimumDate: today,
+      maximumDate: salaryDay,
+    };
+  }
+
+  return {
+    minimumDate: salaryDay,
+    maximumDate: today,
+  };
+};
+
 export const getCurrentSalaryCycle = (
   salaryDateValue: number,
   referenceDate = new Date(),

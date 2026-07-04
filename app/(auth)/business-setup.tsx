@@ -11,6 +11,7 @@ import * as Haptics from "expo-haptics";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 import { useAuth } from "@/context/AuthContext";
+import { useOnboardingStore } from "@/store/useOnboardingStore";
 
 import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
 import { saveProfile } from "@/repositories/profileRepository";
@@ -18,6 +19,7 @@ import { saveProfile } from "@/repositories/profileRepository";
 export default function BusinessSetupScreen() {
   useBlockAndroidBack();
   const { user } = useAuth();
+  const setShowSuccess = useOnboardingStore((state) => state.setShowSuccess);
 
   const [name, setName] = useState("");
 
@@ -56,9 +58,11 @@ export default function BusinessSetupScreen() {
         onboarding: true,
       });
 
+      setShowSuccess(true);
       router.replace("/(auth)/success" as any);
     } catch {
       setError("Something went wrong");
+      setShowSuccess(false);
     } finally {
       setLoading(false);
     }

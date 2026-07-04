@@ -14,6 +14,7 @@ import {
 
 import { db } from "@/firebase";
 import { getLocalDatabase } from "@/database/localDb";
+import { getLocalProfile } from "@/repositories/profileRepository";
 import { nowMs, toJson } from "@/repositories/shared";
 
 export type SalaryHistoryEntry = {
@@ -118,7 +119,7 @@ export const listSalaryHistory = async (userId: string) => {
 
   const dbx = await getLocalDatabase();
   const rows = await dbx.getAllAsync<any>(
-    "SELECT * FROM salary_history WHERE userId = ? AND deletedAt IS NULL ORDER BY createdAtMs ASC",
+    "SELECT * FROM salary_history WHERE userId = ? ORDER BY createdAtMs ASC",
     userId,
   );
 
@@ -139,7 +140,7 @@ export const listSalaryArrivals = async (userId: string) => {
 
   const dbx = await getLocalDatabase();
   const rows = await dbx.getAllAsync<any>(
-    "SELECT * FROM salary_arrivals WHERE userId = ? AND deletedAt IS NULL ORDER BY arrivedAtMs ASC",
+    "SELECT * FROM salary_arrivals WHERE userId = ? ORDER BY arrivedAtMs ASC",
     userId,
   );
 
@@ -160,7 +161,7 @@ export const listSalarySnapshots = async (userId: string) => {
 
   const dbx = await getLocalDatabase();
   const rows = await dbx.getAllAsync<any>(
-    "SELECT * FROM salary_cycle_snapshots WHERE userId = ? AND deletedAt IS NULL ORDER BY cycleStartMs ASC",
+    "SELECT * FROM salary_cycle_snapshots WHERE userId = ? ORDER BY cycleStartMs ASC",
     userId,
   );
 
@@ -187,8 +188,8 @@ export const upsertSalaryHistory = async (
     `
     INSERT INTO salary_history (
       id, userId, salary, salaryDate, effectiveFromMs, createdAtMs, source,
-      note, updatedAt, deletedAt, dirty, syncState, version, payload
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      note, updatedAt, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       userId = excluded.userId,
       salary = excluded.salary,
@@ -198,9 +199,6 @@ export const upsertSalaryHistory = async (
       source = excluded.source,
       note = excluded.note,
       updatedAt = excluded.updatedAt,
-      dirty = excluded.dirty,
-      syncState = excluded.syncState,
-      version = salary_history.version + 1,
       payload = excluded.payload
   `,
     [
@@ -213,13 +211,19 @@ export const upsertSalaryHistory = async (
       entry.source ?? null,
       entry.note ?? null,
       timestamp,
-      null,
-      1,
-      "local_only",
-      1,
       toJson(payload),
     ],
   );
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    await setDoc(doc(db, "users", userId, "salaryHistory", entry.id), {
+      ...payload,
+      id: entry.id,
+      userId,
+    });
+  }
 
   return payload;
 };
@@ -242,9 +246,8 @@ export const upsertSalaryArrival = async (
     `
     INSERT INTO salary_arrivals (
       id, userId, arrivedAtMs, createdAtMs, cycleKey, expectedCycleKey,
-      salary, salaryDate, source, updatedAt, deletedAt, dirty, syncState,
-      version, payload
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      salary, salaryDate, source, updatedAt, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       userId = excluded.userId,
       arrivedAtMs = excluded.arrivedAtMs,
@@ -255,9 +258,6 @@ export const upsertSalaryArrival = async (
       salaryDate = excluded.salaryDate,
       source = excluded.source,
       updatedAt = excluded.updatedAt,
-      dirty = excluded.dirty,
-      syncState = excluded.syncState,
-      version = salary_arrivals.version + 1,
       payload = excluded.payload
   `,
     [
@@ -271,13 +271,19 @@ export const upsertSalaryArrival = async (
       entry.salaryDate,
       entry.source ?? null,
       timestamp,
-      null,
-      1,
-      "local_only",
-      1,
       toJson(payload),
     ],
   );
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    await setDoc(doc(db, "users", userId, "salaryArrivals", entry.expectedCycleKey), {
+      ...payload,
+      id: entry.expectedCycleKey,
+      userId,
+    });
+  }
 
   return payload;
 };
@@ -301,9 +307,8 @@ export const upsertSalarySnapshot = async (
     INSERT INTO salary_cycle_snapshots (
       id, userId, cycleKey, expectedCycleKey, cycleStartMs, cycleEndMs, salary,
       salaryDate, totalSpent, remaining, usagePercent, expenseCount, source,
-      updatedAtMs, createdAtMs, updatedAt, deletedAt, dirty, syncState,
-      version, payload
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      updatedAtMs, createdAtMs, updatedAt, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       userId = excluded.userId,
       cycleKey = excluded.cycleKey,
@@ -320,9 +325,6 @@ export const upsertSalarySnapshot = async (
       updatedAtMs = excluded.updatedAtMs,
       createdAtMs = excluded.createdAtMs,
       updatedAt = excluded.updatedAt,
-      dirty = excluded.dirty,
-      syncState = excluded.syncState,
-      version = salary_cycle_snapshots.version + 1,
       payload = excluded.payload
   `,
     [
@@ -342,13 +344,19 @@ export const upsertSalarySnapshot = async (
       entry.updatedAtMs,
       entry.createdAtMs,
       timestamp,
-      null,
-      1,
-      "local_only",
-      1,
       toJson(payload),
     ],
   );
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    await setDoc(doc(db, "users", userId, "salaryCycleSnapshots", entry.cycleKey), {
+      ...payload,
+      id: entry.cycleKey,
+      userId,
+    });
+  }
 
   return payload;
 };
@@ -360,12 +368,13 @@ export const deleteSalarySnapshot = async (userId: string, id: string) => {
   }
 
   const dbx = await getLocalDatabase();
-  await dbx.runAsync(
-    "UPDATE salary_cycle_snapshots SET deletedAt = ?, dirty = 1, syncState = 'pending_delete' WHERE id = ? AND userId = ?",
-    nowMs(),
-    id,
-    userId,
-  );
+  await dbx.runAsync("DELETE FROM salary_cycle_snapshots WHERE id = ? AND userId = ?", id, userId);
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    await deleteDoc(doc(db, "users", userId, "salaryCycleSnapshots", id));
+  }
 };
 
 export const subscribeSalaryRecords = (

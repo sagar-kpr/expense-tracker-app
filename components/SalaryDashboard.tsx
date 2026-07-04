@@ -25,6 +25,7 @@ import { useExpense } from "@/context/ExpenseContext";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
 import { useSalary } from "@/context/SalaryContext";
 import { useTheme } from "@/context/ThemeContext";
+import { getSalaryArrivalWindow } from "@/services/salaryLedger";
 import { useAmountVisibilityStore } from "@/store/useAmountVisibilityStore";
 
 const RUPEE = "\u20B9";
@@ -117,12 +118,15 @@ export default function SalaryDashboard() {
   >(null);
 
   const arrivalStatus = getCurrentArrivalStatus();
+  const arrivalWindow = getSalaryArrivalWindow({
+    profile: userData || {},
+    referenceDate: new Date(),
+  });
   const expenseItems = useMemo<DashboardExpense[]>(
     () => getCycleExpenses(arrivalStatus, expenses) as DashboardExpense[],
     [arrivalStatus, expenses, getCycleExpenses],
   );
   const cycleSummary = getCycleSummary(arrivalStatus.start, {
-    expectedCycleStart: arrivalStatus.expectedStart,
     preferCurrentProfile: true,
   });
   const salary = Number(cycleSummary.salary || userData?.salary || 0);
@@ -668,8 +672,8 @@ export default function SalaryDashboard() {
       </Modal>
       <SalaryArrivalModal
         initialDate={new Date()}
-        maximumDate={new Date()}
-        minimumDate={new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)}
+        maximumDate={arrivalWindow.maximumDate}
+        minimumDate={arrivalWindow.minimumDate}
         onClose={() => setArrivalModalVisible(false)}
         onConfirm={async (arrivedAtMs) => {
           try {

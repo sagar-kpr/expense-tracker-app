@@ -40,10 +40,6 @@ CREATE TABLE IF NOT EXISTS expenses (
   type TEXT NOT NULL DEFAULT 'expense',
   createdAt TEXT NOT NULL,
   updatedAt INTEGER NOT NULL,
-  deletedAt INTEGER,
-  dirty INTEGER NOT NULL DEFAULT 1,
-  syncState TEXT NOT NULL DEFAULT 'local_only',
-  version INTEGER NOT NULL DEFAULT 1,
   payload TEXT NOT NULL,
   FOREIGN KEY(userId) REFERENCES user_profiles(userId) ON DELETE CASCADE
 );
@@ -60,11 +56,6 @@ CREATE TABLE IF NOT EXISTS pending_transactions (
   type TEXT NOT NULL DEFAULT 'expense',
   createdAt TEXT NOT NULL,
   updatedAt INTEGER NOT NULL,
-  deletedAt INTEGER,
-  dirty INTEGER NOT NULL DEFAULT 1,
-  syncState TEXT NOT NULL DEFAULT 'local_only',
-  version INTEGER NOT NULL DEFAULT 1,
-  payload TEXT NOT NULL,
   FOREIGN KEY(userId) REFERENCES user_profiles(userId) ON DELETE CASCADE
 );
 
@@ -81,11 +72,6 @@ CREATE TABLE IF NOT EXISTS salary_history (
   source TEXT,
   note TEXT,
   updatedAt INTEGER NOT NULL,
-  deletedAt INTEGER,
-  dirty INTEGER NOT NULL DEFAULT 1,
-  syncState TEXT NOT NULL DEFAULT 'local_only',
-  version INTEGER NOT NULL DEFAULT 1,
-  payload TEXT NOT NULL,
   FOREIGN KEY(userId) REFERENCES user_profiles(userId) ON DELETE CASCADE
 );
 
@@ -103,11 +89,6 @@ CREATE TABLE IF NOT EXISTS salary_arrivals (
   salaryDate INTEGER NOT NULL,
   source TEXT,
   updatedAt INTEGER NOT NULL,
-  deletedAt INTEGER,
-  dirty INTEGER NOT NULL DEFAULT 1,
-  syncState TEXT NOT NULL DEFAULT 'local_only',
-  version INTEGER NOT NULL DEFAULT 1,
-  payload TEXT NOT NULL,
   FOREIGN KEY(userId) REFERENCES user_profiles(userId) ON DELETE CASCADE
 );
 
@@ -131,11 +112,6 @@ CREATE TABLE IF NOT EXISTS salary_cycle_snapshots (
   updatedAtMs INTEGER NOT NULL,
   createdAtMs INTEGER NOT NULL,
   updatedAt INTEGER NOT NULL,
-  deletedAt INTEGER,
-  dirty INTEGER NOT NULL DEFAULT 1,
-  syncState TEXT NOT NULL DEFAULT 'local_only',
-  version INTEGER NOT NULL DEFAULT 1,
-  payload TEXT NOT NULL,
   FOREIGN KEY(userId) REFERENCES user_profiles(userId) ON DELETE CASCADE
 );
 

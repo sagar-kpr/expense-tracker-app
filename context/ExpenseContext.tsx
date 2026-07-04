@@ -138,10 +138,6 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
       type,
       createdAt: new Date().toISOString(),
       updatedAt: Date.now(),
-      deletedAt: null,
-      dirty: true,
-      syncState: "local_only",
-      version: 1,
     });
   };
 
