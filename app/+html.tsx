@@ -18,8 +18,8 @@ export default function Html({ children }: PropsWithChildren) {
         />
         <meta name="theme-color" content="#16A34A" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/web-app-icon.png" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/icon.png" />
+        <link rel="icon" href="/favicon.png" />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>
