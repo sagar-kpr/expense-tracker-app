@@ -4,50 +4,155 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
 };
 
-const SMS_RESULT_SCHEMA = {
-  properties: {
-    amount: {
-      description: "Transaction amount only. Use 0 when not a transaction.",
-      type: "number",
-    },
-    category: {
-      description:
-        "Short category like Food, Travel, Shopping, Bills, Health, Salary, Refund, Cash, Other.",
-      type: "string",
-    },
-    isTransaction: {
-      description:
-        "True only when this is a valid, actual, completed bank/payment transaction SMS. False for fake, suspicious, personal, OTP, offer, failed, pending, reminder, balance-only, or non-transaction messages.",
-      type: "boolean",
-    },
-    summary: {
-      description: "Short user-facing transaction description.",
-      type: "string",
-    },
-    transactionDate: {
-      description:
-        "ISO date/time if clearly present in SMS, otherwise an empty string.",
-      type: "string",
-    },
-    type: {
-      description:
-        "expense for debit/spend/payment, income for credit/received, none when ignored.",
-      enum: ["expense", "income", "none"],
-      type: "string",
-    },
+const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
+const FIRESTORE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const FIRESTORE_API_BASE = (projectId) =>
+  `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+
+let cachedFirestoreAccessToken;
+let cachedFirestoreAccessTokenExpiry = 0;
+let cachedJwks;
+const expenseKeywords = [
+  "debited",
+  "withdrawn",
+  "spent",
+  "paid",
+  "purchase",
+  "sent",
+  "upi payment",
+];
+
+const incomeKeywords = [
+  "credited",
+  "deposited",
+  "salary",
+  "refund",
+  "cashback",
+  "received",
+];
+
+const transactionKeywords = [...expenseKeywords, ...incomeKeywords];
+
+const expenseCategoryKeywords = [
+  { category: "Food", keywords: ["restaurant", "swiggy", "zomato", "food"] },
+  { category: "Travel", keywords: ["ola", "uber", "metro", "fuel", "petrol"] },
+  {
+    category: "Shopping",
+    keywords: ["amazon", "flipkart", "myntra", "purchase", "shopping"],
   },
-  required: [
-    "isTransaction",
-    "type",
-    "amount",
-    "category",
-    "summary",
-    "transactionDate",
-  ],
-  type: "object",
+  {
+    category: "Bills",
+    keywords: ["bill", "electricity", "recharge", "broadband", "mobile"],
+  },
+  { category: "Health", keywords: ["hospital", "medical", "pharmacy"] },
+];
+
+const amountPatterns = [
+  /(?:inr|rs\.?|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/gi,
+  /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:inr|rs\.?|₹)/gi,
+  /([0-9,]+(?:\.[0-9]{1,2})?)/gi,
+];
+
+const cleanAmount = (value) => Number(String(value || "").replace(/,/g, ""));
+
+const includesAny = (message, keywords) =>
+  keywords.some((keyword) => message.includes(keyword));
+
+const getFirstKeywordIndex = (message, keywords) => {
+  const indexes = keywords
+    .map((keyword) => message.indexOf(keyword))
+    .filter((index) => index >= 0);
+
+  return indexes.length > 0 ? Math.min(...indexes) : -1;
 };
 
-let cachedJwks;
+const getManualTransactionType = (message) => {
+  const expenseIndex = getFirstKeywordIndex(message, expenseKeywords);
+  const incomeIndex = getFirstKeywordIndex(message, incomeKeywords);
+
+  if (expenseIndex < 0 && incomeIndex < 0) {
+    return null;
+  }
+
+  if (expenseIndex < 0) {
+    return "income";
+  }
+
+  if (incomeIndex < 0) {
+    return "expense";
+  }
+
+  return expenseIndex <= incomeIndex ? "expense" : "income";
+};
+
+const getManualCategory = (message, type) => {
+  if (type === "income") {
+    if (message.includes("salary")) {
+      return "Salary";
+    }
+
+    if (message.includes("refund") || message.includes("cashback")) {
+      return "Refund";
+    }
+
+    return "Cash";
+  }
+
+  const match = expenseCategoryKeywords.find((item) =>
+    includesAny(message, item.keywords),
+  );
+
+  return match?.category || "Other";
+};
+
+const isBalanceAmount = (message, startIndex) => {
+  const context = message.slice(Math.max(0, startIndex - 30), startIndex);
+
+  return /\b(?:avl|available|bal|balance|closing|current)\b/i.test(context);
+};
+
+const getAmount = (message) => {
+  const matches = [];
+
+  for (const pattern of amountPatterns) {
+    pattern.lastIndex = 0;
+
+    let match;
+    while ((match = pattern.exec(message)) !== null) {
+      if (!match[1]) {
+        continue;
+      }
+
+      const amount = cleanAmount(match[1]);
+
+      if (Number.isFinite(amount) && amount > 0) {
+        matches.push({ amount, index: match.index });
+      }
+    }
+  }
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const nonBalanceMatch = matches.find(
+    (match) => !isBalanceAmount(message, match.index),
+  );
+
+  return nonBalanceMatch ? nonBalanceMatch.amount : matches[0].amount;
+};
+
+const getDescription = (rawMessage, type) => {
+  const normalized = String(rawMessage || "").replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return type === "income" ? "Detected income" : "Detected expense";
+  }
+
+  return normalized.length > 72
+    ? `${normalized.slice(0, 69).trim()}...`
+    : normalized;
+};
 
 const jsonResponse = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -66,6 +171,304 @@ const errorResponse = (message, status = 500, details = {}) =>
     },
     status,
   );
+
+const normalizeMessageKey = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getPendingDuplicateKey = (rawMessage) => normalizeMessageKey(rawMessage);
+
+const toBase64Url = (input) => {
+  const bytes =
+    typeof input === "string"
+      ? new TextEncoder().encode(input)
+      : input instanceof ArrayBuffer
+        ? new Uint8Array(input)
+        : input instanceof Uint8Array
+          ? input
+          : new Uint8Array(input);
+
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+};
+
+const pemToArrayBuffer = (pem) => {
+  const normalized = String(pem || "")
+    .trim()
+    .replace(/^"(.*)"$/s, "$1")
+    .replace(/\\n/g, "\n");
+
+  const clean = normalized
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s+/g, "");
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes.buffer;
+};
+
+const toFirestoreValue = (value) => {
+  if (value === null || value === undefined) {
+    return { nullValue: null };
+  }
+
+  if (Array.isArray(value)) {
+    return {
+      arrayValue: {
+        values: value.map(toFirestoreValue),
+      },
+    };
+  }
+
+  if (value instanceof Date) {
+    return { timestampValue: value.toISOString() };
+  }
+
+  switch (typeof value) {
+    case "string":
+      return { stringValue: value };
+    case "number":
+      return Number.isInteger(value)
+        ? { integerValue: String(value) }
+        : { doubleValue: value };
+    case "boolean":
+      return { booleanValue: value };
+    case "object":
+      return {
+        mapValue: {
+          fields: toFirestoreFields(value),
+        },
+      };
+    default:
+      return { stringValue: String(value) };
+  }
+};
+
+const toFirestoreFields = (value) =>
+  Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .map(([key, item]) => [key, toFirestoreValue(item)]),
+  );
+
+const getServiceAccountAccessToken = async (env) => {
+  const now = Date.now();
+
+  if (
+    cachedFirestoreAccessToken &&
+    cachedFirestoreAccessTokenExpiry > now + 30_000
+  ) {
+    return cachedFirestoreAccessToken;
+  }
+
+  if (!env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) {
+    throw new Error("Missing Firestore service account credentials.");
+  }
+
+  const issuedAt = Math.floor(now / 1000);
+  const assertionPayload = {
+    aud: FIRESTORE_TOKEN_URL,
+    exp: issuedAt + 3600,
+    iat: issuedAt,
+    iss: env.FIREBASE_CLIENT_EMAIL,
+    scope: FIRESTORE_SCOPE,
+  };
+  const header = {
+    alg: "RS256",
+    typ: "JWT",
+  };
+  const unsignedToken = `${toBase64Url(
+    JSON.stringify(header),
+  )}.${toBase64Url(JSON.stringify(assertionPayload))}`;
+  const privateKey = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToArrayBuffer(env.FIREBASE_PRIVATE_KEY),
+    {
+      hash: "SHA-256",
+      name: "RSASSA-PKCS1-v1_5",
+    },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    privateKey,
+    new TextEncoder().encode(unsignedToken),
+  );
+  const assertion = `${unsignedToken}.${toBase64Url(signature)}`;
+
+  const tokenResponse = await fetch(FIRESTORE_TOKEN_URL, {
+    body: new URLSearchParams({
+      assertion,
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    }),
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    method: "POST",
+  });
+
+  if (!tokenResponse.ok) {
+    const text = await tokenResponse.text();
+    throw new Error(
+      `Unable to mint Firestore access token (${tokenResponse.status}): ${text.slice(0, 500)}`,
+    );
+  }
+
+  const tokenData = await tokenResponse.json();
+
+  cachedFirestoreAccessToken = tokenData.access_token;
+  cachedFirestoreAccessTokenExpiry =
+    now + Number(tokenData.expires_in || 3600) * 1000;
+
+  return cachedFirestoreAccessToken;
+};
+
+const getFirestoreDocument = async (env, documentPath) => {
+  const accessToken = await getServiceAccountAccessToken(env);
+  const response = await fetch(
+    `${FIRESTORE_API_BASE(env.FIREBASE_PROJECT_ID)}/${documentPath}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      method: "GET",
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(
+      `Firestore read failed (${response.status}): ${text.slice(0, 500)}`,
+    );
+  }
+
+  return response.json();
+};
+
+const userDocumentExists = async (env, userId) => {
+  const document = await getFirestoreDocument(
+    env,
+    `users/${encodeURIComponent(userId)}`,
+  );
+
+  return Boolean(document);
+};
+
+const buildPendingTransactionRecord = (
+  message,
+  senderId,
+  classification,
+  source,
+) => ({
+  amount: classification.amount,
+  category: classification.category,
+  createdAt: new Date().toISOString(),
+  description: classification.summary,
+  duplicateKey: getPendingDuplicateKey(message),
+  senderId: senderId || undefined,
+  source: source || "web-api",
+  status: "pending",
+  transactionDate: classification.transactionDate || new Date().toISOString(),
+  type: classification.type,
+  updatedAt: Date.now(),
+});
+
+const writePendingTransactionToFirestore = async (env, userId, transaction) => {
+  const accessToken = await getServiceAccountAccessToken(env);
+  const documentName = `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/users/${userId}/pendingTransactions/${transaction.id}`;
+  const response = await fetch(
+    `${FIRESTORE_API_BASE(env.FIREBASE_PROJECT_ID)}:commit`,
+    {
+      body: JSON.stringify({
+        writes: [
+          {
+            update: {
+              fields: toFirestoreFields({
+                ...transaction,
+                userId,
+              }),
+              name: documentName,
+            },
+          },
+        ],
+      }),
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(
+      `Firestore write failed (${response.status}): ${text.slice(0, 500)}`,
+    );
+  }
+
+  return response.json();
+};
+
+const classifySmsTransaction = async (message, source, senderId) => {
+  const normalizedMessage = String(message || "").toLowerCase();
+  const amount = getAmount(message);
+  const type = getManualTransactionType(normalizedMessage);
+
+  if (!amount || !type) {
+    return {
+      amount: 0,
+      category: "",
+      isTransaction: false,
+      summary: "",
+      transactionDate: null,
+      type: "none",
+    };
+  }
+
+  return {
+    amount,
+    category: getManualCategory(normalizedMessage, type),
+    isTransaction: true,
+    summary: getDescription(message, type),
+    transactionDate: new Date().toISOString(),
+    type,
+  };
+};
+
+const parsePendingTransactionsPath = (pathname) => {
+  const parts = pathname.split("/").filter(Boolean);
+
+  if (
+    parts.length !== 3 ||
+    parts[0] !== "api" ||
+    parts[2] !== "pending-transactions"
+  ) {
+    return null;
+  }
+
+  return parts[1] || null;
+};
 
 const base64UrlToBytes = (value) => {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -166,133 +569,169 @@ const getBearerToken = (request) => {
   return match?.[1] || null;
 };
 
-const getGeminiOutputText = (body) => {
-  for (const candidate of body?.candidates || []) {
-    const text = candidate?.content?.parts?.find(
-      (part) => typeof part?.text === "string",
-    )?.text;
+const handlePendingTransactionStore = async (request, env) => {
+  const token = getBearerToken(request);
 
-    if (text) {
-      return text;
-    }
-  }
-
-  return null;
-};
-
-const normalizeSmsResult = (result) => {
-  const isValidTransaction =
-    result?.isTransaction === true &&
-    (result.type === "expense" || result.type === "income") &&
-    Number.isFinite(result.amount) &&
-    result.amount > 0;
-
-  if (!isValidTransaction) {
-    return {
-      amount: 0,
-      category: "",
-      isTransaction: false,
-      summary: "",
-      transactionDate: null,
-      type: "none",
-    };
-  }
-
-  return {
-    amount: result.amount,
-    category:
-      String(result.category || "").trim() ||
-      (result.type === "income" ? "Cash" : "Other"),
-    isTransaction: true,
-    summary: String(result.summary || "").trim() || "Detected transaction",
-    transactionDate:
-      typeof result.transactionDate === "string" &&
-      result.transactionDate.trim()
-        ? result.transactionDate.trim()
-        : null,
-    type: result.type,
-  };
-};
-
-const detectSmsTransaction = async (message, source, senderId, env) => {
-  const model = env.GEMINI_SMS_MODEL || "gemini-2.5-flash-lite";
-
-  if (!env.GEMINI_API_KEY) {
-    return errorResponse("Missing Gemini API key.", 500, {
-      phase: "gemini-setup",
-    });
-  }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `Source: ${source || "unknown"}\nSender ID: ${
-                  senderId || "unknown"
-                }\nSMS:\n${message}`,
-              },
-            ],
-            role: "user",
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 250,
-          responseMimeType: "application/json",
-          responseSchema: SMS_RESULT_SCHEMA,
-        },
-        systemInstruction: {
-          parts: [
-            {
-              text: "You classify Indian bank/payment SMS messages. Return only the requested JSON. Set isTransaction true only when the message is a valid, actual, completed debit/expense or credit/income transaction from a bank, card issuer, UPI app, wallet, or payment provider. Use the Sender ID when present; genuine Indian sender IDs often look like AD-HDFCBK, VM-ICICIB, JD-SBIBNK, or similar bank/payment short codes. Set isTransaction false for unknown/personal-looking senders, fake or suspicious messages, personal messages pretending payment happened, phishing, prize/refund scams, suspicious links, OTP/PIN/password requests, urgent KYC/account-blocking threats, offers, bill due reminders, statement summaries, balance-only alerts, failed/reversed/pending/declined payments, and non-transaction messages. When false, return type none, amount 0, and empty category, summary, and transactionDate. Do not classify only from keywords; read the full message.",
-            },
-          ],
-        },
-      }),
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": env.GEMINI_API_KEY,
-      },
-      method: "POST",
-    },
-  );
-  console.log("Response:", response);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-
-    console.error("Gemini SMS detection failed", {
-      body: errorText.slice(0, 500),
-      status: response.status,
-    });
-
-    return errorResponse("Gemini request failed.", 502, {
-      aiStatus: response.status,
-      aiText: errorText.slice(0, 700),
-      phase: "gemini-request",
-    });
-  }
-
-  const body = await response.json();
-  const outputText = getGeminiOutputText(body);
-
-  if (!outputText) {
-    return errorResponse("No Gemini output.", 502, {
-      phase: "gemini-output",
-    });
+  if (!token) {
+    return errorResponse("Missing authorization token.", 401);
   }
 
   try {
-    return jsonResponse(normalizeSmsResult(JSON.parse(outputText)));
-  } catch (error) {
-    console.error("Gemini SMS detection JSON parse failed", error);
+    const payload = await verifyFirebaseIdToken(token, env.FIREBASE_PROJECT_ID);
+    const data = await request.json();
+    const message =
+      typeof data?.message === "string" ? data.message.trim() : "";
+    const source =
+      typeof data?.source === "string" ? data.source.trim() : "web-api";
+    const senderId =
+      typeof data?.senderId === "string" ? data.senderId.trim() : "";
 
-    return errorResponse("Invalid Gemini output.", 502, {
-      outputText: outputText.slice(0, 700),
-      phase: "gemini-json-parse",
+    if (!message) {
+      return errorResponse("SMS message is required.", 400);
+    }
+
+    if (message.length > 2000) {
+      return errorResponse("SMS message is too long.", 400);
+    }
+
+    const classificationResponse = await classifySmsTransaction(
+      message,
+      source,
+      senderId,
+    );
+
+    if (classificationResponse instanceof Response) {
+      return classificationResponse;
+    }
+
+    if (!classificationResponse.isTransaction) {
+      return jsonResponse(
+        {
+          pending: null,
+          reason: "not-a-transaction",
+          result: classificationResponse,
+        },
+        200,
+      );
+    }
+
+    const pending = buildPendingTransactionRecord(
+      message,
+      senderId,
+      classificationResponse,
+      source,
+    );
+    pending.id = `sms_${Math.abs(
+      getPendingDuplicateKey(message)
+        .split("")
+        .reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 0),
+    ).toString(36)}`;
+
+    const userId = payload.user_id || payload.sub;
+
+    await writePendingTransactionToFirestore(env, userId, pending);
+
+    return jsonResponse(
+      {
+        pending,
+        result: classificationResponse,
+        stored: true,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("Pending transaction store failed", error);
+
+    return errorResponse("Unable to store pending transaction.", 500);
+  }
+};
+
+const handleUidPendingTransactionStore = async (request, env, userId) => {
+  try {
+    if (!userId) {
+      return errorResponse("Missing user id.", 400);
+    }
+
+    const exists = await userDocumentExists(env, userId);
+
+    if (!exists) {
+      return errorResponse("User not found.", 404, {
+        userId,
+      });
+    }
+
+    let data;
+
+    try {
+      data = await request.json();
+    } catch {
+      return errorResponse("Invalid JSON body.", 400);
+    }
+
+    const message =
+      typeof data?.message === "string" ? data.message.trim() : "";
+    const source =
+      typeof data?.source === "string" ? data.source.trim() : "web-api";
+    const senderId =
+      typeof data?.senderId === "string" ? data.senderId.trim() : "";
+
+    if (!message) {
+      return errorResponse("SMS message is required.", 400);
+    }
+
+    if (message.length > 2000) {
+      return errorResponse("SMS message is too long.", 400);
+    }
+
+    const classificationResponse = await classifySmsTransaction(
+      message,
+      source,
+      senderId,
+    );
+
+    if (classificationResponse instanceof Response) {
+      return classificationResponse;
+    }
+
+    if (!classificationResponse.isTransaction) {
+      return jsonResponse(
+        {
+          pending: null,
+          reason: "not-a-transaction",
+          result: classificationResponse,
+        },
+        200,
+      );
+    }
+
+    const pending = buildPendingTransactionRecord(
+      message,
+      senderId,
+      classificationResponse,
+      source,
+    );
+    pending.id = `sms_${Math.abs(
+      getPendingDuplicateKey(message)
+        .split("")
+        .reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 0),
+    ).toString(36)}`;
+    pending.userId = userId;
+
+    await writePendingTransactionToFirestore(env, userId, pending);
+
+    return jsonResponse(
+      {
+        pending,
+        result: classificationResponse,
+        stored: true,
+      },
+      200,
+    );
+  } catch (error) {
+    console.error("UID pending transaction handler failed", error);
+
+    return errorResponse("Unable to store pending transaction.", 500, {
+      message: error instanceof Error ? error.message : String(error),
     });
   }
 };
@@ -303,8 +742,19 @@ export default {
       return new Response(null, { headers: CORS_HEADERS, status: 204 });
     }
 
+    const pathname = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
+
+    const pendingUserId = parsePendingTransactionsPath(pathname);
+    if (pendingUserId) {
+      return handleUidPendingTransactionStore(request, env, pendingUserId);
+    }
+
     if (request.method !== "POST") {
       return errorResponse("Method not allowed.", 405);
+    }
+
+    if (pathname === "/api/pending-transactions") {
+      return handlePendingTransactionStore(request, env);
     }
 
     const token = getBearerToken(request);
@@ -344,6 +794,8 @@ export default {
       return errorResponse("SMS message is too long.", 400);
     }
 
-    return detectSmsTransaction(message.trim(), source, senderId, env);
+    return jsonResponse(
+      await classifySmsTransaction(message.trim(), source, senderId),
+    );
   },
 };

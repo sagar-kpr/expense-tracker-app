@@ -1,12 +1,11 @@
 {
   "name": "expense-tracker-sms-ai-worker",
-  "description": "Cloudflare Worker for private Gemini SMS transaction detection",
+  "description": "Cloudflare Worker for manual SMS transaction detection",
   "private": true,
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "secret:gemini": "wrangler secret put GEMINI_API_KEY",
     "check": "node --check src/index.js"
   },
   "devDependencies": {
