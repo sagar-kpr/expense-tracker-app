@@ -82,7 +82,6 @@ export const upsertPendingTransaction = async (
     await setDoc(
       docRef,
       {
-        ...transaction,
         userId,
       },
       { merge: true },
@@ -106,8 +105,10 @@ export const upsertPendingTransaction = async (
     });
   }
 
+  const { rawMessage: _rawMessage, ...transactionToPersist } = transaction;
+
   const payload = {
-    ...transaction,
+    ...transactionToPersist,
     userId,
     updatedAt: timestamp,
   };
@@ -148,8 +149,9 @@ export const upsertPendingTransaction = async (
     await setDoc(
       docRef,
       {
-        ...payload,
+        ...transactionToPersist,
         id: docRef.id,
+        userId,
       },
       { merge: true },
     );
@@ -202,6 +204,7 @@ export const updatePendingTransaction = async (
     ...data,
     updatedAt: nowMs(),
   };
+  const { rawMessage: _rawMessage, ...nextToPersist } = next;
 
   await dbx.runAsync(
     `
@@ -227,7 +230,7 @@ export const updatePendingTransaction = async (
     await setDoc(
       doc(db, "users", userId, "pendingTransactions", id),
       {
-        ...next,
+        ...nextToPersist,
         id,
         userId,
       },

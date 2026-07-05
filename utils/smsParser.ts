@@ -1,7 +1,3 @@
-import Constants from "expo-constants";
-
-import { auth } from "@/firebase";
-
 export type ParsedSmsTransaction = {
   amount: number;
   category: string;
@@ -23,34 +19,10 @@ export type NativeSmsMessage = {
   senderId?: string;
 };
 
-type AiSmsResult = {
-  amount: number;
-  category: string;
-  isTransaction: boolean;
-  summary: string;
-  transactionDate: string | null;
-  type: SmsTransactionType | "none";
-};
-
-type SmsAiWorkerError = {
-  details?: {
-    aiStatus?: unknown;
-    aiText?: unknown;
-    openAiStatus?: unknown;
-    openAiText?: unknown;
-    phase?: unknown;
-  };
-  error?: unknown;
-};
-
 export type SmsParseFailureReason =
-  | "ai-rejected"
   | "missing-amount"
-  | "missing-auth"
   | "missing-keyword"
-  | "missing-worker-url"
-  | "network-error"
-  | "worker-error";
+  | "missing-user";
 
 export type SmsParseResult =
   | {
@@ -63,17 +35,14 @@ export type SmsParseResult =
       transaction: null;
     };
 
-const DEFAULT_SMS_AI_WORKER_URL =
-  "https://expense-tracker-sms-ai.expense-tracker-sagar.workers.dev";
+const SMS_DEBUG = typeof __DEV__ !== "undefined" && __DEV__;
 
-const SMS_AI_DEBUG = typeof __DEV__ !== "undefined" && __DEV__;
-
-const debugSmsAi = (step: string, data?: Record<string, unknown>) => {
-  if (!SMS_AI_DEBUG) {
+const debugSmsParse = (step: string, data?: Record<string, unknown>) => {
+  if (!SMS_DEBUG) {
     return;
   }
 
-  console.log(`[SMS AI] ${step}`, data || "");
+  console.log(`[SMS parser] ${step}`, data || "");
 };
 
 const expenseKeywords = [
@@ -256,36 +225,6 @@ export const getSmsDuplicateId = (rawMessage: string) => {
   return `sms_${Math.abs(hash).toString(36)}`;
 };
 
-const normalizeAiResult = (
-  rawMessage: string,
-  source: SmsSource,
-  result: AiSmsResult,
-  senderId?: string,
-): ParsedSmsTransaction | null => {
-  if (
-    result.isTransaction !== true ||
-    (result.type !== "expense" && result.type !== "income") ||
-    !Number.isFinite(result.amount) ||
-    result.amount <= 0
-  ) {
-    return null;
-  }
-
-  return {
-    amount: result.amount,
-    category:
-      result.category?.trim() || (result.type === "income" ? "Cash" : "Other"),
-    description:
-      result.summary?.trim() || getDescription(rawMessage, result.type),
-    duplicateKey: getSmsDuplicateKey(rawMessage),
-    rawMessage,
-    senderId,
-    source,
-    transactionDate: result.transactionDate?.trim() || new Date().toISOString(),
-    type: result.type,
-  };
-};
-
 const parseSmsManually = (
   rawMessage: string,
   source: SmsSource,
@@ -320,7 +259,7 @@ const getManualFallbackResult = (
   const transaction = parseSmsManually(rawMessage, source, senderId);
 
   if (transaction) {
-    debugSmsAi("manual fallback accepted", {
+    debugSmsParse("manual fallback accepted", {
       amount: transaction.amount,
       category: transaction.category,
       type: transaction.type,
@@ -329,144 +268,9 @@ const getManualFallbackResult = (
     return { transaction };
   }
 
-  debugSmsAi("manual fallback rejected");
+  debugSmsParse("manual fallback rejected");
 
-  return { reason: "ai-rejected", transaction: null };
-};
-
-const getSmsAiWorkerUrl = () =>
-  (typeof process !== "undefined"
-    ? process.env.EXPO_PUBLIC_SMS_AI_WORKER_URL?.trim()
-    : undefined) ||
-  (typeof Constants.expoConfig?.extra?.smsAiWorkerUrl === "string"
-    ? Constants.expoConfig.extra.smsAiWorkerUrl.trim()
-    : undefined) ||
-  DEFAULT_SMS_AI_WORKER_URL;
-
-const getWorkerErrorMessage = async (response: Response) => {
-  try {
-    const data = (await response.json()) as SmsAiWorkerError;
-    const error = typeof data.error === "string" ? data.error : "Worker error";
-    const phase =
-      typeof data.details?.phase === "string" ? data.details.phase : undefined;
-    const aiStatus =
-      typeof data.details?.aiStatus === "number"
-        ? data.details.aiStatus
-        : typeof data.details?.openAiStatus === "number"
-          ? data.details.openAiStatus
-          : undefined;
-    const aiText =
-      typeof data.details?.aiText === "string"
-        ? data.details.aiText
-        : typeof data.details?.openAiText === "string"
-          ? data.details.openAiText
-          : undefined;
-
-    return [
-      phase ? `${phase}: ${error}` : error,
-      aiStatus ? `AI ${aiStatus}` : "",
-      aiText || "",
-    ]
-      .filter(Boolean)
-      .join(" - ");
-  } catch {
-    return `Worker returned HTTP ${response.status}.`;
-  }
-};
-
-const confirmSmsTransactionWithAi = async (
-  rawMessage: string,
-  source: SmsSource,
-  senderId?: string,
-): Promise<SmsParseResult> => {
-  const workerUrl = getSmsAiWorkerUrl();
-  const token = await auth.currentUser?.getIdToken();
-
-  if (!workerUrl) {
-    debugSmsAi("missing setup", {
-      hasToken: Boolean(token),
-      hasWorkerUrl: false,
-    });
-
-    return getManualFallbackResult(rawMessage, source, senderId);
-  }
-
-  if (!token) {
-    debugSmsAi("missing setup", {
-      hasToken: false,
-      hasWorkerUrl: true,
-    });
-
-    return getManualFallbackResult(rawMessage, source, senderId);
-  }
-
-  try {
-    debugSmsAi("calling worker", {
-      messageLength: rawMessage.length,
-      senderId,
-      source,
-    });
-
-    const response = await fetch(workerUrl, {
-      body: JSON.stringify({ message: rawMessage, senderId, source }),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
-    console.log("Worker status:", response.status);
-
-    try {
-      const workerBody = await response.clone().text();
-
-      console.log("Worker body:", workerBody);
-    } catch (bodyError) {
-      console.log("Worker body read error:", bodyError);
-    }
-
-    if (!response.ok) {
-      const message = await getWorkerErrorMessage(response);
-
-      debugSmsAi("worker failed", {
-        message,
-        status: response.status,
-      });
-
-      const fallback = getManualFallbackResult(rawMessage, source, senderId);
-
-      return fallback.transaction
-        ? fallback
-        : {
-            message,
-            reason: "worker-error",
-            status: response.status,
-            transaction: null,
-          };
-    }
-
-    const result = (await response.json()) as AiSmsResult;
-
-    debugSmsAi("worker result", {
-      amount: result.amount,
-      category: result.category,
-      isTransaction: result.isTransaction,
-      type: result.type,
-    });
-
-    const transaction = normalizeAiResult(rawMessage, source, result, senderId);
-
-    return transaction
-      ? { transaction }
-      : { reason: "ai-rejected", transaction: null };
-  } catch (error) {
-    console.log("SMS AI detection error:", error);
-    const fallback = getManualFallbackResult(rawMessage, source, senderId);
-
-    return fallback.transaction
-      ? fallback
-      : { reason: "network-error", transaction: null };
-  }
+  return { reason: "missing-amount", transaction: null };
 };
 
 export const parseSmsMessageResult = async (
@@ -478,7 +282,7 @@ export const parseSmsMessageResult = async (
   const amount = getAmount(rawMessage);
   const hasKeyword = includesAny(message, transactionKeywords);
 
-  debugSmsAi("local gate", {
+  debugSmsParse("local gate", {
     hasAmount: Boolean(amount),
     hasKeyword,
     messageLength: rawMessage.length,
@@ -487,7 +291,7 @@ export const parseSmsMessageResult = async (
   });
 
   if (!hasKeyword) {
-    debugSmsAi("local gate rejected");
+    debugSmsParse("local gate rejected");
 
     return { reason: "missing-keyword", transaction: null };
   }
@@ -495,7 +299,7 @@ export const parseSmsMessageResult = async (
   const manualTransaction = parseSmsManually(rawMessage, source, senderId);
 
   if (manualTransaction) {
-    debugSmsAi("manual parser accepted", {
+    debugSmsParse("manual parser accepted", {
       amount: manualTransaction.amount,
       category: manualTransaction.category,
       type: manualTransaction.type,
@@ -504,9 +308,9 @@ export const parseSmsMessageResult = async (
     return { transaction: manualTransaction };
   }
 
-  debugSmsAi("manual parser failed, calling ai");
+  debugSmsParse("manual parser failed, using fallback");
 
-  return confirmSmsTransactionWithAi(rawMessage, source, senderId);
+  return getManualFallbackResult(rawMessage, source, senderId);
 };
 
 export const parseSmsMessage = async (

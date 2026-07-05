@@ -13,6 +13,7 @@ import {
 
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import IphoneAutomationSetupCard from "@/components/IphoneAutomationSetupCard";
 import SalaryDayPickerModal from "@/components/SalaryDayPickerModal";
 import { useTheme } from "@/context/ThemeContext";
 import { useMemo, useState } from "react";
@@ -1068,6 +1069,8 @@ export default function ProfileScreen() {
           </>
         )}
       </Animated.View>
+
+      {Platform.OS !== "android" && <IphoneAutomationSetupCard />}
 
       <PrivacyDataSection />
 

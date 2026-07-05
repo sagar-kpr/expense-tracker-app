@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import IphoneAutomationSetupCard from "@/components/IphoneAutomationSetupCard";
 import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
@@ -361,6 +362,8 @@ export default function SelfEmployedProfileScreen() {
         setSyncSaving={setSyncSaving}
         theme={theme}
       />
+
+      {Platform.OS !== "android" && <IphoneAutomationSetupCard />}
 
       <PrivacyDataSection />
 

@@ -50,15 +50,10 @@ type PendingSmsResult =
   | {
       pending: null;
       reason:
-        | "ai-rejected"
         | "missing-amount"
-        | "missing-auth"
         | "missing-keyword"
         | "missing-user"
-        | "missing-worker-url"
-        | "network-error"
-        | "save-skipped"
-        | "worker-error";
+        | "save-skipped";
       message?: string;
       status?: number;
     };
