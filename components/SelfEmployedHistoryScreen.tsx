@@ -132,7 +132,7 @@ const escapeHtml = (value: unknown) =>
     .replaceAll("'", "&#039;");
 
 export default function SelfEmployedHistoryScreen() {
-  const { width, fontScale } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
   const { expenses, deleteExpense } = useExpense();
   const { theme, dark } = useTheme();
   const compactLayout = width < 422 || fontScale > 1.05;
@@ -154,7 +154,13 @@ export default function SelfEmployedHistoryScreen() {
   );
   const [showCategoryFilters, setShowCategoryFilters] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedActionItem, setSelectedActionItem] = useState<Expense | null>(
+    null,
+  );
+  const [detailsItem, setDetailsItem] = useState<Expense | null>(null);
   const [deleteItem, setDeleteItem] = useState<Expense | null>(null);
 
   const expenseItems = useMemo(() => expenses as Expense[], [expenses]);
@@ -936,7 +942,15 @@ export default function SelfEmployedHistoryScreen() {
                 const meta = getCategoryMeta(category);
                 const dateValue = parseExpenseDate(item.createdAt);
                 return (
-                  <View key={item.id} style={styles.transactionCard}>
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.transactionCard,
+                      showActionMenu &&
+                        selectedActionItem?.id === item.id &&
+                        styles.transactionCardMenuOpen,
+                    ]}
+                  >
                     <View style={styles.transactionLeft}>
                       <View
                         style={[
@@ -1007,8 +1021,16 @@ export default function SelfEmployedHistoryScreen() {
                       hitSlop={9}
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        setDeleteItem(item);
-                        setShowDeleteModal(true);
+                        if (
+                          selectedActionItem?.id === item.id &&
+                          showActionMenu
+                        ) {
+                          setSelectedActionItem(null);
+                          setShowActionMenu(false);
+                          return;
+                        }
+                        setSelectedActionItem(item);
+                        setShowActionMenu(true);
                       }}
                       style={styles.moreButton}
                     >
@@ -1018,6 +1040,56 @@ export default function SelfEmployedHistoryScreen() {
                         color={theme.text}
                       />
                     </Pressable>
+
+                    {showActionMenu && selectedActionItem?.id === item.id ? (
+                      <View style={styles.menuModal}>
+                        <View style={styles.menuActions}>
+                          <Pressable
+                            onPress={() => {
+                              setShowActionMenu(false);
+                              setSelectedActionItem(null);
+                              setDeleteItem(item);
+                              setShowDeleteModal(true);
+                            }}
+                            style={({ pressed }) => [
+                              styles.menuActionButton,
+                              styles.menuDeleteButton,
+                              pressed && styles.menuActionPressed,
+                            ]}
+                          >
+                            <Ionicons
+                              name="trash-outline"
+                              size={18}
+                              color="#FFFFFF"
+                            />
+                            <Text style={styles.menuDeleteText}>Delete</Text>
+                          </Pressable>
+
+                          <Pressable
+                            onPress={() => {
+                              setShowActionMenu(false);
+                              setSelectedActionItem(null);
+                              setDetailsItem(item);
+                              setShowDetailsModal(true);
+                            }}
+                            style={({ pressed }) => [
+                              styles.menuActionButton,
+                              styles.menuDetailsButton,
+                              pressed && styles.menuActionPressed,
+                            ]}
+                          >
+                            <Ionicons
+                              name="document-text-outline"
+                              size={18}
+                              color={theme.text}
+                            />
+                            <Text style={styles.menuDetailsText}>
+                              Full details
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 );
               })}
@@ -1025,6 +1097,63 @@ export default function SelfEmployedHistoryScreen() {
           ))
         )}
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDetailsModal(false);
+          setDetailsItem(null);
+        }}
+        transparent
+        visible={showDetailsModal}
+      >
+        <Pressable
+          onPress={() => {
+            setShowDetailsModal(false);
+            setDetailsItem(null);
+          }}
+          style={styles.modalBackdrop}
+        >
+          <Pressable
+            onPress={() => undefined}
+            style={[styles.detailsModal, { maxHeight: height * 0.82 }]}
+          >
+            <View style={styles.detailsIconBox}>
+              <Ionicons name="document-text-outline" size={28} color={GREEN} />
+            </View>
+            <Text style={styles.detailsTitle}>Full details</Text>
+            <Text style={styles.detailsMeta}>
+              {detailsItem?.category || "Other"}{" "}
+              {detailsItem?.amount != null
+                ? `• ${formatMoney(Number(detailsItem.amount || 0))}`
+                : ""}
+            </Text>
+
+            <ScrollView
+              contentContainerStyle={styles.detailsScrollContent}
+              style={styles.detailsScroll}
+              showsVerticalScrollIndicator
+            >
+              <Text style={styles.detailsLabel}>Message</Text>
+              <Text style={styles.detailsBody}>
+                {detailsItem?.description?.trim() ||
+                  detailsItem?.category ||
+                  "No description available."}
+              </Text>
+            </ScrollView>
+
+            <Pressable
+              onPress={() => {
+                setShowDetailsModal(false);
+                setDetailsItem(null);
+              }}
+              style={[styles.modalButton, styles.detailsCloseButton]}
+            >
+              <Text style={styles.detailsCloseButtonText}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -1536,6 +1665,10 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
       shadowOpacity: dark ? 0.16 : 0.035,
       shadowRadius: 12,
     },
+    transactionCardMenuOpen: {
+      elevation: 8,
+      zIndex: 20,
+    },
     transactionLeft: {
       alignItems: "center",
       flex: 1,
@@ -1606,6 +1739,116 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
       justifyContent: "center",
       marginLeft: 4,
       width: 28,
+    },
+    menuModal: {
+      backgroundColor: theme.card,
+      borderRadius: 14,
+      elevation: 10,
+      maxWidth: 180,
+      minWidth: 160,
+      padding: 8,
+      position: "absolute",
+      right: 12,
+      shadowColor: "#111827",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: dark ? 0.3 : 0.14,
+      shadowRadius: 16,
+      top: 50,
+      width: 170,
+      zIndex: 30,
+    },
+    menuActions: {
+      gap: 6,
+    },
+    menuActionButton: {
+      alignItems: "center",
+      borderRadius: 10,
+      flexDirection: "row",
+      gap: 8,
+      height: 36,
+      justifyContent: "flex-start",
+      paddingHorizontal: 10,
+    },
+    menuActionPressed: {
+      opacity: 0.88,
+      transform: [{ scale: 0.99 }],
+    },
+    menuDeleteButton: {
+      backgroundColor: RED,
+    },
+    menuDeleteText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    menuDetailsButton: {
+      backgroundColor: dark ? "rgba(255,255,255,0.04)" : "#F4F6F4",
+    },
+    menuDetailsText: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    detailsModal: {
+      alignItems: "center",
+      backgroundColor: theme.card,
+      borderRadius: 24,
+      maxWidth: 420,
+      paddingHorizontal: 20,
+      paddingVertical: 18,
+      width: "100%",
+    },
+    detailsIconBox: {
+      alignItems: "center",
+      backgroundColor: dark ? "rgba(22,155,107,0.14)" : "#F1FAF7",
+      borderRadius: 16,
+      height: 48,
+      justifyContent: "center",
+      width: 48,
+    },
+    detailsTitle: {
+      color: theme.text,
+      fontSize: 18,
+      fontWeight: "900",
+      marginTop: 12,
+      textAlign: "center",
+    },
+    detailsMeta: {
+      color: theme.subText,
+      fontSize: 13,
+      marginTop: 8,
+      textAlign: "center",
+    },
+    detailsScroll: {
+      alignSelf: "stretch",
+      flexShrink: 1,
+      marginTop: 14,
+      maxHeight: 420,
+    },
+    detailsScrollContent: {
+      paddingBottom: 8,
+    },
+    detailsLabel: {
+      color: theme.subText,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 0.4,
+      marginBottom: 8,
+      textTransform: "uppercase",
+    },
+    detailsBody: {
+      color: theme.text,
+      fontSize: 15,
+      lineHeight: 23,
+    },
+    detailsCloseButton: {
+      backgroundColor: theme.background,
+      marginTop: 14,
+    },
+    detailsCloseButtonText: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: "800",
     },
     insightBanner: {
       alignItems: "center",

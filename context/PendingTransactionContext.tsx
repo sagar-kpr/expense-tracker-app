@@ -469,7 +469,7 @@ export const PendingTransactionProvider = ({
     await upsertExpense(user.uid, {
       id: transaction.id,
       amount: transaction.amount,
-      description: transaction.description,
+      description: transaction.rawMessage?.trim() || transaction.description,
       category: transaction.category,
       type: transaction.type || "expense",
       createdAt:

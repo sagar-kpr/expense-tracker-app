@@ -149,9 +149,7 @@ const getDescription = (rawMessage, type) => {
     return type === "income" ? "Detected income" : "Detected expense";
   }
 
-  return normalized.length > 72
-    ? `${normalized.slice(0, 69).trim()}...`
-    : normalized;
+  return normalized;
 };
 
 const jsonResponse = (body, status = 200) =>
@@ -385,6 +383,7 @@ const buildPendingTransactionRecord = (
   createdAt: new Date().toISOString(),
   description: classification.summary,
   duplicateKey: getPendingDuplicateKey(message),
+  rawMessage: String(message || ""),
   senderId: senderId || undefined,
   source: source || "web-api",
   status: "pending",

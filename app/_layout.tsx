@@ -1,4 +1,5 @@
 import "react-native-get-random-values";
+import "@/utils/ensureTextInputFocusCompat";
 
 import { router, Stack, useSegments } from "expo-router";
 
