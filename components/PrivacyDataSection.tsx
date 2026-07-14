@@ -5,6 +5,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { deleteUser } from "firebase/auth";
 import { useState } from "react";
+import { useMemo } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -119,6 +120,7 @@ const buildPdfHtml = ({
   salaryArrivals,
   salaryCycleSnapshots,
   salaryHistory,
+  selectedSalaryCycleKey,
 }: {
   expenses: ExportTransaction[];
   pending: ExportTransaction[];
@@ -126,11 +128,17 @@ const buildPdfHtml = ({
   salaryArrivals: SalaryArrivalEntry[];
   salaryCycleSnapshots: SalaryCycleSnapshot[];
   salaryHistory: SalaryHistoryEntry[];
+  selectedSalaryCycleKey?: string | null;
 }) => {
   const exportedAt = new Date();
   const accountType = String(profile.type || "");
   const isSalary = accountType === "salary";
-  const resolvedCycle = getResolvedCycleBoundary({
+  const selectedSnapshot = isSalary && selectedSalaryCycleKey
+    ? salaryCycleSnapshots.find(
+        (item) => item.cycleKey === selectedSalaryCycleKey,
+      )
+    : null;
+  const currentBoundary = getResolvedCycleBoundary({
     profile,
     salaryArrivals,
     salaryHistory,
@@ -138,11 +146,22 @@ const buildPdfHtml = ({
     referenceDate: new Date(),
     preferCurrentProfile: true,
   });
-  const salaryCycle = {
-    end: resolvedCycle.end,
-    start: resolvedCycle.start,
-  };
-  const cycleKey = resolvedCycle.cycleKey;
+  const fallbackCycleStart = selectedSnapshot
+    ? new Date(selectedSnapshot.cycleStartMs)
+    : currentBoundary.start;
+  const fallbackCycleEnd = selectedSnapshot
+    ? new Date(selectedSnapshot.cycleEndMs)
+    : currentBoundary.end;
+  const salaryCycle = selectedSnapshot
+    ? {
+        start: fallbackCycleStart,
+        end: fallbackCycleEnd,
+      }
+    : {
+        start: currentBoundary.start,
+        end: currentBoundary.end,
+      };
+  const cycleKey = selectedSnapshot?.cycleKey || currentBoundary.cycleKey;
   const storedSalarySnapshot = salaryCycleSnapshots.find(
     (item) => item.cycleKey === cycleKey,
   );
@@ -155,9 +174,9 @@ const buildPdfHtml = ({
       createdAt: item.createdAt as any,
       type: String(item.type || "expense"),
     })),
-    cycleStart: resolvedCycle.start,
-    expectedCycleStart: resolvedCycle.expectedStart,
-    referenceDate: resolvedCycle.start,
+    cycleStart: salaryCycle.start,
+    expectedCycleStart: salaryCycle.start,
+    referenceDate: salaryCycle.start,
     preferCurrentProfile: true,
   });
   const salarySnapshot = storedSalarySnapshot || fallbackSalarySnapshot;
@@ -203,6 +222,39 @@ const buildPdfHtml = ({
       return second - first;
     })
     .slice(0, 80);
+  const salaryHistoryRows = isSalary
+    ? [...salaryHistory]
+        .sort((a, b) => a.effectiveFromMs - b.effectiveFromMs)
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(formatDate(item.effectiveFromMs))}</td>
+              <td>${escapeHtml(formatMoney(item.salary))}</td>
+              <td>${escapeHtml(item.salaryDate || "")}</td>
+              <td>${escapeHtml(item.source || "")}</td>
+              <td>${escapeHtml(item.note || "")}</td>
+            </tr>
+          `,
+        )
+        .join("")
+    : "";
+  const salaryCycleRows = isSalary
+    ? [...salaryCycleSnapshots]
+        .sort((a, b) => a.cycleStartMs - b.cycleStartMs)
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(formatDate(item.cycleStartMs))}</td>
+              <td>${escapeHtml(formatDate(item.cycleEndMs))}</td>
+              <td>${escapeHtml(formatMoney(item.salary))}</td>
+              <td>${escapeHtml(formatMoney(item.totalSpent))}</td>
+              <td>${escapeHtml(formatMoney(item.remaining))}</td>
+              <td>${escapeHtml(String(item.expenseCount || 0))}</td>
+            </tr>
+          `,
+        )
+        .join("")
+    : "";
   const reportTitle = isSalary
     ? "Salary Spending Report"
     : "Business Financial Report";
@@ -632,6 +684,36 @@ const buildPdfHtml = ({
             </table>
           </div>
 
+          ${
+            isSalary
+              ? `
+                <div class="section card">
+                  <h2>Salary History</h2>
+                  <table class="data-table transactions-table">
+                    <thead>
+                      <tr><th>Effective From</th><th>Salary</th><th>Salary Date</th><th>Source</th><th>Note</th></tr>
+                    </thead>
+                    <tbody>
+                      ${salaryHistoryRows || '<tr><td colspan="5" class="muted">No salary history entries.</td></tr>'}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="section card">
+                  <h2>Salary Cycles</h2>
+                  <table class="data-table transactions-table">
+                    <thead>
+                      <tr><th>Cycle Start</th><th>Cycle End</th><th>Salary</th><th>Spent</th><th>Remaining</th><th>Expenses</th></tr>
+                    </thead>
+                    <tbody>
+                      ${salaryCycleRows || '<tr><td colspan="6" class="muted">No salary cycle snapshots yet.</td></tr>'}
+                    </tbody>
+                  </table>
+                </div>
+              `
+              : ""
+          }
+
           <div class="section card">
             <h2>Pending Transactions</h2>
             <table class="data-table pending-table">
@@ -681,6 +763,18 @@ const downloadHtmlReportOnWeb = (html: string) => {
 export default function PrivacyDataSection() {
   const { theme } = useTheme();
   const [exporting, setExporting] = useState(false);
+  const [showSalaryCyclePicker, setShowSalaryCyclePicker] = useState(false);
+  const [selectedSalaryCycleKey, setSelectedSalaryCycleKey] = useState<
+    string | null
+  >(null);
+  const [pendingExportData, setPendingExportData] = useState<{
+    expenses: ExportTransaction[];
+    pending: ExportTransaction[];
+    profile: Record<string, unknown>;
+    salaryArrivals: SalaryArrivalEntry[];
+    salaryCycleSnapshots: SalaryCycleSnapshot[];
+    salaryHistory: SalaryHistoryEntry[];
+  } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
@@ -696,6 +790,70 @@ export default function PrivacyDataSection() {
   const handleDeleteAccount = () => {
     setNotice("");
     setConfirmAction("account");
+  };
+
+  const salaryCycleOptions = useMemo(
+    () =>
+      [...(pendingExportData?.salaryCycleSnapshots || [])]
+        .sort((left, right) => right.cycleStartMs - left.cycleStartMs)
+        .map((item) => ({
+          key: item.cycleKey,
+          label: new Date(item.cycleStartMs).toLocaleDateString("en-IN", {
+            month: "short",
+            year: "numeric",
+          }),
+          range: `${new Date(item.cycleStartMs).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })} - ${new Date(item.cycleEndMs - 1).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })}`,
+        })),
+    [pendingExportData?.salaryCycleSnapshots],
+  );
+
+  const exportPendingReport = async (cycleKey?: string | null) => {
+    if (!pendingExportData) return;
+
+    const html = buildPdfHtml({
+      ...pendingExportData,
+      selectedSalaryCycleKey: cycleKey,
+    });
+
+    if (Platform.OS === "web") {
+      if (!downloadHtmlReportOnWeb(html)) {
+        setNotice("Could not start download in this browser.");
+        return;
+      }
+
+      setNotice("Report downloaded. Open it in your browser to print or save as PDF.");
+      return;
+    }
+
+    const { uri } = await Print.printToFileAsync({
+      html,
+      width: 612,
+      height: 792,
+    });
+
+    const canShare = await Sharing.isAvailableAsync();
+
+    if (!canShare) {
+      setNotice("PDF created, but sharing is not available on this device.");
+      return;
+    }
+
+    await Sharing.shareAsync(uri, {
+      dialogTitle: "Export Expense Tracker Report",
+      mimeType: "application/pdf",
+      UTI: "com.adobe.pdf",
+    });
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setNotice("PDF export ready.");
   };
 
   const handleExportData = async () => {
@@ -720,12 +878,32 @@ export default function PrivacyDataSection() {
         salaryHistory,
       } = await exportAccountData(user.uid);
 
+      const isSalary = String(profile?.type || "") === "salary";
+
+      if (isSalary && salaryCycleSnapshots.length > 0 && !selectedSalaryCycleKey) {
+        setPendingExportData({
+          expenses,
+          pending,
+          profile: {
+            ...(profile || {}),
+            email: profile?.email || user.email || "",
+          },
+          salaryArrivals,
+          salaryCycleSnapshots,
+          salaryHistory,
+        });
+        setShowSalaryCyclePicker(true);
+        setNotice("Choose which salary cycle to export.");
+        return;
+      }
+
       const html = buildPdfHtml({
         expenses,
         pending,
         salaryArrivals,
         salaryCycleSnapshots,
         salaryHistory,
+        selectedSalaryCycleKey,
         profile: {
           ...(profile || {}),
           email: profile?.email || user.email || "",
@@ -977,6 +1155,165 @@ export default function PrivacyDataSection() {
           <Ionicons name="chevron-forward" size={20} color={theme.subText} />
         )}
       </TouchableOpacity>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={showSalaryCyclePicker}
+        onRequestClose={() => {
+          setShowSalaryCyclePicker(false);
+          setPendingExportData(null);
+          setSelectedSalaryCycleKey(null);
+        }}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            setShowSalaryCyclePicker(false);
+            setPendingExportData(null);
+            setSelectedSalaryCycleKey(null);
+          }}
+          style={{
+            alignItems: "center",
+            backgroundColor: "rgba(15, 23, 42, 0.55)",
+            flex: 1,
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => undefined}
+            style={{
+              backgroundColor: theme.card,
+              borderRadius: 24,
+              maxWidth: 460,
+              padding: 20,
+              width: "100%",
+            }}
+          >
+            <Text
+              style={{
+                color: theme.text,
+                fontSize: 18,
+                fontWeight: "900",
+                marginBottom: 8,
+              }}
+            >
+              Which salary cycle do you want?
+            </Text>
+            <Text
+              style={{
+                color: theme.subText,
+                fontSize: 13,
+                lineHeight: 18,
+                marginBottom: 16,
+              }}
+            >
+              Pick a salary month to export. We’ll generate the PDF for that cycle.
+            </Text>
+
+            <View style={{ gap: 10, maxHeight: 360 }}>
+              {salaryCycleOptions.map((option) => {
+                const active = selectedSalaryCycleKey === option.key;
+
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    activeOpacity={0.85}
+                    onPress={() => setSelectedSalaryCycleKey(option.key)}
+                    style={{
+                      backgroundColor: active ? `${theme.primary}18` : theme.card,
+                      borderColor: active ? theme.primary : theme.border,
+                      borderRadius: 18,
+                      borderWidth: 1,
+                      padding: 14,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: theme.text,
+                        fontSize: 15,
+                        fontWeight: "800",
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={{
+                        color: theme.subText,
+                        fontSize: 12,
+                        marginTop: 4,
+                      }}
+                    >
+                      {option.range}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 18 }}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  setShowSalaryCyclePicker(false);
+                  setPendingExportData(null);
+                  setSelectedSalaryCycleKey(null);
+                }}
+                style={{
+                  alignItems: "center",
+                  backgroundColor: `${theme.subText}18`,
+                  borderRadius: 16,
+                  flex: 1,
+                  paddingVertical: 14,
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.text,
+                    fontSize: 14,
+                    fontWeight: "800",
+                  }}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={!selectedSalaryCycleKey}
+                onPress={async () => {
+                  const cycleKey = selectedSalaryCycleKey;
+                  if (!cycleKey) return;
+                  setShowSalaryCyclePicker(false);
+                  await exportPendingReport(cycleKey);
+                  setPendingExportData(null);
+                  setSelectedSalaryCycleKey(null);
+                }}
+                style={{
+                  alignItems: "center",
+                  backgroundColor: selectedSalaryCycleKey
+                    ? theme.primary
+                    : `${theme.primary}55`,
+                  borderRadius: 16,
+                  flex: 1,
+                  paddingVertical: 14,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 14,
+                    fontWeight: "800",
+                  }}
+                >
+                  Export
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <View
         style={{

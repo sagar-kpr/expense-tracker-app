@@ -106,6 +106,7 @@ const hasSmsEventApi =
 
 const NOTIFICATION_ACCESS_PROMPTED_KEY =
   "bank_message_notification_access_prompted";
+const DUPLICATE_AMOUNT_WINDOW_MS = 7_000;
 
 const getPendingDuplicateId = (transaction: ParsedSmsTransaction) => {
   if (transaction.source !== "sms-auto") {
@@ -126,6 +127,9 @@ export const PendingTransactionProvider = ({
   >([]);
   const [loading, setLoading] = useState(true);
   const processedNativeMessagesRef = useRef<string[]>([]);
+  const recentPendingAmountRef = useRef<
+    Array<{ amount: number; timestamp: number }>
+  >([]);
   const requestedStartupImportRef = useRef(false);
   const userTypeRef = useRef(userData?.type);
 
@@ -186,6 +190,35 @@ export const PendingTransactionProvider = ({
     [pendingTransactions],
   );
 
+  const isRecentSameAmountPending = (
+    amount: number,
+    now: number,
+  ) => {
+    const inMemoryMatch = recentPendingAmountRef.current.some(
+      (entry) =>
+        entry.amount === amount &&
+        now - entry.timestamp <= DUPLICATE_AMOUNT_WINDOW_MS,
+    );
+
+    if (inMemoryMatch) {
+      return true;
+    }
+
+    return pendingTransactions.some((item) => {
+      if (item.amount !== amount) {
+        return false;
+      }
+
+      const createdAt = new Date(
+        String(item.createdAt || item.transactionDate || ""),
+      ).getTime();
+
+      return Number.isFinite(createdAt)
+        ? now - createdAt <= DUPLICATE_AMOUNT_WINDOW_MS
+        : false;
+    });
+  };
+
   useEffect(() => {
     if (Platform.OS !== "android") {
       return;
@@ -209,6 +242,25 @@ export const PendingTransactionProvider = ({
       transaction.type === "income"
     ) {
       return null;
+    }
+
+    const now = Date.now();
+    recentPendingAmountRef.current = recentPendingAmountRef.current.filter(
+      (entry) => now - entry.timestamp <= DUPLICATE_AMOUNT_WINDOW_MS,
+    );
+
+    if (
+      transaction.source === "sms-auto" &&
+      isRecentSameAmountPending(transaction.amount, now)
+    ) {
+      return null;
+    }
+
+    if (transaction.source === "sms-auto") {
+      recentPendingAmountRef.current = [
+        ...recentPendingAmountRef.current,
+        { amount: transaction.amount, timestamp: now },
+      ];
     }
 
     const duplicateId = getPendingDuplicateId(transaction);

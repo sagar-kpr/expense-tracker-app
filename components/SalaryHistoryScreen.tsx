@@ -24,6 +24,7 @@ import { getCategoryMeta } from "@/components/categoryMeta";
 import { useExpense } from "@/context/ExpenseContext";
 import { useSalary } from "@/context/SalaryContext";
 import { useTheme } from "@/context/ThemeContext";
+import { getResolvedCycleBoundary } from "@/services/salaryLedger";
 
 type Expense = {
   id: string;
@@ -34,14 +35,14 @@ type Expense = {
   createdAt?: string | Date | { toDate?: () => Date };
 };
 
-type Filter = "All" | "Today" | "Yesterday" | "This Week" | "This Month";
+type Filter = "All" | "Today" | "Yesterday" | "This Week" | "Current Cycle";
 
 const FILTERS: Filter[] = [
   "All",
+  "Current Cycle",
   "Today",
   "Yesterday",
   "This Week",
-  "This Month",
 ];
 const RUPEE = "\u20B9";
 const GREEN = "#169B6B";
@@ -133,7 +134,12 @@ const escapeHtml = (value: unknown) =>
 export default function SalaryHistoryScreen() {
   const { width, height, fontScale } = useWindowDimensions();
   const { expenses, deleteExpense } = useExpense();
-  const { rebuildCycleSnapshotForExpense } = useSalary();
+  const {
+    rebuildCycleSnapshotForExpense,
+    salaryArrivals,
+    salaryHistory,
+    getCurrentArrivalStatus,
+  } = useSalary();
   const { theme, dark } = useTheme();
   const compactLayout = width < 422 || fontScale > 1.05;
   const styles = useMemo(
@@ -143,7 +149,7 @@ export default function SalaryHistoryScreen() {
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<Filter>("All");
+  const [selectedFilter, setSelectedFilter] = useState<Filter>("Current Cycle");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
@@ -179,6 +185,26 @@ export default function SalaryHistoryScreen() {
     [expenseItems],
   );
 
+  const currentCycle = useMemo(
+    () => getCurrentArrivalStatus(),
+    [getCurrentArrivalStatus],
+  );
+
+  const previousCycle = useMemo(() => {
+    const previousReference = new Date(currentCycle.expectedStart.getTime() - 1);
+
+    return getResolvedCycleBoundary({
+      profile: {
+        salary: currentCycle.salary,
+        salaryDate: currentCycle.salaryDate,
+      },
+      salaryArrivals,
+      salaryHistory,
+      cycleStart: previousReference,
+      referenceDate: previousReference,
+    });
+  }, [currentCycle, salaryArrivals, salaryHistory]);
+
   const filteredExpenses = useMemo(() => {
     const today = new Date();
     const yesterday = new Date();
@@ -204,10 +230,8 @@ export default function SalaryHistoryScreen() {
           matchesFilter = isSameDay(date, yesterday);
         } else if (date && selectedFilter === "This Week") {
           matchesFilter = date >= weekStart && date <= today;
-        } else if (date && selectedFilter === "This Month") {
-          matchesFilter =
-            date.getMonth() === today.getMonth() &&
-            date.getFullYear() === today.getFullYear();
+        } else if (date && selectedFilter === "Current Cycle") {
+          matchesFilter = date >= currentCycle.start && date < currentCycle.end;
         }
 
         const expenseDay = date ? startOfDay(date) : null;
@@ -236,6 +260,8 @@ export default function SalaryHistoryScreen() {
     expenseItems,
     search,
     selectedCategory,
+    currentCycle.end,
+    currentCycle.start,
     selectedEndDate,
     selectedFilter,
     selectedStartDate,
@@ -271,10 +297,6 @@ export default function SalaryHistoryScreen() {
   }, [filteredExpenses, totalSpent]);
 
   const monthlyComparison = useMemo(() => {
-    const now = new Date();
-    const currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const previousStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const previousEnd = currentStart;
     let current = 0;
     let previous = 0;
 
@@ -282,8 +304,9 @@ export default function SalaryHistoryScreen() {
       const date = parseExpenseDate(item.createdAt);
       if (!date) return;
 
-      if (date >= currentStart) current += Number(item.amount || 0);
-      else if (date >= previousStart && date < previousEnd) {
+      if (date >= currentCycle.start && date < currentCycle.end) {
+        current += Number(item.amount || 0);
+      } else if (date >= previousCycle.start && date < previousCycle.end) {
         previous += Number(item.amount || 0);
       }
     });
@@ -293,7 +316,13 @@ export default function SalaryHistoryScreen() {
       previous > 0 ? Math.round((Math.abs(difference) / previous) * 100) : 0;
 
     return { current, difference, percent, previous };
-  }, [expenseItems]);
+  }, [
+    currentCycle.end,
+    currentCycle.start,
+    expenseItems,
+    previousCycle.end,
+    previousCycle.start,
+  ]);
 
   const dateButtonLabel = useMemo(() => {
     if (selectedStartDate && selectedEndDate) {
@@ -325,17 +354,22 @@ export default function SalaryHistoryScreen() {
       })}`;
     }
 
-    const first = new Date(today.getFullYear(), today.getMonth(), 1);
-    const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    return `${first.toLocaleDateString("en-IN", {
+    const cycleEndLabel = new Date(currentCycle.end.getTime() - 1);
+    return `${currentCycle.start.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
-    })} - ${last.toLocaleDateString("en-IN", {
+    })} - ${cycleEndLabel.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
     })}`;
-  }, [selectedEndDate, selectedFilter, selectedStartDate]);
+  }, [
+    currentCycle.end,
+    currentCycle.start,
+    selectedEndDate,
+    selectedFilter,
+    selectedStartDate,
+  ]);
 
   const openDateRangePicker = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -728,11 +762,15 @@ export default function SalaryHistoryScreen() {
                     style: webDateInputStyle(theme.text, theme.border),
                   })}
                   {createElement("input", {
+                    key: `end-${formatDateInputValue(selectedStartDate)}-${formatDateInputValue(selectedEndDate)}`,
                     type: "date",
                     "aria-label": "To date",
                     min: formatDateInputValue(selectedStartDate),
                     disabled: !selectedStartDate,
-                    value: formatDateInputValue(selectedEndDate),
+                    value: formatDateInputValue(
+                      selectedEndDate || selectedStartDate,
+                    ),
+                    onFocus: () => setDatePickerStep("end"),
                     onChange: (event: any) => {
                       const value = event.target.value;
                       if (value) selectRangeDate(new Date(`${value}T00:00:00`));
@@ -798,8 +836,8 @@ export default function SalaryHistoryScreen() {
                       ? "Spent Yesterday"
                       : selectedFilter === "This Week"
                         ? "Spent This Week"
-                        : selectedFilter === "This Month"
-                          ? "Spent This Month"
+                        : selectedFilter === "Current Cycle"
+                          ? "Spent Current Cycle"
                           : "Total Spent"}
                 </Text>
                 <Text
@@ -833,7 +871,7 @@ export default function SalaryHistoryScreen() {
                 <View style={styles.transactionCountPill}>
                   <Text style={styles.transactionCountText}>
                     {monthlyComparison.previous > 0
-                      ? "vs last month"
+                      ? "vs previous cycle"
                       : "first month"}
                   </Text>
 
@@ -882,15 +920,15 @@ export default function SalaryHistoryScreen() {
                   ? "✨ First month of tracking"
                   : `₹${Math.abs(monthlyComparison.difference).toLocaleString(
                       "en-IN",
-                    )} ${spentLess ? "less" : "more"} than last month`}
+                    )} ${spentLess ? "less" : "more"} than previous cycle`}
               </Text>
 
               <Text style={styles.insightText}>
                 {monthlyComparison.previous === 0
-                  ? `${formatMoney(monthlyComparison.current)} spent so far this month`
+                  ? `${formatMoney(monthlyComparison.current)} spent in the current cycle`
                   : spentLess
                     ? "Great job! Your spending is trending down."
-                    : "Spending increased compared to last month."}
+                    : "Spending increased compared to the previous cycle."}
               </Text>
             </View>
             {/* <Ionicons name="chevron-forward" size={20} color={GREEN_DARK} /> */}

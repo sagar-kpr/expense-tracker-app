@@ -12,6 +12,8 @@ const FIRESTORE_API_BASE = (projectId) =>
 let cachedFirestoreAccessToken;
 let cachedFirestoreAccessTokenExpiry = 0;
 let cachedJwks;
+const pendingAmountRecentCache = new Map();
+const DUPLICATE_AMOUNT_WINDOW_MS = 7_000;
 const expenseKeywords = [
   "debited",
   "withdrawn",
@@ -177,6 +179,31 @@ const normalizeMessageKey = (value) =>
     .trim();
 
 const getPendingDuplicateKey = (rawMessage) => normalizeMessageKey(rawMessage);
+
+const getPendingAmountCacheKey = (userId, amount) => `${userId}:${amount}`;
+
+const prunePendingAmountCache = (now = Date.now()) => {
+  for (const [key, entry] of pendingAmountRecentCache.entries()) {
+    if (!entry || now - entry.timestamp > DUPLICATE_AMOUNT_WINDOW_MS) {
+      pendingAmountRecentCache.delete(key);
+    }
+  }
+};
+
+const isRecentSameAmountPending = (userId, amount, now = Date.now()) => {
+  prunePendingAmountCache(now);
+
+  return pendingAmountRecentCache.has(
+    getPendingAmountCacheKey(userId, amount),
+  );
+};
+
+const markRecentSameAmountPending = (userId, amount, now = Date.now()) => {
+  prunePendingAmountCache(now);
+  pendingAmountRecentCache.set(getPendingAmountCacheKey(userId, amount), {
+    timestamp: now,
+  });
+};
 
 const toBase64Url = (input) => {
   const bytes =
@@ -620,6 +647,20 @@ const handlePendingTransactionStore = async (request, env) => {
       classificationResponse,
       source,
     );
+    const now = Date.now();
+    if (isRecentSameAmountPending(userId, pending.amount, now)) {
+      return jsonResponse(
+        {
+          pending: null,
+          reason: "duplicate-amount-window",
+          result: classificationResponse,
+          stored: false,
+        },
+        200,
+      );
+    }
+
+    markRecentSameAmountPending(userId, pending.amount, now);
     pending.id = `sms_${Math.abs(
       getPendingDuplicateKey(message)
         .split("")
@@ -709,6 +750,20 @@ const handleUidPendingTransactionStore = async (request, env, userId) => {
       classificationResponse,
       source,
     );
+    const now = Date.now();
+    if (isRecentSameAmountPending(userId, pending.amount, now)) {
+      return jsonResponse(
+        {
+          pending: null,
+          reason: "duplicate-amount-window",
+          result: classificationResponse,
+          stored: false,
+        },
+        200,
+      );
+    }
+
+    markRecentSameAmountPending(userId, pending.amount, now);
     pending.id = `sms_${Math.abs(
       getPendingDuplicateKey(message)
         .split("")

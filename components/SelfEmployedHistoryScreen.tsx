@@ -797,11 +797,15 @@ export default function SelfEmployedHistoryScreen() {
                     style: webDateInputStyle(theme.text, theme.border),
                   })}
                   {createElement("input", {
+                    key: `end-${formatDateInputValue(selectedStartDate)}-${formatDateInputValue(selectedEndDate)}`,
                     type: "date",
                     "aria-label": "To date",
                     min: formatDateInputValue(selectedStartDate),
                     disabled: !selectedStartDate,
-                    value: formatDateInputValue(selectedEndDate),
+                    value: formatDateInputValue(
+                      selectedEndDate || selectedStartDate,
+                    ),
+                    onFocus: () => setDatePickerStep("end"),
                     onChange: (event: any) => {
                       const value = event.target.value;
                       if (value) selectRangeDate(new Date(`${value}T00:00:00`));
