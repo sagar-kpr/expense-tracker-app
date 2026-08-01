@@ -37,6 +37,7 @@ export default function ProfileScreen() {
     confirmSalaryArrival,
     getCurrentArrivalStatus,
     getCycleExpenses,
+    getCycleSummary,
     saveSalaryProfile,
   } = useSalary();
   const PURPLE_DARK = "#371872";
@@ -72,7 +73,15 @@ export default function ProfileScreen() {
     );
   }, [arrivalStatus, expenses, getCycleExpenses]);
 
-  const remaining = Number(userData?.salary || 0) - currentCycleSpent;
+  const currentCycleSummary = getCycleSummary(arrivalStatus.start, {
+    preferCurrentProfile: true,
+    referenceDate: new Date(),
+  });
+  const currentCycleAvailable =
+    Number(currentCycleSummary.carryForward || 0) +
+    Number(currentCycleSummary.salary || 0) +
+    Number(currentCycleSummary.additionalFunds || 0);
+  const remaining = currentCycleAvailable - currentCycleSpent;
 
   const totalTransactions = expenses.length;
 
@@ -1281,14 +1290,16 @@ export default function ProfileScreen() {
       />
       <SalaryArrivalModal
         initialDate={new Date()}
+        initialSalary={Number(userData?.salary || 0)}
         maximumDate={arrivalWindow.maximumDate}
         minimumDate={arrivalWindow.minimumDate}
         onClose={() => setArrivalModalVisible(false)}
-        onConfirm={async (arrivedAtMs) => {
+        onConfirm={async (arrivedAtMs, confirmedSalary) => {
           try {
             setConfirmingArrival(true);
             await confirmSalaryArrival({
               arrivedAtMs,
+              salary: confirmedSalary,
               source: "profile",
             });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

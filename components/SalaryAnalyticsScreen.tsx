@@ -247,20 +247,30 @@ export default function SalaryAnalyticsScreen() {
   const totalSpent = ranges.reduce((sum, item) => sum + item[1], 0);
   const selectedCycleSummary = getCycleSummary(selectedDate, {
     expectedCycleStart: activeSelectedCycle?.expectedStart,
-    referenceDate: selectedDate,
+    referenceDate:
+      activeSelectedCycle?.start.getTime() === arrivalStatus.start.getTime()
+        ? new Date()
+        : selectedDate,
   });
   const salaryAmount = Number(
     selectedCycleSummary.salary || userData?.salary || onboardingSalary || 0,
   );
-  const remaining = salaryAmount - totalSpent;
+  const carryForward = Number(selectedCycleSummary.carryForward || 0);
+  const additionalFunds = Number(selectedCycleSummary.additionalFunds || 0);
+  const availableTotal = carryForward + salaryAmount + additionalFunds;
+  const remaining = availableTotal - totalSpent;
   const salaryUsed =
-    salaryAmount > 0 ? Math.min((totalSpent / salaryAmount) * 100, 100) : 0;
+    availableTotal > 0
+      ? Math.min((totalSpent / availableTotal) * 100, 100)
+      : 0;
   const salaryUsedLabel =
     totalSpent > 0 && salaryUsed < 1
       ? salaryUsed.toFixed(1)
       : String(Math.round(salaryUsed));
   const savingsRate =
-    salaryAmount > 0 ? Math.round((remaining / salaryAmount) * 100) : 0;
+    availableTotal > 0
+      ? Math.round((remaining / availableTotal) * 100)
+      : 0;
   const savingsBarWidth = Math.min(Math.max(savingsRate, 0), 100);
 
   const isOverspent = remaining < 0;
@@ -463,8 +473,30 @@ export default function SalaryAnalyticsScreen() {
             numberOfLines={1}
             style={styles.usedAmount}
           >
-            {formatMoney(totalSpent)} of {formatMoney(salaryAmount)}
+            {formatMoney(totalSpent)} of {formatMoney(availableTotal)}
           </Text>
+
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: "#34D399" }]} />
+            <Text style={styles.legendText}>Carry Forward</Text>
+            <Text style={styles.legendAmount}>
+              {formatMoney(carryForward)}
+            </Text>
+          </View>
+
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: "#60A5FA" }]} />
+            <Text style={styles.legendText}>Salary</Text>
+            <Text style={styles.legendAmount}>{formatMoney(salaryAmount)}</Text>
+          </View>
+
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: "#FBBF24" }]} />
+            <Text style={styles.legendText}>Additional Funds</Text>
+            <Text style={styles.legendAmount}>
+              {formatMoney(additionalFunds)}
+            </Text>
+          </View>
 
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: "#7A4CFF" }]} />
@@ -506,7 +538,7 @@ export default function SalaryAnalyticsScreen() {
           </View>
         </View>
 
-        {salaryAmount > 0 && (
+        {availableTotal > 0 && (
           <View style={styles.donutBox}>
             <Svg width={155} height={155} viewBox="0 0 180 180">
               <Circle
@@ -529,14 +561,14 @@ export default function SalaryAnalyticsScreen() {
               <View style={styles.walletIcon}>
                 <Ionicons color={PURPLE} name="wallet" size={21} />
               </View>
-              <Text style={styles.donutLabel}>Total Salary</Text>
+              <Text style={styles.donutLabel}>Total Available</Text>
               <Text
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
                 numberOfLines={1}
                 style={styles.donutAmount}
               >
-                {formatMoney(salaryAmount)}
+                {formatMoney(availableTotal)}
               </Text>
             </View>
           </View>

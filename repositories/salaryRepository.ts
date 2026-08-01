@@ -9,7 +9,7 @@ import {
   orderBy,
   query,
   setDoc,
-  updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "@/firebase";
@@ -47,12 +47,18 @@ export type SalaryCycleSnapshot = {
   expectedCycleKey?: string;
   cycleStartMs: number;
   cycleEndMs: number;
+  carryForward: number;
   salary: number;
   salaryDate: number;
+  additionalFunds: number;
+  availableTotal: number;
   totalSpent: number;
   remaining: number;
   usagePercent: number;
   expenseCount: number;
+  status: "open" | "closed";
+  closedAtMs?: number;
+  schemaVersion: number;
   source?: string;
   updatedAtMs: number;
   createdAtMs: number;
@@ -94,16 +100,45 @@ const mapSnapshotRow = (row: any): SalaryCycleSnapshot => ({
   expectedCycleKey: row.expectedCycleKey ?? undefined,
   cycleStartMs: Number(row.cycleStartMs || 0),
   cycleEndMs: Number(row.cycleEndMs || 0),
+  carryForward: Number(row.carryForward || 0),
   salary: Number(row.salary || 0),
   salaryDate: Number(row.salaryDate || 1),
+  additionalFunds: Number(row.additionalFunds || 0),
+  availableTotal: Number(
+    row.availableTotal ||
+      Number(row.carryForward || 0) +
+        Number(row.salary || 0) +
+        Number(row.additionalFunds || 0),
+  ),
   totalSpent: Number(row.totalSpent || 0),
   remaining: Number(row.remaining || 0),
   usagePercent: Number(row.usagePercent || 0),
   expenseCount: Number(row.expenseCount || 0),
+  status: row.status === "closed" ? "closed" : "open",
+  closedAtMs:
+    row.closedAtMs == null ? undefined : Number(row.closedAtMs),
+  schemaVersion: Number(row.schemaVersion || 1),
   source: row.source ?? undefined,
   updatedAtMs: Number(row.updatedAtMs || 0),
   createdAtMs: Number(row.createdAtMs || 0),
 });
+
+const normalizeSnapshotStatuses = (
+  items: SalaryCycleSnapshot[],
+): SalaryCycleSnapshot[] => {
+  const sorted = [...items].sort(
+    (left, right) => left.cycleStartMs - right.cycleStartMs,
+  );
+
+  return sorted.map((item, index) =>
+    item.schemaVersion >= 2
+      ? item
+      : {
+          ...item,
+          status: index === sorted.length - 1 ? ("open" as const) : ("closed" as const),
+        },
+  );
+};
 
 export const listSalaryHistory = async (userId: string) => {
   if (Platform.OS === "web") {
@@ -152,11 +187,15 @@ export const listSalarySnapshots = async (userId: string) => {
     const snap = await getDocs(
       query(collection(db, "users", userId, "salaryCycleSnapshots"), orderBy("cycleStartMs", "asc")),
     );
-    return snap.docs.map((item) => ({
-      id: item.id,
-      userId,
-      ...(item.data() as Omit<SalaryCycleSnapshot, "id" | "userId">),
-    }));
+    return normalizeSnapshotStatuses(
+      snap.docs.map((item) =>
+        mapSnapshotRow({
+          id: item.id,
+          userId,
+          ...item.data(),
+        }),
+      ),
+    );
   }
 
   const dbx = await getLocalDatabase();
@@ -165,7 +204,7 @@ export const listSalarySnapshots = async (userId: string) => {
     userId,
   );
 
-  return rows.map(mapSnapshotRow);
+  return normalizeSnapshotStatuses(rows.map(mapSnapshotRow));
 };
 
 export const upsertSalaryHistory = async (
@@ -305,22 +344,29 @@ export const upsertSalarySnapshot = async (
   await dbx.runAsync(
     `
     INSERT INTO salary_cycle_snapshots (
-      id, userId, cycleKey, expectedCycleKey, cycleStartMs, cycleEndMs, salary,
-      salaryDate, totalSpent, remaining, usagePercent, expenseCount, source,
-      updatedAtMs, createdAtMs, updatedAt, payload
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, userId, cycleKey, expectedCycleKey, cycleStartMs, cycleEndMs,
+      carryForward, salary, salaryDate, additionalFunds, availableTotal,
+      totalSpent, remaining, usagePercent, expenseCount, status, closedAtMs,
+      schemaVersion, source, updatedAtMs, createdAtMs, updatedAt, payload
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       userId = excluded.userId,
       cycleKey = excluded.cycleKey,
       expectedCycleKey = excluded.expectedCycleKey,
       cycleStartMs = excluded.cycleStartMs,
       cycleEndMs = excluded.cycleEndMs,
+      carryForward = excluded.carryForward,
       salary = excluded.salary,
       salaryDate = excluded.salaryDate,
+      additionalFunds = excluded.additionalFunds,
+      availableTotal = excluded.availableTotal,
       totalSpent = excluded.totalSpent,
       remaining = excluded.remaining,
       usagePercent = excluded.usagePercent,
       expenseCount = excluded.expenseCount,
+      status = excluded.status,
+      closedAtMs = excluded.closedAtMs,
+      schemaVersion = excluded.schemaVersion,
       source = excluded.source,
       updatedAtMs = excluded.updatedAtMs,
       createdAtMs = excluded.createdAtMs,
@@ -334,12 +380,18 @@ export const upsertSalarySnapshot = async (
       entry.expectedCycleKey ?? null,
       entry.cycleStartMs,
       entry.cycleEndMs,
+      entry.carryForward,
       entry.salary,
       entry.salaryDate,
+      entry.additionalFunds,
+      entry.availableTotal,
       entry.totalSpent,
       entry.remaining,
       entry.usagePercent,
       entry.expenseCount,
+      entry.status,
+      entry.closedAtMs ?? null,
+      entry.schemaVersion,
       entry.source ?? null,
       entry.updatedAtMs,
       entry.createdAtMs,
@@ -359,6 +411,229 @@ export const upsertSalarySnapshot = async (
   }
 
   return payload;
+};
+
+export const commitSalaryCycleRollover = async (
+  userId: string,
+  input: {
+    arrival: Omit<SalaryArrivalEntry, "userId">;
+    closedSnapshot: Omit<SalaryCycleSnapshot, "userId">;
+    deleteSnapshotId?: string;
+    openSnapshot: Omit<SalaryCycleSnapshot, "userId">;
+  },
+) => {
+  const arrival = { ...input.arrival, userId };
+  const closedSnapshot = { ...input.closedSnapshot, userId };
+  const openSnapshot = { ...input.openSnapshot, userId };
+
+  if (Platform.OS === "web") {
+    const batch = writeBatch(db);
+
+    batch.set(
+      doc(db, "users", userId, "salaryArrivals", arrival.expectedCycleKey),
+      arrival,
+      { merge: true },
+    );
+    batch.set(
+      doc(
+        db,
+        "users",
+        userId,
+        "salaryCycleSnapshots",
+        closedSnapshot.cycleKey,
+      ),
+      closedSnapshot,
+      { merge: true },
+    );
+    batch.set(
+      doc(
+        db,
+        "users",
+        userId,
+        "salaryCycleSnapshots",
+        openSnapshot.cycleKey,
+      ),
+      openSnapshot,
+      { merge: true },
+    );
+
+    if (
+      input.deleteSnapshotId &&
+      input.deleteSnapshotId !== closedSnapshot.cycleKey &&
+      input.deleteSnapshotId !== openSnapshot.cycleKey
+    ) {
+      batch.delete(
+        doc(
+          db,
+          "users",
+          userId,
+          "salaryCycleSnapshots",
+          input.deleteSnapshotId,
+        ),
+      );
+    }
+
+    await batch.commit();
+    return;
+  }
+
+  const dbx = await getLocalDatabase();
+  const timestamp = nowMs();
+
+  await dbx.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(
+      `
+      INSERT INTO salary_arrivals (
+        id, userId, arrivedAtMs, createdAtMs, cycleKey, expectedCycleKey,
+        salary, salaryDate, source, updatedAt, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        arrivedAtMs = excluded.arrivedAtMs,
+        cycleKey = excluded.cycleKey,
+        expectedCycleKey = excluded.expectedCycleKey,
+        salary = excluded.salary,
+        salaryDate = excluded.salaryDate,
+        source = excluded.source,
+        updatedAt = excluded.updatedAt,
+        payload = excluded.payload
+    `,
+      [
+        arrival.id,
+        userId,
+        arrival.arrivedAtMs,
+        arrival.createdAtMs,
+        arrival.cycleKey,
+        arrival.expectedCycleKey,
+        arrival.salary,
+        arrival.salaryDate,
+        arrival.source ?? null,
+        timestamp,
+        toJson(arrival),
+      ],
+    );
+
+    for (const snapshot of [closedSnapshot, openSnapshot]) {
+      await txn.runAsync(
+        `
+        INSERT INTO salary_cycle_snapshots (
+          id, userId, cycleKey, expectedCycleKey, cycleStartMs, cycleEndMs,
+          carryForward, salary, salaryDate, additionalFunds, availableTotal,
+          totalSpent, remaining, usagePercent, expenseCount, status, closedAtMs,
+          schemaVersion, source, updatedAtMs, createdAtMs, updatedAt, payload
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          cycleKey = excluded.cycleKey,
+          expectedCycleKey = excluded.expectedCycleKey,
+          cycleStartMs = excluded.cycleStartMs,
+          cycleEndMs = excluded.cycleEndMs,
+          carryForward = excluded.carryForward,
+          salary = excluded.salary,
+          salaryDate = excluded.salaryDate,
+          additionalFunds = excluded.additionalFunds,
+          availableTotal = excluded.availableTotal,
+          totalSpent = excluded.totalSpent,
+          remaining = excluded.remaining,
+          usagePercent = excluded.usagePercent,
+          expenseCount = excluded.expenseCount,
+          status = excluded.status,
+          closedAtMs = excluded.closedAtMs,
+          schemaVersion = excluded.schemaVersion,
+          source = excluded.source,
+          updatedAtMs = excluded.updatedAtMs,
+          updatedAt = excluded.updatedAt,
+          payload = excluded.payload
+      `,
+        [
+          snapshot.id,
+          userId,
+          snapshot.cycleKey,
+          snapshot.expectedCycleKey ?? null,
+          snapshot.cycleStartMs,
+          snapshot.cycleEndMs,
+          snapshot.carryForward,
+          snapshot.salary,
+          snapshot.salaryDate,
+          snapshot.additionalFunds,
+          snapshot.availableTotal,
+          snapshot.totalSpent,
+          snapshot.remaining,
+          snapshot.usagePercent,
+          snapshot.expenseCount,
+          snapshot.status,
+          snapshot.closedAtMs ?? null,
+          snapshot.schemaVersion,
+          snapshot.source ?? null,
+          snapshot.updatedAtMs,
+          snapshot.createdAtMs,
+          timestamp,
+          toJson(snapshot),
+        ],
+      );
+    }
+
+    if (
+      input.deleteSnapshotId &&
+      input.deleteSnapshotId !== closedSnapshot.cycleKey &&
+      input.deleteSnapshotId !== openSnapshot.cycleKey
+    ) {
+      await txn.runAsync(
+        "DELETE FROM salary_cycle_snapshots WHERE id = ? AND userId = ?",
+        input.deleteSnapshotId,
+        userId,
+      );
+    }
+  });
+
+  const profile = await getLocalProfile(userId);
+
+  if (profile?.syncMode === "sync_enabled") {
+    const batch = writeBatch(db);
+    batch.set(
+      doc(db, "users", userId, "salaryArrivals", arrival.expectedCycleKey),
+      arrival,
+      { merge: true },
+    );
+    batch.set(
+      doc(
+        db,
+        "users",
+        userId,
+        "salaryCycleSnapshots",
+        closedSnapshot.cycleKey,
+      ),
+      closedSnapshot,
+      { merge: true },
+    );
+    batch.set(
+      doc(
+        db,
+        "users",
+        userId,
+        "salaryCycleSnapshots",
+        openSnapshot.cycleKey,
+      ),
+      openSnapshot,
+      { merge: true },
+    );
+
+    if (
+      input.deleteSnapshotId &&
+      input.deleteSnapshotId !== closedSnapshot.cycleKey &&
+      input.deleteSnapshotId !== openSnapshot.cycleKey
+    ) {
+      batch.delete(
+        doc(
+          db,
+          "users",
+          userId,
+          "salaryCycleSnapshots",
+          input.deleteSnapshotId,
+        ),
+      );
+    }
+
+    await batch.commit();
+  }
 };
 
 export const deleteSalarySnapshot = async (userId: string, id: string) => {

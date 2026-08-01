@@ -128,16 +128,22 @@ export default function SalaryDashboard() {
   );
   const cycleSummary = getCycleSummary(arrivalStatus.start, {
     preferCurrentProfile: true,
+    referenceDate: new Date(),
   });
   const salary = Number(cycleSummary.salary || userData?.salary || 0);
+  const carryForward = Number(cycleSummary.carryForward || 0);
+  const additionalFunds = Number(cycleSummary.additionalFunds || 0);
+  const availableTotal = carryForward + salary + additionalFunds;
   const spent = useMemo(
     () => expenseItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
     [expenseItems],
   );
-  const remaining = salary - spent;
+  const remaining = availableTotal - spent;
   const saved = Math.max(remaining, 0);
-  const savedPercent = salary > 0 ? Math.round((saved / salary) * 100) : 0;
-  const usagePercent = salary > 0 ? (spent / salary) * 100 : 0;
+  const savedPercent =
+    availableTotal > 0 ? Math.round((saved / availableTotal) * 100) : 0;
+  const usagePercent =
+    availableTotal > 0 ? (spent / availableTotal) * 100 : 0;
   // const usageLabel = usagePercent > 999 ? "999" : "...";
   const usageLabel =
     spent > 0 && usagePercent < 1
@@ -366,7 +372,7 @@ export default function SalaryDashboard() {
                 <Text style={styles.balanceMeta}>
                   {hidden
                     ? "Income hidden • Spent hidden"
-                    : `Income ${formatMoney(salary)} • Spent ${formatMoney(spent)}`}
+                    : `Available ${formatMoney(availableTotal)} • Spent ${formatMoney(spent)}`}
                 </Text>
               </View>
 
@@ -439,15 +445,40 @@ export default function SalaryDashboard() {
 
           <View style={styles.overviewRow}>
             <OverviewCard
-              title="Income"
-              value={hidden ? formatMaskedMoney() : formatMoney(salary)}
-              caption="Salary"
+              title="Carry Forward"
+              value={hidden ? formatMaskedMoney() : formatMoney(carryForward)}
+              caption="Previous balance"
               icon="wallet-outline"
               iconColor="#159665"
               iconBackground="#C4F1DE"
               backgroundColor="#ECFCF6"
               borderColor="rgba(21,150,101,0.12)"
             />
+            <OverviewCard
+              title="Salary"
+              value={hidden ? formatMaskedMoney() : formatMoney(salary)}
+              caption="Current cycle"
+              icon="cash-outline"
+              iconColor="#2563EB"
+              iconBackground="#DBEAFE"
+              backgroundColor="#EFF6FF"
+              borderColor="rgba(37,99,235,0.12)"
+            />
+            <OverviewCard
+              title="Additional Funds"
+              value={
+                hidden ? formatMaskedMoney() : formatMoney(additionalFunds)
+              }
+              caption="Added this cycle"
+              icon="add-circle-outline"
+              iconColor="#D97706"
+              iconBackground="#FEF3C7"
+              backgroundColor="#FFFBEB"
+              borderColor="rgba(217,119,6,0.12)"
+            />
+          </View>
+
+          <View style={[styles.overviewRow, { marginTop: 10 }]}>
             <OverviewCard
               title="Spent"
               value={hidden ? formatMaskedMoney() : formatMoney(spent)}
@@ -457,6 +488,16 @@ export default function SalaryDashboard() {
               iconBackground="#FFD9D6"
               backgroundColor="#FFF1F0"
               borderColor="rgba(239,68,68,0.12)"
+            />
+            <OverviewCard
+              title="Remaining"
+              value={hidden ? formatMaskedMoney() : formatMoney(remaining)}
+              caption="Available now"
+              icon="shield-checkmark-outline"
+              iconColor="#159665"
+              iconBackground="#C4F1DE"
+              backgroundColor="#ECFCF6"
+              borderColor="rgba(21,150,101,0.12)"
             />
             <OverviewCard
               title="Daily Budget"
@@ -672,14 +713,16 @@ export default function SalaryDashboard() {
       </Modal>
       <SalaryArrivalModal
         initialDate={new Date()}
+        initialSalary={Number(userData?.salary || 0)}
         maximumDate={arrivalWindow.maximumDate}
         minimumDate={arrivalWindow.minimumDate}
         onClose={() => setArrivalModalVisible(false)}
-        onConfirm={async (arrivedAtMs) => {
+        onConfirm={async (arrivedAtMs, confirmedSalary) => {
           try {
             setConfirmingArrival(true);
             await confirmSalaryArrival({
               arrivedAtMs,
+              salary: confirmedSalary,
               source: "dashboard",
             });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

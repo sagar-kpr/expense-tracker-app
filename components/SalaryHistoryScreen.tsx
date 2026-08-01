@@ -167,22 +167,26 @@ export default function SalaryHistoryScreen() {
   const [detailsItem, setDetailsItem] = useState<Expense | null>(null);
   const [deleteItem, setDeleteItem] = useState<Expense | null>(null);
 
+  const transactionItems = useMemo(
+    () => expenses as Expense[],
+    [expenses],
+  );
   const expenseItems = useMemo(
     () =>
-      (expenses as Expense[]).filter(
+      transactionItems.filter(
         (item) => (item.type || "expense") === "expense",
       ),
-    [expenses],
+    [transactionItems],
   );
 
   const categories = useMemo(
     () => [
       "All",
       ...Array.from(
-        new Set(expenseItems.map((item) => item.category || "Other")),
+        new Set(transactionItems.map((item) => item.category || "Other")),
       ).sort(),
     ],
-    [expenseItems],
+    [transactionItems],
   );
 
   const currentCycle = useMemo(
@@ -212,7 +216,7 @@ export default function SalaryHistoryScreen() {
     const weekStart = getWeekStart(today);
     const query = search.trim().toLowerCase();
 
-    return [...expenseItems]
+    return [...transactionItems]
       .filter((item) => {
         const date = parseExpenseDate(item.createdAt);
         const searchableText =
@@ -257,7 +261,7 @@ export default function SalaryHistoryScreen() {
         return rightDate - leftDate;
       });
   }, [
-    expenseItems,
+    transactionItems,
     search,
     selectedCategory,
     currentCycle.end,
@@ -281,7 +285,9 @@ export default function SalaryHistoryScreen() {
 
   const totalSpent = useMemo(
     () =>
-      filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+      filteredExpenses
+        .filter((item) => (item.type || "expense") === "expense")
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0),
     [filteredExpenses],
   );
 
@@ -428,7 +434,9 @@ export default function SalaryHistoryScreen() {
             <td>${escapeHtml(item.description || item.category || "Expense")}</td>
             <td>${escapeHtml(item.category || "Other")}</td>
             <td style="text-align:right">${escapeHtml(
-              formatMoney(Number(item.amount || 0)),
+              `${item.type === "income" ? "+" : "-"}${formatMoney(
+                Number(item.amount || 0),
+              )}`,
             )}</td>
           </tr>`;
       })
@@ -965,6 +973,12 @@ export default function SalaryHistoryScreen() {
                 const category = item.category || "Other";
                 const meta = getCategoryMeta(category);
                 const dateValue = parseExpenseDate(item.createdAt);
+                const isIncome = item.type === "income";
+                const isOpenCycleTransaction = Boolean(
+                  dateValue &&
+                    dateValue >= currentCycle.start &&
+                    dateValue < currentCycle.end,
+                );
                 return (
                   <View
                     key={item.id}
@@ -1024,8 +1038,12 @@ export default function SalaryHistoryScreen() {
                         numberOfLines={1}
                         adjustsFontSizeToFit
                         minimumFontScale={0.7}
-                        style={styles.transactionAmount}
+                        style={[
+                          styles.transactionAmount,
+                          isIncome && { color: GREEN },
+                        ]}
                       >
+                        {isIncome ? "+" : "-"}
                         {formatMoney(Number(item.amount || 0))}
                       </Text>
                     </View>
@@ -1058,26 +1076,44 @@ export default function SalaryHistoryScreen() {
                     {showActionMenu && selectedActionItem?.id === item.id ? (
                       <View style={styles.menuModal}>
                         <View style={styles.menuActions}>
-                          <Pressable
-                            onPress={() => {
-                              setShowActionMenu(false);
-                              setSelectedActionItem(null);
-                              setDeleteItem(item);
-                              setShowDeleteModal(true);
-                            }}
-                            style={({ pressed }) => [
-                              styles.menuActionButton,
-                              styles.menuDeleteButton,
-                              pressed && styles.menuActionPressed,
-                            ]}
-                          >
-                            <Ionicons
-                              name="trash-outline"
-                              size={18}
-                              color="#FFFFFF"
-                            />
-                            <Text style={styles.menuDeleteText}>Delete</Text>
-                          </Pressable>
+                          {isOpenCycleTransaction ? (
+                            <Pressable
+                              onPress={() => {
+                                setShowActionMenu(false);
+                                setSelectedActionItem(null);
+                                setDeleteItem(item);
+                                setShowDeleteModal(true);
+                              }}
+                              style={({ pressed }) => [
+                                styles.menuActionButton,
+                                styles.menuDeleteButton,
+                                pressed && styles.menuActionPressed,
+                              ]}
+                            >
+                              <Ionicons
+                                name="trash-outline"
+                                size={18}
+                                color="#FFFFFF"
+                              />
+                              <Text style={styles.menuDeleteText}>Delete</Text>
+                            </Pressable>
+                          ) : (
+                            <View
+                              style={[
+                                styles.menuActionButton,
+                                styles.menuDetailsButton,
+                              ]}
+                            >
+                              <Ionicons
+                                name="lock-closed-outline"
+                                size={18}
+                                color={theme.subText}
+                              />
+                              <Text style={styles.menuDetailsText}>
+                                Completed cycle
+                              </Text>
+                            </View>
+                          )}
 
                           <Pressable
                             onPress={() => {
@@ -1191,7 +1227,7 @@ export default function SalaryHistoryScreen() {
             </View>
             <Text style={styles.deleteTitle}>Delete transaction?</Text>
             <Text style={styles.deleteText}>
-              This expense will be permanently removed from your history.
+              This transaction will be permanently removed from your history.
             </Text>
 
             <View style={styles.modalActions}>
@@ -1213,7 +1249,7 @@ export default function SalaryHistoryScreen() {
                       ...deleteItem,
                       amount: Number(deleteItem.amount || 0),
                     };
-                    const remainingExpenses = expenseItems
+                    const remainingExpenses = transactionItems
                       .filter((item) => item.id !== deleteItem.id)
                       .map((item) => ({
                         ...item,

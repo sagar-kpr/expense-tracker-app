@@ -102,12 +102,18 @@ CREATE TABLE IF NOT EXISTS salary_cycle_snapshots (
   expectedCycleKey TEXT,
   cycleStartMs INTEGER NOT NULL,
   cycleEndMs INTEGER NOT NULL,
+  carryForward REAL NOT NULL DEFAULT 0,
   salary REAL NOT NULL,
   salaryDate INTEGER NOT NULL,
+  additionalFunds REAL NOT NULL DEFAULT 0,
+  availableTotal REAL NOT NULL DEFAULT 0,
   totalSpent REAL NOT NULL,
   remaining REAL NOT NULL,
   usagePercent REAL NOT NULL,
   expenseCount INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  closedAtMs INTEGER,
+  schemaVersion INTEGER NOT NULL DEFAULT 2,
   source TEXT,
   updatedAtMs INTEGER NOT NULL,
   createdAtMs INTEGER NOT NULL,
@@ -118,6 +124,36 @@ CREATE TABLE IF NOT EXISTS salary_cycle_snapshots (
 CREATE INDEX IF NOT EXISTS idx_salary_snapshots_user_cycle
   ON salary_cycle_snapshots(userId, cycleStartMs ASC);
 `;
+
+const ensureSalarySnapshotV2Columns = async (db: SQLite.SQLiteDatabase) => {
+  const columns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(salary_cycle_snapshots)",
+  );
+  const names = new Set(columns.map((column) => column.name));
+  const additions = [
+    ["carryForward", "REAL NOT NULL DEFAULT 0"],
+    ["additionalFunds", "REAL NOT NULL DEFAULT 0"],
+    ["availableTotal", "REAL NOT NULL DEFAULT 0"],
+    ["status", "TEXT NOT NULL DEFAULT 'open'"],
+    ["closedAtMs", "INTEGER"],
+    ["schemaVersion", "INTEGER NOT NULL DEFAULT 1"],
+  ] as const;
+
+  for (const [name, definition] of additions) {
+    if (!names.has(name)) {
+      await db.execAsync(
+        `ALTER TABLE salary_cycle_snapshots ADD COLUMN ${name} ${definition}`,
+      );
+    }
+  }
+
+  await db.runAsync(
+    `INSERT INTO app_meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    "salary_cycle_schema",
+    "2",
+  );
+};
 
 export const isLocalSqliteAvailable = Platform.OS !== "web";
 
@@ -131,6 +167,7 @@ export const getLocalDatabase = async () => {
       enableChangeListener: true,
     }).then(async (db) => {
       await db.execAsync(schema);
+      await ensureSalarySnapshotV2Columns(db);
       return db;
     });
   }

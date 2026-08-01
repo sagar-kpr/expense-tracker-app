@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   Text,
@@ -47,6 +48,7 @@ export default function PendingTransactionCard({ transaction }: Props) {
   const { theme, dark } = useTheme();
   const {
     approvePendingTransaction,
+    approvePendingTransactionWithFunds,
     ignorePendingTransaction,
     updatePendingTransaction,
   } = usePendingTransactions();
@@ -70,7 +72,41 @@ export default function PendingTransactionCard({ transaction }: Props) {
     try {
       setSaving("add");
 
-      await approvePendingTransaction(transaction);
+      const result = await approvePendingTransaction(transaction);
+
+      if (result.status === "insufficient-funds") {
+        Alert.alert(
+          "Add Additional Funds first?",
+          `This expense needs ₹${result.shortfall.toLocaleString(
+            "en-IN",
+          )} more than the available balance.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: `Add ₹${result.shortfall.toLocaleString("en-IN")} & Save`,
+              onPress: async () => {
+                try {
+                  setSaving("add");
+                  const fundedResult =
+                    await approvePendingTransactionWithFunds(
+                      transaction,
+                      result.shortfall,
+                    );
+
+                  if (fundedResult.status === "saved") {
+                    Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Success,
+                    );
+                  }
+                } finally {
+                  setSaving(null);
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } finally {

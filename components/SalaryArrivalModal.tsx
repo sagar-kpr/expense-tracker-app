@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -17,10 +18,11 @@ import { useTheme } from "@/context/ThemeContext";
 
 type Props = {
   initialDate?: Date;
+  initialSalary?: number;
   maximumDate?: Date;
   minimumDate?: Date;
   onClose: () => void;
-  onConfirm: (arrivedAtMs: number) => Promise<void>;
+  onConfirm: (arrivedAtMs: number, salary: number) => Promise<void>;
   saving?: boolean;
   title?: string;
   visible: boolean;
@@ -54,6 +56,7 @@ const parseArrivalDateTime = (dateValue: string, timeValue: string) => {
 
 export default function SalaryArrivalModal({
   initialDate,
+  initialSalary = 0,
   maximumDate,
   minimumDate,
   onClose,
@@ -65,6 +68,7 @@ export default function SalaryArrivalModal({
   const { theme } = useTheme();
   const [dateValue, setDateValue] = useState("");
   const [timeValue, setTimeValue] = useState("");
+  const [salaryValue, setSalaryValue] = useState("");
   const [error, setError] = useState("");
   const [pickerMode, setPickerMode] = useState<"date" | "time" | null>(null);
 
@@ -76,8 +80,9 @@ export default function SalaryArrivalModal({
     const now = initialDate || new Date();
     setDateValue(toDateInput(now));
     setTimeValue(toTimeInput(now));
+    setSalaryValue(String(initialSalary || ""));
     setError("");
-  }, [initialDate, visible]);
+  }, [initialDate, initialSalary, visible]);
 
   const helperText = useMemo(
     () =>
@@ -322,6 +327,41 @@ export default function SalaryArrivalModal({
               )}
             </View>
 
+            <View style={{ marginTop: 14 }}>
+              <Text
+                style={{
+                  color: theme.subText,
+                  fontSize: 13,
+                  fontWeight: "700",
+                  marginBottom: 8,
+                }}
+              >
+                Salary Amount
+              </Text>
+              <TextInput
+                editable={!saving}
+                keyboardType="decimal-pad"
+                onChangeText={(value) => {
+                  setSalaryValue(value.replace(/[^0-9.]/g, ""));
+                  setError("");
+                }}
+                placeholder="Enter salary amount"
+                placeholderTextColor={theme.subText}
+                style={{
+                  backgroundColor: theme.background,
+                  borderColor: error ? theme.danger : theme.border,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  color: theme.text,
+                  fontSize: 17,
+                  fontWeight: "800",
+                  minHeight: 52,
+                  paddingHorizontal: 16,
+                }}
+                value={salaryValue}
+              />
+            </View>
+
             <Text
               style={{
                 color: theme.subText,
@@ -384,7 +424,14 @@ export default function SalaryArrivalModal({
                     return;
                   }
 
-                  await onConfirm(parsed.getTime());
+                  const salary = Number(salaryValue);
+
+                  if (!Number.isFinite(salary) || salary <= 0) {
+                    setError("Enter a valid salary amount.");
+                    return;
+                  }
+
+                  await onConfirm(parsed.getTime(), salary);
                 }}
                 style={{
                   alignItems: "center",

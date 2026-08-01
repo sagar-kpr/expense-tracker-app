@@ -2,7 +2,10 @@ import { Tabs } from "expo-router";
 
 import { useRef } from "react";
 import { SalaryProvider } from "@/context/SalaryContext";
-import { useExpense } from "../../context/ExpenseContext";
+import {
+  ExpenseProvider,
+  useExpense,
+} from "../../context/ExpenseContext";
 import { usePendingTransactions } from "@/context/PendingTransactionContext";
 
 import BottomSheet from "@gorhom/bottom-sheet";
@@ -11,11 +14,13 @@ import BottomNavbar from "../../components/BottomNavbar";
 
 import ExpenseModal from "../../components/ExpenseModal";
 import ScreenSkeleton from "@/components/ScreenSkeleton";
-import { ExpenseProvider } from "@/context/ExpenseContext";
-
 function TabShell() {
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const { addExpense, loading: expensesLoading } = useExpense();
+  const {
+    addExpense,
+    addExpenseWithFunds,
+    loading: expensesLoading,
+  } = useExpense();
   const { loading: pendingLoading } = usePendingTransactions();
 
   const openModal = () => {
@@ -70,7 +75,11 @@ function TabShell() {
         />
       </Tabs>
 
-      <ExpenseModal ref={bottomSheetRef} handleAddExpense={addExpense} />
+      <ExpenseModal
+        ref={bottomSheetRef}
+        handleAddExpense={addExpense}
+        handleAddExpenseWithFunds={addExpenseWithFunds}
+      />
     </>
   );
 }

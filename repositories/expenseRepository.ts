@@ -8,7 +8,7 @@ import {
   onSnapshot,
   orderBy,
   query,
-  setDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "@/firebase";
@@ -65,24 +65,39 @@ export const upsertExpense = async (
   userId: string,
   expense: Omit<ExpenseRecord, "userId">,
 ) => {
-  if (Platform.OS === "web") {
-    const docRef = expense.id
-      ? doc(db, "users", userId, "expenses", expense.id)
-      : doc(collection(db, "users", userId, "expenses"));
-    await setDoc(
-      docRef,
-      {
-        ...expense,
-        userId,
-      },
-      { merge: true },
-    );
+  const [saved] = await upsertExpenses(userId, [expense]);
 
-    return {
-      ...expense,
-      id: docRef.id,
-      userId,
-    };
+  return saved;
+};
+
+export const upsertExpenses = async (
+  userId: string,
+  expenses: Omit<ExpenseRecord, "userId">[],
+) => {
+  if (expenses.length === 0) {
+    return [];
+  }
+
+  if (Platform.OS === "web") {
+    const batch = writeBatch(db);
+    const saved = expenses.map((expense) => {
+      const docRef = expense.id
+        ? doc(db, "users", userId, "expenses", expense.id)
+        : doc(collection(db, "users", userId, "expenses"));
+      const record = {
+        ...expense,
+        id: docRef.id,
+        userId,
+      };
+
+      batch.set(docRef, record, { merge: true });
+
+      return record;
+    });
+
+    await batch.commit();
+
+    return saved;
   }
 
   const dbx = await getLocalDatabase();
@@ -96,60 +111,58 @@ export const upsertExpense = async (
     });
   }
 
-  const payload = {
+  const payloads = expenses.map((expense) => ({
     ...expense,
     userId,
     updatedAt: timestamp,
-  };
+  }));
 
-  await dbx.runAsync(
-    `
-    INSERT INTO expenses (
-      id, userId, amount, description, category, type, createdAt, updatedAt, payload
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      userId = excluded.userId,
-      amount = excluded.amount,
-      description = excluded.description,
-      category = excluded.category,
-      type = excluded.type,
-      createdAt = excluded.createdAt,
-      updatedAt = excluded.updatedAt,
-      payload = excluded.payload
-  `,
-    [
-      expense.id,
-      userId,
-      expense.amount,
-      expense.description ?? null,
-      expense.category ?? null,
-      expense.type || "expense",
-      String(expense.createdAt || new Date().toISOString()),
-      timestamp,
-      toJson(payload),
-    ],
-  );
+  await dbx.withExclusiveTransactionAsync(async (txn) => {
+    for (const payload of payloads) {
+      await txn.runAsync(
+        `
+        INSERT INTO expenses (
+          id, userId, amount, description, category, type, createdAt, updatedAt, payload
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          userId = excluded.userId,
+          amount = excluded.amount,
+          description = excluded.description,
+          category = excluded.category,
+          type = excluded.type,
+          createdAt = excluded.createdAt,
+          updatedAt = excluded.updatedAt,
+          payload = excluded.payload
+      `,
+        [
+          payload.id,
+          userId,
+          payload.amount,
+          payload.description ?? null,
+          payload.category ?? null,
+          payload.type || "expense",
+          String(payload.createdAt || new Date().toISOString()),
+          timestamp,
+          toJson(payload),
+        ],
+      );
+    }
+  });
 
   const profile = existingProfile || (await getLocalProfile(userId));
 
   if (profile?.syncMode === "sync_enabled") {
-    const docRef = expense.id
-      ? doc(db, "users", userId, "expenses", expense.id)
-      : doc(collection(db, "users", userId, "expenses"));
+    const batch = writeBatch(db);
 
-    await setDoc(
-      docRef,
-      {
-        ...payload,
-        id: docRef.id,
-      },
-      { merge: true },
-    );
+    payloads.forEach((payload) => {
+      const docRef = doc(db, "users", userId, "expenses", payload.id);
+      batch.set(docRef, payload, { merge: true });
+    });
 
-    payload.id = docRef.id;
+    await batch.commit();
   }
 
-  return payload;
+  return payloads;
 };
 
 export const deleteExpense = async (userId: string, expenseId: string) => {

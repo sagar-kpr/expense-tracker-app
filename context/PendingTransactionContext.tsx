@@ -29,8 +29,12 @@ import {
   upsertPendingTransaction,
   type PendingTransactionRecord,
 } from "@/repositories/pendingTransactionRepository";
-import { upsertExpense } from "@/repositories/expenseRepository";
 import { createId } from "@/repositories/shared";
+import {
+  saveExpenseWithAdditionalFunds,
+  saveTransactionWithSalaryValidation,
+  type SalaryTransactionSaveResult,
+} from "@/services/salaryBalance";
 import {
   getSmsDuplicateId,
   getSmsDuplicateKey,
@@ -67,7 +71,13 @@ type PendingTransactionContextType = {
     rawMessage: string | NativeSmsMessage,
     source?: "manual-paste" | "sms-auto",
   ) => Promise<PendingSmsResult>;
-  approvePendingTransaction: (transaction: PendingTransaction) => Promise<void>;
+  approvePendingTransaction: (
+    transaction: PendingTransaction,
+  ) => Promise<SalaryTransactionSaveResult>;
+  approvePendingTransactionWithFunds: (
+    transaction: PendingTransaction,
+    additionalFunds: number,
+  ) => Promise<SalaryTransactionSaveResult>;
   ignorePendingTransaction: (id: string) => Promise<void>;
   loading: boolean;
   pendingCount: number;
@@ -220,15 +230,36 @@ export const PendingTransactionProvider = ({
   };
 
   useEffect(() => {
-    if (Platform.OS !== "android") {
+    if (Platform.OS !== "android" && Platform.OS !== "web") {
       return;
     }
 
-    Notifications.setBadgeCountAsync(user?.uid ? pendingTransactions.length : 0).catch(
-      (error) => {
+    const badgeCount = user?.uid ? pendingTransactions.length : 0;
+
+    const syncBadgeCount = async () => {
+      if (Platform.OS === "web" && typeof navigator !== "undefined") {
+        try {
+          if ("setAppBadge" in navigator && "clearAppBadge" in navigator) {
+            if (badgeCount > 0) {
+              await navigator.setAppBadge(badgeCount);
+            } else {
+              await navigator.clearAppBadge();
+            }
+            return;
+          }
+        } catch (error) {
+          console.log("Web app icon badge sync error:", error);
+        }
+      }
+
+      try {
+        await Notifications.setBadgeCountAsync(badgeCount);
+      } catch (error) {
         console.log("Badge sync error:", error);
-      },
-    );
+      }
+    };
+
+    void syncBadgeCount();
   }, [pendingTransactions.length, user?.uid]);
 
   const addPendingTransaction = async (transaction: ParsedSmsTransaction) => {
@@ -514,11 +545,13 @@ export const PendingTransactionProvider = ({
   }, [user?.uid]);
 
   const approvePendingTransaction = async (transaction: PendingTransaction) => {
-    if (!user?.uid) {
-      return;
+    if (!user?.uid || !userData) {
+      throw new Error("Sign in before approving a transaction.");
     }
 
-    await upsertExpense(user.uid, {
+    const result = await saveTransactionWithSalaryValidation({
+      profile: userData,
+      transaction: {
       id: transaction.id,
       amount: transaction.amount,
       description: transaction.rawMessage?.trim() || transaction.description,
@@ -527,8 +560,41 @@ export const PendingTransactionProvider = ({
       createdAt:
         transaction.createdAt || new Date().toISOString(),
       updatedAt: Date.now(),
+      },
+      userId: user.uid,
     });
-    await deletePendingTransaction(user.uid, transaction.id);
+
+    if (result.status === "saved") {
+      await deletePendingTransaction(user.uid, transaction.id);
+    }
+
+    return result;
+  };
+
+  const approvePendingTransactionWithFunds = async (
+    transaction: PendingTransaction,
+    additionalFunds: number,
+  ) => {
+    if (!user?.uid || !userData) {
+      throw new Error("Sign in before approving a transaction.");
+    }
+
+    const result = await saveExpenseWithAdditionalFunds({
+      additionalFunds,
+      category: transaction.category,
+      description:
+        transaction.rawMessage?.trim() || transaction.description || "",
+      expenseAmount: transaction.amount,
+      fundsDescription: "Additional funds for detected expense",
+      profile: userData,
+      userId: user.uid,
+    });
+
+    if (result.status === "saved") {
+      await deletePendingTransaction(user.uid, transaction.id);
+    }
+
+    return result;
   };
 
   const ignorePendingTransaction = async (id: string) => {
@@ -568,6 +634,7 @@ export const PendingTransactionProvider = ({
         addPendingFromSms,
         addPendingFromSmsWithResult,
         approvePendingTransaction,
+        approvePendingTransactionWithFunds,
         ignorePendingTransaction,
         loading,
         pendingCount: pendingTransactions.length,

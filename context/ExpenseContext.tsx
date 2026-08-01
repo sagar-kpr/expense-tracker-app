@@ -10,14 +10,29 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import {
   deleteExpense as removeExpenseRecord,
-  listExpenses,
   subscribeExpenses,
   type ExpenseRecord,
-  upsertExpense,
 } from "@/repositories/expenseRepository";
 import { createId } from "@/repositories/shared";
+import {
+  getSalaryBalanceState,
+  isTransactionInOpenSalaryCycle,
+  saveExpenseWithAdditionalFunds,
+  saveTransactionWithSalaryValidation,
+} from "@/services/salaryBalance";
 
 type Expense = ExpenseRecord;
+
+export type TransactionSaveResult =
+  | {
+      status: "saved";
+      expense: ExpenseRecord;
+    }
+  | {
+      status: "insufficient-funds";
+      available: number;
+      shortfall: number;
+    };
 
 type ExpenseContextType = {
   expenses: Expense[];
@@ -29,7 +44,14 @@ type ExpenseContextType = {
     description: string,
     category?: string,
     type?: "income" | "expense",
-  ) => Promise<void>;
+  ) => Promise<TransactionSaveResult>;
+  addExpenseWithFunds: (input: {
+    amount: string;
+    description: string;
+    category?: string;
+    additionalFunds: string;
+    fundsDescription?: string;
+  }) => Promise<TransactionSaveResult>;
   deleteExpense: (expenseOrId: Expense | string) => Promise<void>;
 };
 
@@ -125,20 +147,66 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     description: string,
     category = "Other",
     type: "income" | "expense" = "expense",
-  ) => {
+  ): Promise<TransactionSaveResult> => {
     if (!user?.uid) {
-      return;
+      throw new Error("Sign in before saving a transaction.");
     }
 
-    await upsertExpense(user.uid, {
+    const parsedAmount = Number(amount);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      throw new Error("Enter a valid amount.");
+    }
+
+    return saveTransactionWithSalaryValidation({
+      expenses,
+      profile: userData || {},
+      transaction: {
       id: createId(),
-      amount: Number(amount),
+      amount: parsedAmount,
       description,
       category,
       type,
       createdAt: new Date().toISOString(),
       updatedAt: Date.now(),
+      },
+      userId: user.uid,
     });
+  };
+
+  const addExpenseWithFunds: ExpenseContextType["addExpenseWithFunds"] =
+    async ({
+      amount,
+      description,
+      category = "Other",
+      additionalFunds,
+      fundsDescription = "Additional funds",
+    }) => {
+      if (!user?.uid || userData?.type !== "salary") {
+        throw new Error("Additional Funds are available for salary accounts.");
+      }
+
+      const parsedAmount = Number(amount);
+      const parsedFunds = Number(additionalFunds);
+
+      if (
+        !Number.isFinite(parsedAmount) ||
+        parsedAmount <= 0 ||
+        !Number.isFinite(parsedFunds) ||
+        parsedFunds <= 0
+      ) {
+        throw new Error("Enter valid expense and Additional Funds amounts.");
+      }
+
+      return saveExpenseWithAdditionalFunds({
+        additionalFunds: parsedFunds,
+        category,
+        description,
+        expenseAmount: parsedAmount,
+        fundsDescription,
+        profile: userData,
+        userId: user.uid,
+      });
   };
 
   const deleteExpense = async (expenseOrId: Expense | string) => {
@@ -146,8 +214,23 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const expenseId =
-      typeof expenseOrId === "string" ? expenseOrId : expenseOrId.id;
+    const expense =
+      typeof expenseOrId === "string"
+        ? expenses.find((item) => item.id === expenseOrId)
+        : expenseOrId;
+    const expenseId = typeof expenseOrId === "string" ? expenseOrId : expenseOrId.id;
+
+    if (userData?.type === "salary" && expense) {
+      const balance = await getSalaryBalanceState({
+        expenses,
+        profile: userData,
+        userId: user.uid,
+      });
+
+      if (!isTransactionInOpenSalaryCycle(expense, balance)) {
+        throw new Error("Completed salary cycles are read-only.");
+      }
+    }
 
     await removeExpenseRecord(user.uid, expenseId);
   };
@@ -160,6 +243,7 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
         currentMonthExpenses,
         loading,
         addExpense,
+        addExpenseWithFunds,
         deleteExpense,
       }}
     >

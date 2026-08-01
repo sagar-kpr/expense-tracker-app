@@ -8,6 +8,7 @@ import { forwardRef, useCallback, useMemo, useRef, useState } from "react";
 
 import {
   ActivityIndicator,
+  Alert,
   InputAccessoryView,
   Keyboard,
   KeyboardAvoidingView,
@@ -32,7 +33,19 @@ type Props = {
     category: string,
 
     type?: "income" | "expense",
-  ) => Promise<void>;
+  ) => Promise<
+    | { status: "saved" }
+    | { status: "insufficient-funds"; available: number; shortfall: number }
+  >;
+  handleAddExpenseWithFunds: (input: {
+    amount: string;
+    description: string;
+    category?: string;
+    additionalFunds: string;
+  }) => Promise<
+    | { status: "saved" }
+    | { status: "insufficient-funds"; available: number; shortfall: number }
+  >;
 };
 
 const expenseCategories = [
@@ -53,7 +66,17 @@ const incomeCategories = [
   "Other",
 ];
 
-const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
+const salaryIncomeCategories = [
+  "Additional Funds",
+  "Bonus",
+  "Refund",
+  "Cash",
+  "Transfer",
+  "Other",
+];
+
+const ExpenseModal = forwardRef<any, Props>(
+  ({ handleAddExpense, handleAddExpenseWithFunds }, ref) => {
   const snapPoints = useMemo(() => ["95%"], []);
 
   const { theme } = useTheme();
@@ -78,7 +101,12 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
   const inputAccessoryViewID = "amountKeyboard";
 
-  const categories = type === "income" ? incomeCategories : expenseCategories;
+  const categories =
+    type === "income"
+      ? userData?.type === "salary"
+        ? salaryIncomeCategories
+        : incomeCategories
+      : expenseCategories;
 
   const resetFields = () => {
     setAmount("");
@@ -98,7 +126,7 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
       Keyboard.dismiss();
 
-      await handleAddExpense(
+      const result = await handleAddExpense(
         amount,
 
         description,
@@ -107,6 +135,60 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
 
         type,
       );
+
+      if (result.status === "insufficient-funds") {
+        await Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Warning,
+        );
+        Alert.alert(
+          "Add Additional Funds first?",
+          `This expense is ₹${result.shortfall.toLocaleString(
+            "en-IN",
+          )} above your available balance of ₹${result.available.toLocaleString(
+            "en-IN",
+          )}.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: `Add ₹${result.shortfall.toLocaleString("en-IN")} & Save`,
+              onPress: async () => {
+                try {
+                  setLoading(true);
+                  const fundedResult = await handleAddExpenseWithFunds({
+                    amount,
+                    description,
+                    category,
+                    additionalFunds: String(result.shortfall),
+                  });
+
+                  if (fundedResult.status !== "saved") {
+                    Alert.alert(
+                      "Balance changed",
+                      "Add enough Additional Funds and try again.",
+                    );
+                    return;
+                  }
+
+                  await Haptics.notificationAsync(
+                    Haptics.NotificationFeedbackType.Success,
+                  );
+                  resetFields();
+                  (ref as any)?.current?.close();
+                } catch (error) {
+                  console.log("Fund and save expense error:", error);
+                  Alert.alert(
+                    "Could not save",
+                    "Please try adding the funds and expense again.",
+                  );
+                } finally {
+                  setLoading(false);
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -223,7 +305,8 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
             {type === "income" ? "Quick Add Income" : "Quick Add Expense"}
           </Text>
 
-          {userData?.type === "self-employed" && (
+          {(userData?.type === "self-employed" ||
+            userData?.type === "salary") && (
             <View
               style={{
                 flexDirection: "row",
@@ -241,7 +324,11 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                 onPress={() => {
                   setType("income");
 
-                  setCategory("Freelance");
+                  setCategory(
+                    userData?.type === "salary"
+                      ? "Additional Funds"
+                      : "Freelance",
+                  );
                 }}
                 style={{
                   flex: 1,
@@ -265,7 +352,9 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                     fontSize: 15,
                   }}
                 >
-                  Income
+                  {userData?.type === "salary"
+                    ? "Additional Funds"
+                    : "Income"}
                 </Text>
               </Pressable>
 
@@ -583,7 +672,11 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
                     fontWeight: "700",
                   }}
                 >
-                  {type === "income" ? "Add Income" : "Add Expense"}
+                  {type === "income"
+                    ? userData?.type === "salary"
+                      ? "Add Funds"
+                      : "Add Income"
+                    : "Add Expense"}
                 </Text>
               </View>
             </Pressable>
@@ -624,7 +717,8 @@ const ExpenseModal = forwardRef<any, Props>(({ handleAddExpense }, ref) => {
       </KeyboardAvoidingView>
     </BottomSheet>
   );
-});
+  },
+);
 
 ExpenseModal.displayName = "ExpenseModal";
 

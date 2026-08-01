@@ -1,4 +1,8 @@
 import { createId } from "@/repositories/shared";
+import {
+  calculateSalaryCycleTotals,
+  normalizeCarryForward,
+} from "@/services/salaryMath";
 
 export type SalaryHistoryEntry = {
   id: string;
@@ -16,12 +20,18 @@ export type SalaryCycleSnapshot = {
   expectedCycleKey?: string;
   cycleStartMs: number;
   cycleEndMs: number;
+  carryForward: number;
   salary: number;
   salaryDate: number;
+  additionalFunds: number;
+  availableTotal: number;
   totalSpent: number;
   remaining: number;
   usagePercent: number;
   expenseCount: number;
+  status: "open" | "closed";
+  closedAtMs?: number;
+  schemaVersion: number;
   source?: string;
   updatedAtMs: number;
   createdAtMs: number;
@@ -417,20 +427,27 @@ const getExpenseStatsForCycle = (
   const relevant = (expenses || []).filter((item) => {
     const date = toDate(item.createdAt);
 
-    if (!date || (item.type || "expense") !== "expense") {
+    if (!date) {
       return false;
     }
 
     return date >= cycleStart && date < cycleEnd;
   });
 
-  const totalSpent = relevant.reduce(
+  const expensesOnly = relevant.filter(
+    (item) => (item.type || "expense") === "expense",
+  );
+  const additionalFunds = relevant
+    .filter((item) => item.type === "income")
+    .reduce((sum, item) => sum + toAmount(item.amount), 0);
+  const totalSpent = expensesOnly.reduce(
     (sum, item) => sum + toAmount(item.amount),
     0,
   );
 
   return {
-    expenseCount: relevant.length,
+    additionalFunds,
+    expenseCount: expensesOnly.length,
     totalSpent,
   };
 };
@@ -469,6 +486,7 @@ export const buildSalaryCycleSnapshot = ({
   profile,
   salaryHistory,
   salaryArrivals,
+  salaryCycleSnapshots,
   expenses,
   cycleStart,
   expectedCycleStart,
@@ -484,16 +502,36 @@ export const buildSalaryCycleSnapshot = ({
     referenceDate,
     preferCurrentProfile,
   });
-  const { expenseCount, totalSpent } = getExpenseStatsForCycle(
+  const existing = findSalarySnapshotForCycle(
+    salaryCycleSnapshots,
+    boundary.start,
+  );
+  const calculationEnd =
+    existing?.status === "open" &&
+    referenceDate &&
+    referenceDate.getTime() >= boundary.end.getTime()
+      ? new Date(referenceDate.getTime() + 1)
+      : boundary.end;
+  const { additionalFunds, expenseCount, totalSpent } = getExpenseStatsForCycle(
     expenses,
     boundary.start,
-    boundary.end,
+    calculationEnd,
   );
-  const remaining = boundary.salary - totalSpent;
-  const usagePercent =
-    boundary.salary > 0
-      ? Math.round((totalSpent / boundary.salary) * 100)
-      : 0;
+  const previousSnapshot = [...(salaryCycleSnapshots || [])]
+    .filter((item) => item.cycleStartMs < boundary.start.getTime())
+    .sort((left, right) => right.cycleStartMs - left.cycleStartMs)[0];
+  const carryForward = Number(
+    existing?.carryForward ??
+      (previousSnapshot ? normalizeCarryForward(previousSnapshot.remaining) : 0),
+  );
+  const salary = Number(existing?.salary ?? boundary.salary);
+  const { availableTotal, remaining, usagePercent } =
+    calculateSalaryCycleTotals({
+      additionalFunds,
+      carryForward,
+      salary,
+      totalSpent,
+    });
   const now = Date.now();
 
   return {
@@ -501,16 +539,22 @@ export const buildSalaryCycleSnapshot = ({
     cycleKey: boundary.cycleKey,
     expectedCycleKey: boundary.expectedCycleKey,
     cycleStartMs: boundary.start.getTime(),
-    cycleEndMs: boundary.end.getTime(),
-    salary: boundary.salary,
+    cycleEndMs: calculationEnd.getTime(),
+    carryForward,
+    salary,
     salaryDate: boundary.salaryDate,
+    additionalFunds,
+    availableTotal,
     totalSpent,
     remaining,
     usagePercent,
     expenseCount,
-    source: "derived",
+    status: existing?.status || "open",
+    closedAtMs: existing?.closedAtMs,
+    schemaVersion: 2,
+    source: existing?.source || "derived",
     updatedAtMs: now,
-    createdAtMs: now,
+    createdAtMs: existing?.createdAtMs || now,
   } satisfies SalaryCycleSnapshot;
 };
 
@@ -548,7 +592,7 @@ export const resolveSalaryCycleSummary = ({
     boundary.start,
   );
 
-  if (stored && !preferCurrentProfile) {
+  if (stored?.status === "closed" && !preferCurrentProfile) {
     return stored;
   }
 
