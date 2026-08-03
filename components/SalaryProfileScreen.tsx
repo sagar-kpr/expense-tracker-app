@@ -20,13 +20,16 @@ import { useMemo, useState } from "react";
 
 import * as Haptics from "expo-haptics";
 
+import PrivacyDataSection from "@/components/PrivacyDataSection";
 import SalaryArrivalModal from "@/components/SalaryArrivalModal";
+import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useSalary } from "@/context/SalaryContext";
 import { auth } from "@/firebase";
-import PrivacyDataSection from "@/components/PrivacyDataSection";
-import { useAuth } from "@/context/AuthContext";
-import { saveProfile, setProfileSyncMode } from "@/repositories/profileRepository";
+import {
+  saveProfile,
+  setProfileSyncMode,
+} from "@/repositories/profileRepository";
 import { getSalaryArrivalWindow } from "@/services/salaryLedger";
 
 export default function ProfileScreen() {
@@ -717,7 +720,7 @@ export default function ProfileScreen() {
               fontWeight: "800",
             }}
           >
-            Salary Arrived
+            Salary Arrived ?
           </Text>
         </TouchableOpacity>
       </Animated.View>
@@ -752,7 +755,7 @@ export default function ProfileScreen() {
               fontSize: 13,
             }}
           >
-            Salary Used
+            Used
           </Text>
 
           <Text
@@ -794,7 +797,7 @@ export default function ProfileScreen() {
               fontSize: 13,
             }}
           >
-            Salary Remaining
+            Remaining
           </Text>
 
           <Text
@@ -1072,8 +1075,8 @@ export default function ProfileScreen() {
                 marginTop: 8,
               }}
             >
-              Turn it on to back up local data to Firestore. Turn it off to
-              keep working locally only.
+              Turn it on to back up local data to Firestore. Turn it off to keep
+              working locally only.
             </Text>
           </>
         )}

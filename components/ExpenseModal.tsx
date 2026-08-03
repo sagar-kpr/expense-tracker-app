@@ -67,7 +67,7 @@ const incomeCategories = [
 ];
 
 const salaryIncomeCategories = [
-  "Additional Funds",
+  "Funds",
   "Bonus",
   "Refund",
   "Cash",
@@ -77,646 +77,651 @@ const salaryIncomeCategories = [
 
 const ExpenseModal = forwardRef<any, Props>(
   ({ handleAddExpense, handleAddExpenseWithFunds }, ref) => {
-  const snapPoints = useMemo(() => ["95%"], []);
+    const snapPoints = useMemo(() => ["95%"], []);
 
-  const { theme } = useTheme();
+    const { theme } = useTheme();
 
-  const { userData } = useAuth();
+    const { userData } = useAuth();
 
-  const insets = useSafeAreaInsets();
+    const insets = useSafeAreaInsets();
 
-  const [amount, setAmount] = useState("");
+    const [amount, setAmount] = useState("");
 
-  const [description, setDescription] = useState("");
+    const [description, setDescription] = useState("");
 
-  const [type, setType] = useState<"income" | "expense">("expense");
+    const [type, setType] = useState<"income" | "expense">("expense");
 
-  const [category, setCategory] = useState("Food");
+    const [category, setCategory] = useState("Food");
 
-  const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-  const amountInputRef = useRef<TextInput>(null);
+    const amountInputRef = useRef<TextInput>(null);
 
-  const scrollViewRef = useRef<BottomSheetScrollViewMethods>(null);
+    const scrollViewRef = useRef<BottomSheetScrollViewMethods>(null);
 
-  const inputAccessoryViewID = "amountKeyboard";
+    const inputAccessoryViewID = "amountKeyboard";
 
-  const categories =
-    type === "income"
-      ? userData?.type === "salary"
-        ? salaryIncomeCategories
-        : incomeCategories
-      : expenseCategories;
+    const categories =
+      type === "income"
+        ? userData?.type === "salary"
+          ? salaryIncomeCategories
+          : incomeCategories
+        : expenseCategories;
 
-  const resetFields = () => {
-    setAmount("");
+    const resetFields = () => {
+      setAmount("");
 
-    setDescription("");
+      setDescription("");
 
-    setType("expense");
+      setType("expense");
 
-    setCategory("Food");
-  };
+      setCategory("Food");
+    };
 
-  const onSave = async () => {
-    if (!amount || loading) return;
+    const onSave = async () => {
+      if (!amount || loading) return;
 
-    try {
-      setLoading(true);
+      try {
+        setLoading(true);
 
-      Keyboard.dismiss();
+        Keyboard.dismiss();
 
-      const result = await handleAddExpense(
-        amount,
+        const result = await handleAddExpense(
+          amount,
 
-        description,
+          description,
 
-        category,
+          category,
 
-        type,
-      );
-
-      if (result.status === "insufficient-funds") {
-        await Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Warning,
+          type,
         );
-        Alert.alert(
-          "Add Additional Funds first?",
-          `This expense is ₹${result.shortfall.toLocaleString(
-            "en-IN",
-          )} above your available balance of ₹${result.available.toLocaleString(
-            "en-IN",
-          )}.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: `Add ₹${result.shortfall.toLocaleString("en-IN")} & Save`,
-              onPress: async () => {
-                try {
-                  setLoading(true);
-                  const fundedResult = await handleAddExpenseWithFunds({
-                    amount,
-                    description,
-                    category,
-                    additionalFunds: String(result.shortfall),
-                  });
 
-                  if (fundedResult.status !== "saved") {
-                    Alert.alert(
-                      "Balance changed",
-                      "Add enough Additional Funds and try again.",
+        if (result.status === "insufficient-funds") {
+          await Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Warning,
+          );
+          Alert.alert(
+            "Add Additional Funds first?",
+            `This expense is ₹${result.shortfall.toLocaleString(
+              "en-IN",
+            )} above your available balance of ₹${result.available.toLocaleString(
+              "en-IN",
+            )}.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: `Add ₹${result.shortfall.toLocaleString("en-IN")} & Save`,
+                onPress: async () => {
+                  try {
+                    setLoading(true);
+                    const fundedResult = await handleAddExpenseWithFunds({
+                      amount,
+                      description,
+                      category,
+                      additionalFunds: String(result.shortfall),
+                    });
+
+                    if (fundedResult.status !== "saved") {
+                      Alert.alert(
+                        "Balance changed",
+                        "Add enough Additional Funds and try again.",
+                      );
+                      return;
+                    }
+
+                    await Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Success,
                     );
-                    return;
+                    resetFields();
+                    (ref as any)?.current?.close();
+                  } catch (error) {
+                    console.log("Fund and save expense error:", error);
+                    Alert.alert(
+                      "Could not save",
+                      "Please try adding the funds and expense again.",
+                    );
+                  } finally {
+                    setLoading(false);
                   }
-
-                  await Haptics.notificationAsync(
-                    Haptics.NotificationFeedbackType.Success,
-                  );
-                  resetFields();
-                  (ref as any)?.current?.close();
-                } catch (error) {
-                  console.log("Fund and save expense error:", error);
-                  Alert.alert(
-                    "Could not save",
-                    "Please try adding the funds and expense again.",
-                  );
-                } finally {
-                  setLoading(false);
-                }
+                },
               },
-            },
-          ],
+            ],
+          );
+          return;
+        }
+
+        await Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
         );
-        return;
+
+        resetFields();
+
+        (ref as any)?.current?.close();
+      } catch (err) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+        console.log(err);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
+    const handleSheetClose = () => {
       resetFields();
 
-      (ref as any)?.current?.close();
-    } catch (err) {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Keyboard.dismiss();
+    };
 
-      console.log(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const formatAmount = (value: string) => {
+      if (!value) return "";
 
-  const handleSheetClose = () => {
-    resetFields();
+      const cleaned = value.replace(/,/g, "");
 
-    Keyboard.dismiss();
-  };
+      const parts = cleaned.split(".");
 
-  const formatAmount = (value: string) => {
-    if (!value) return "";
+      const number = parts[0];
 
-    const cleaned = value.replace(/,/g, "");
+      const lastThree = number.slice(-3);
 
-    const parts = cleaned.split(".");
+      const otherNumbers = number.slice(0, -3);
 
-    const number = parts[0];
+      const formatted = otherNumbers
+        ? otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + lastThree
+        : lastThree;
 
-    const lastThree = number.slice(-3);
+      return parts[1] ? formatted + "." + parts[1] : formatted;
+    };
 
-    const otherNumbers = number.slice(0, -3);
-
-    const formatted = otherNumbers
-      ? otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + lastThree
-      : lastThree;
-
-    return parts[1] ? formatted + "." + parts[1] : formatted;
-  };
-
-  const scrollToActions = useCallback(() => {
-    requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollToEnd({
-        animated: true,
+    const scrollToActions = useCallback(() => {
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollToEnd({
+          animated: true,
+        });
       });
-    });
 
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({
-        animated: true,
-      });
-    }, 300);
-  }, []);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({
+          animated: true,
+        });
+      }, 300);
+    }, []);
 
-  return (
-    <BottomSheet
-      ref={ref}
-      index={-1}
-      snapPoints={snapPoints}
-      enableDynamicSizing={false}
-      enablePanDownToClose
-      onClose={handleSheetClose}
-      bottomInset={insets.bottom}
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
-      onChange={(index) => {
-        if (index >= 0) {
-          setTimeout(() => {
-            amountInputRef.current?.focus();
-          }, 250);
-        }
-      }}
-      backgroundStyle={{
-        backgroundColor: theme.card,
+    return (
+      <BottomSheet
+        ref={ref}
+        index={-1}
+        snapPoints={snapPoints}
+        enableDynamicSizing={false}
+        enablePanDownToClose
+        onClose={handleSheetClose}
+        bottomInset={insets.bottom}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+        onChange={(index) => {
+          if (index >= 0) {
+            setTimeout(() => {
+              amountInputRef.current?.focus();
+            }, 250);
+          }
+        }}
+        backgroundStyle={{
+          backgroundColor: theme.card,
 
-        borderTopLeftRadius: 35,
+          borderTopLeftRadius: 35,
 
-        borderTopRightRadius: 35,
-      }}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{
-          flex: 1,
+          borderTopRightRadius: 35,
         }}
       >
-        <BottomSheetScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={{
-            flexGrow: 1,
-
-            paddingHorizontal: 28,
-
-            paddingTop: 60,
-
-            paddingBottom: 30,
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{
+            flex: 1,
           }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
         >
-          <Text
-            style={{
-              textAlign: "center",
+          <BottomSheetScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={{
+              flexGrow: 1,
 
-              fontSize: 18,
+              paddingHorizontal: 28,
 
-              color: theme.subText,
+              paddingTop: 60,
 
-              fontWeight: "600",
+              paddingBottom: 30,
             }}
-          >
-            {type === "income" ? "Quick Add Income" : "Quick Add Expense"}
-          </Text>
-
-          {(userData?.type === "self-employed" ||
-            userData?.type === "salary") && (
-            <View
-              style={{
-                flexDirection: "row",
-
-                marginTop: 28,
-
-                backgroundColor: theme.background,
-
-                borderRadius: 18,
-
-                padding: 6,
-              }}
-            >
-              <Pressable
-                onPress={() => {
-                  setType("income");
-
-                  setCategory(
-                    userData?.type === "salary"
-                      ? "Additional Funds"
-                      : "Freelance",
-                  );
-                }}
-                style={{
-                  flex: 1,
-
-                  backgroundColor:
-                    type === "income" ? "#11735E" : "transparent",
-
-                  paddingVertical: 14,
-
-                  borderRadius: 14,
-
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    color: type === "income" ? "white" : theme.subText,
-
-                    fontWeight: "800",
-
-                    fontSize: 15,
-                  }}
-                >
-                  {userData?.type === "salary"
-                    ? "Additional Funds"
-                    : "Income"}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  setType("expense");
-
-                  setCategory("Food");
-                }}
-                style={{
-                  flex: 1,
-
-                  backgroundColor:
-                    type === "expense" ? "#172033" : "transparent",
-
-                  paddingVertical: 14,
-
-                  borderRadius: 14,
-
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    color: type === "expense" ? "white" : theme.subText,
-
-                    fontWeight: "800",
-
-                    fontSize: 15,
-                  }}
-                >
-                  Expense
-                </Text>
-              </Pressable>
-            </View>
-          )}
-
-          <View
-            style={{
-              marginTop: 65,
-
-              alignItems: "center",
-
-              flexDirection: "row",
-
-              justifyContent: "center",
-            }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           >
             <Text
               style={{
-                fontSize: amount.length > 10 ? 18 : amount.length > 7 ? 20 : 22,
-
-                fontWeight: "600",
-
-                color: amount.length === 0 ? theme.subText : theme.text,
-
-                marginRight: 4,
-
-                alignSelf: "flex-start",
-
-                marginTop: 12,
-              }}
-            >
-              ₹
-            </Text>
-
-            <TextInput
-              ref={amountInputRef}
-              inputAccessoryViewID={inputAccessoryViewID}
-              value={formatAmount(amount)}
-              onChangeText={(text) => {
-                const cleaned = text.replace(/,/g, "");
-
-                const numeric = Number(cleaned);
-
-                if (numeric > 10000000) {
-                  return;
-                }
-
-                setAmount(cleaned);
-              }}
-              keyboardType="decimal-pad"
-              selectionColor={theme.primary}
-              placeholder="0"
-              placeholderTextColor={theme.subText}
-              style={{
-                fontSize: 42,
-
-                fontWeight: "600",
-
-                color: theme.text,
-
                 textAlign: "center",
 
-                flexShrink: 1,
-              }}
-            />
-          </View>
+                fontSize: 18,
 
-          <View
-            style={{
-              flexDirection: "row",
+                color: theme.subText,
 
-              justifyContent: "space-between",
-
-              marginTop: 36,
-            }}
-          >
-            {[50, 100, 500].map((value) => (
-              <Pressable
-                key={value}
-                onPress={() => {
-                  const current = Number(amount || 0);
-
-                  setAmount(String(current + value));
-                }}
-                style={({ pressed }) => ({
-                  borderWidth: 1,
-
-                  borderColor: theme.border,
-
-                  backgroundColor: pressed ? theme.border : theme.card,
-
-                  paddingVertical: 12,
-
-                  paddingHorizontal: 24,
-
-                  borderRadius: 16,
-
-                  transform: [
-                    {
-                      scale: pressed ? 0.97 : 1,
-                    },
-                  ],
-                })}
-              >
-                <Text
-                  style={{
-                    fontSize: 15,
-
-                    fontWeight: "600",
-
-                    color: theme.text,
-                  }}
-                >
-                  + ₹{value}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Text
-            style={{
-              marginTop: 36,
-
-              marginBottom: 14,
-
-              fontSize: 15,
-
-              fontWeight: "700",
-
-              color: theme.subText,
-            }}
-          >
-            Category
-          </Text>
-
-          <View
-            style={{
-              flexDirection: "row",
-
-              flexWrap: "wrap",
-
-              marginTop: 2,
-
-              gap: 10,
-            }}
-          >
-            {categories.map((item) => {
-              const active = category === item;
-
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() => setCategory(item)}
-                  style={{
-                    minWidth: 95,
-
-                    height: 46,
-
-                    borderRadius: 16,
-
-                    justifyContent: "center",
-
-                    alignItems: "center",
-
-                    backgroundColor: active
-                      ? type === "income" || userData?.type !== "self-employed"
-                        ? "#11735E"
-                        : "#172033"
-                      : theme.card,
-
-                    borderWidth: 1,
-
-                    borderColor: active
-                      ? type === "income" || userData?.type !== "self-employed"
-                        ? "#11735E"
-                        : "#172033"
-                      : theme.border,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: active ? "white" : theme.subText,
-
-                      fontWeight: "700",
-
-                      fontSize: 14,
-
-                      letterSpacing: 0.2,
-                    }}
-                  >
-                    {item}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <BottomSheetTextInput
-            placeholder="Add description..."
-            value={description}
-            onChangeText={setDescription}
-            onFocus={scrollToActions}
-            returnKeyType="done"
-            submitBehavior="blurAndSubmit"
-            placeholderTextColor={theme.subText}
-            style={{
-              backgroundColor: theme.card,
-
-              borderRadius: 20,
-
-              paddingVertical: 18,
-
-              paddingHorizontal: 18,
-
-              marginTop: 36,
-
-              marginBottom: 20,
-
-              fontSize: 16,
-
-              color: theme.text,
-
-              borderWidth: 1,
-
-              borderColor: theme.border,
-            }}
-          />
-
-          <View
-            style={{
-              marginTop: "auto",
-
-              paddingBottom: 25,
-            }}
-          >
-            <Pressable
-              disabled={!amount || loading}
-              onPress={onSave}
-              android_ripple={{
-                color: type === "income" ? "#11735E" : "#172033",
-              }}
-              style={{
-                backgroundColor: !amount
-                  ? type === "income" || userData?.type !== "self-employed"
-                    ? "#6bc0ae"
-                    : "#50596d"
-                  : loading
-                    ? theme.border
-                    : type === "income" || userData?.type !== "self-employed"
-                      ? "#11735E"
-                      : "#172033",
-
-                paddingVertical: 18,
-
-                borderRadius: 20,
-
-                opacity: loading ? 0.85 : 1,
+                fontWeight: "600",
               }}
             >
+              {type === "income" ? "Quick Add Income" : "Quick Add Expense"}
+            </Text>
+
+            {(userData?.type === "self-employed" ||
+              userData?.type === "salary") && (
               <View
                 style={{
                   flexDirection: "row",
 
-                  alignItems: "center",
+                  marginTop: 28,
 
-                  justifyContent: "center",
+                  backgroundColor: theme.background,
 
-                  gap: 10,
+                  borderRadius: 18,
+
+                  padding: 6,
                 }}
               >
-                {loading && (
-                  <ActivityIndicator size="small" color={theme.card} />
-                )}
+                <Pressable
+                  onPress={() => {
+                    setType("income");
 
-                <Text
+                    setCategory(
+                      userData?.type === "salary"
+                        ? "Additional Funds"
+                        : "Freelance",
+                    );
+                  }}
                   style={{
-                    color: "white",
+                    flex: 1,
 
-                    textAlign: "center",
+                    backgroundColor:
+                      type === "income" ? "#11735E" : "transparent",
 
-                    fontSize: 20,
+                    paddingVertical: 14,
 
-                    fontWeight: "700",
+                    borderRadius: 14,
+
+                    alignItems: "center",
                   }}
                 >
-                  {type === "income"
-                    ? userData?.type === "salary"
-                      ? "Add Funds"
-                      : "Add Income"
-                    : "Add Expense"}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-        </BottomSheetScrollView>
+                  <Text
+                    style={{
+                      color: type === "income" ? "white" : theme.subText,
 
-        {Platform.OS === "ios" && (
-          <InputAccessoryView nativeID={inputAccessoryViewID}>
+                      fontWeight: "800",
+
+                      fontSize: 15,
+                    }}
+                  >
+                    {userData?.type === "salary"
+                      ? "Additional Funds"
+                      : "Income"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    setType("expense");
+
+                    setCategory("Food");
+                  }}
+                  style={{
+                    flex: 1,
+
+                    backgroundColor:
+                      type === "expense" ? "#172033" : "transparent",
+
+                    paddingVertical: 14,
+
+                    borderRadius: 14,
+
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: type === "expense" ? "white" : theme.subText,
+
+                      fontWeight: "800",
+
+                      fontSize: 15,
+                    }}
+                  >
+                    Expense
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
             <View
+              style={{
+                marginTop: 65,
+
+                alignItems: "center",
+
+                flexDirection: "row",
+
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize:
+                    amount.length > 10 ? 18 : amount.length > 7 ? 20 : 22,
+
+                  fontWeight: "600",
+
+                  color: amount.length === 0 ? theme.subText : theme.text,
+
+                  marginRight: 4,
+
+                  alignSelf: "flex-start",
+
+                  marginTop: 12,
+                }}
+              >
+                ₹
+              </Text>
+
+              <TextInput
+                ref={amountInputRef}
+                inputAccessoryViewID={inputAccessoryViewID}
+                value={formatAmount(amount)}
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/,/g, "");
+
+                  const numeric = Number(cleaned);
+
+                  if (numeric > 10000000) {
+                    return;
+                  }
+
+                  setAmount(cleaned);
+                }}
+                keyboardType="decimal-pad"
+                selectionColor={theme.primary}
+                placeholder="0"
+                placeholderTextColor={theme.subText}
+                style={{
+                  fontSize: 42,
+
+                  fontWeight: "600",
+
+                  color: theme.text,
+
+                  textAlign: "center",
+
+                  flexShrink: 1,
+                }}
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+
+                justifyContent: "space-between",
+
+                marginTop: 36,
+              }}
+            >
+              {[50, 100, 500].map((value) => (
+                <Pressable
+                  key={value}
+                  onPress={() => {
+                    const current = Number(amount || 0);
+
+                    setAmount(String(current + value));
+                  }}
+                  style={({ pressed }) => ({
+                    borderWidth: 1,
+
+                    borderColor: theme.border,
+
+                    backgroundColor: pressed ? theme.border : theme.card,
+
+                    paddingVertical: 12,
+
+                    paddingHorizontal: 24,
+
+                    borderRadius: 16,
+
+                    transform: [
+                      {
+                        scale: pressed ? 0.97 : 1,
+                      },
+                    ],
+                  })}
+                >
+                  <Text
+                    style={{
+                      fontSize: 15,
+
+                      fontWeight: "600",
+
+                      color: theme.text,
+                    }}
+                  >
+                    + ₹{value}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text
+              style={{
+                marginTop: 36,
+
+                marginBottom: 14,
+
+                fontSize: 15,
+
+                fontWeight: "700",
+
+                color: theme.subText,
+              }}
+            >
+              Category
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+
+                flexWrap: "wrap",
+
+                marginTop: 2,
+
+                gap: 10,
+              }}
+            >
+              {categories.map((item) => {
+                const active = category === item;
+
+                return (
+                  <Pressable
+                    key={item}
+                    onPress={() => setCategory(item)}
+                    style={{
+                      minWidth: 95,
+
+                      height: 46,
+
+                      borderRadius: 16,
+
+                      justifyContent: "center",
+
+                      alignItems: "center",
+
+                      backgroundColor: active
+                        ? type === "income" ||
+                          userData?.type !== "self-employed"
+                          ? "#11735E"
+                          : "#172033"
+                        : theme.card,
+
+                      borderWidth: 1,
+
+                      borderColor: active
+                        ? type === "income" ||
+                          userData?.type !== "self-employed"
+                          ? "#11735E"
+                          : "#172033"
+                        : theme.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? "white" : theme.subText,
+
+                        fontWeight: "700",
+
+                        fontSize: 14,
+
+                        letterSpacing: 0.2,
+                      }}
+                    >
+                      {item}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <BottomSheetTextInput
+              placeholder="Add description..."
+              value={description}
+              onChangeText={setDescription}
+              onFocus={scrollToActions}
+              returnKeyType="done"
+              submitBehavior="blurAndSubmit"
+              placeholderTextColor={theme.subText}
               style={{
                 backgroundColor: theme.card,
 
-                borderTopWidth: 1,
+                borderRadius: 20,
+
+                paddingVertical: 18,
+
+                paddingHorizontal: 18,
+
+                marginTop: 36,
+
+                marginBottom: 20,
+
+                fontSize: 16,
+
+                color: theme.text,
+
+                borderWidth: 1,
 
                 borderColor: theme.border,
+              }}
+            />
 
-                padding: 12,
+            <View
+              style={{
+                marginTop: "auto",
 
-                alignItems: "flex-end",
+                paddingBottom: 25,
               }}
             >
-              <Pressable onPress={() => Keyboard.dismiss()}>
-                <Text
+              <Pressable
+                disabled={!amount || loading}
+                onPress={onSave}
+                android_ripple={{
+                  color: type === "income" ? "#11735E" : "#172033",
+                }}
+                style={{
+                  backgroundColor: !amount
+                    ? type === "income" || userData?.type !== "self-employed"
+                      ? "#6bc0ae"
+                      : "#50596d"
+                    : loading
+                      ? theme.border
+                      : type === "income" || userData?.type !== "self-employed"
+                        ? "#11735E"
+                        : "#172033",
+
+                  paddingVertical: 18,
+
+                  borderRadius: 20,
+
+                  opacity: loading ? 0.85 : 1,
+                }}
+              >
+                <View
                   style={{
-                    color: theme.primary,
+                    flexDirection: "row",
 
-                    fontSize: 16,
+                    alignItems: "center",
 
-                    fontWeight: "700",
+                    justifyContent: "center",
+
+                    gap: 10,
                   }}
                 >
-                  Done
-                </Text>
+                  {loading && (
+                    <ActivityIndicator size="small" color={theme.card} />
+                  )}
+
+                  <Text
+                    style={{
+                      color: "white",
+
+                      textAlign: "center",
+
+                      fontSize: 20,
+
+                      fontWeight: "700",
+                    }}
+                  >
+                    {type === "income"
+                      ? userData?.type === "salary"
+                        ? "Add Funds"
+                        : "Add Income"
+                      : "Add Expense"}
+                  </Text>
+                </View>
               </Pressable>
             </View>
-          </InputAccessoryView>
-        )}
-      </KeyboardAvoidingView>
-    </BottomSheet>
-  );
+          </BottomSheetScrollView>
+
+          {Platform.OS === "ios" && (
+            <InputAccessoryView nativeID={inputAccessoryViewID}>
+              <View
+                style={{
+                  backgroundColor: theme.card,
+
+                  borderTopWidth: 1,
+
+                  borderColor: theme.border,
+
+                  padding: 12,
+
+                  alignItems: "flex-end",
+                }}
+              >
+                <Pressable onPress={() => Keyboard.dismiss()}>
+                  <Text
+                    style={{
+                      color: theme.primary,
+
+                      fontSize: 16,
+
+                      fontWeight: "700",
+                    }}
+                  >
+                    Done
+                  </Text>
+                </Pressable>
+              </View>
+            </InputAccessoryView>
+          )}
+        </KeyboardAvoidingView>
+      </BottomSheet>
+    );
   },
 );
 

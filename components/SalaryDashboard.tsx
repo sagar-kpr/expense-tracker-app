@@ -142,8 +142,7 @@ export default function SalaryDashboard() {
   const saved = Math.max(remaining, 0);
   const savedPercent =
     availableTotal > 0 ? Math.round((saved / availableTotal) * 100) : 0;
-  const usagePercent =
-    availableTotal > 0 ? (spent / availableTotal) * 100 : 0;
+  const usagePercent = availableTotal > 0 ? (spent / availableTotal) * 100 : 0;
   // const usageLabel = usagePercent > 999 ? "999" : "...";
   const usageLabel =
     spent > 0 && usagePercent < 1
@@ -388,7 +387,7 @@ export default function SalaryDashboard() {
                   adjustsFontSizeToFit
                   style={styles.detailLabel}
                 >
-                  Safe to Spend Today
+                  Safe to Spend
                 </Text>
                 <Text
                   numberOfLines={1}
@@ -447,7 +446,7 @@ export default function SalaryDashboard() {
             <OverviewCard
               title="Carry Forward"
               value={hidden ? formatMaskedMoney() : formatMoney(carryForward)}
-              caption="Previous balance"
+              caption="Previous cycle"
               icon="wallet-outline"
               iconColor="#159665"
               iconBackground="#C4F1DE"
@@ -465,11 +464,11 @@ export default function SalaryDashboard() {
               borderColor="rgba(37,99,235,0.12)"
             />
             <OverviewCard
-              title="Additional Funds"
+              title="Extra Funds"
               value={
                 hidden ? formatMaskedMoney() : formatMoney(additionalFunds)
               }
-              caption="Added this cycle"
+              caption="Current cycle"
               icon="add-circle-outline"
               iconColor="#D97706"
               iconBackground="#FEF3C7"
@@ -859,7 +858,7 @@ const stylesShared = StyleSheet.create({
   },
   overviewCaption: {
     color: "#52525B",
-    fontSize: 13,
+    fontSize: 11,
     marginTop: 6,
     opacity: 0.75,
   },

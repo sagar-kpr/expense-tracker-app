@@ -12,11 +12,11 @@ import {
   View,
 } from "react-native";
 
+import { useAuth } from "@/context/AuthContext";
 import {
   PendingTransaction,
   usePendingTransactions,
 } from "@/context/PendingTransactionContext";
-import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 
 const expenseCategories = [
@@ -38,7 +38,7 @@ const incomeCategories = [
   "Other",
 ];
 const salaryIncomeCategories = [
-  "Additional Funds",
+  "Funds",
   "Bonus",
   "Refund",
   "Cash",
@@ -70,9 +70,7 @@ export default function PendingTransactionCard({ transaction }: Props) {
   const [type, setType] = useState<"expense" | "income">(
     transaction.type || "expense",
   );
-  const [saving, setSaving] = useState<"add" | "ignore" | "edit" | null>(
-    null,
-  );
+  const [saving, setSaving] = useState<"add" | "ignore" | "edit" | null>(null);
 
   const isIncome = transaction.type === "income";
   const color = isIncome ? theme.primary : theme.danger;
@@ -103,11 +101,10 @@ export default function PendingTransactionCard({ transaction }: Props) {
               onPress: async () => {
                 try {
                   setSaving("add");
-                  const fundedResult =
-                    await approvePendingTransactionWithFunds(
-                      transaction,
-                      result.shortfall,
-                    );
+                  const fundedResult = await approvePendingTransactionWithFunds(
+                    transaction,
+                    result.shortfall,
+                  );
 
                   if (fundedResult.status === "saved") {
                     Haptics.notificationAsync(
@@ -225,8 +222,8 @@ export default function PendingTransactionCard({ transaction }: Props) {
             >
               {userData?.type === "salary" && isIncome
                 ? "Additional Funds"
-                : transaction.category} •{" "}
-              {transaction.source === "sms-auto" ? "SMS" : "Paste"}
+                : transaction.category}{" "}
+              • {transaction.source === "sms-auto" ? "SMS" : "Paste"}
             </Text>
           </View>
 
@@ -418,9 +415,7 @@ export default function PendingTransactionCard({ transaction }: Props) {
 
             <TextInput
               value={amount}
-              onChangeText={(text) =>
-                setAmount(text.replace(/[^0-9.]/g, ""))
-              }
+              onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ""))}
               keyboardType="decimal-pad"
               placeholder="Amount"
               placeholderTextColor={theme.subText}

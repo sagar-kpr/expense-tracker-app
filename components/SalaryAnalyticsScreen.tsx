@@ -260,17 +260,13 @@ export default function SalaryAnalyticsScreen() {
   const availableTotal = carryForward + salaryAmount + additionalFunds;
   const remaining = availableTotal - totalSpent;
   const salaryUsed =
-    availableTotal > 0
-      ? Math.min((totalSpent / availableTotal) * 100, 100)
-      : 0;
+    availableTotal > 0 ? Math.min((totalSpent / availableTotal) * 100, 100) : 0;
   const salaryUsedLabel =
     totalSpent > 0 && salaryUsed < 1
       ? salaryUsed.toFixed(1)
       : String(Math.round(salaryUsed));
   const savingsRate =
-    availableTotal > 0
-      ? Math.round((remaining / availableTotal) * 100)
-      : 0;
+    availableTotal > 0 ? Math.round((remaining / availableTotal) * 100) : 0;
   const savingsBarWidth = Math.min(Math.max(savingsRate, 0), 100);
 
   const isOverspent = remaining < 0;
@@ -465,7 +461,7 @@ export default function SalaryAnalyticsScreen() {
             <Text style={styles.overviewTitle}>Salary Overview</Text>
           </View>
 
-          <Text style={styles.overviewLabel}>Salary Used</Text>
+          <Text style={styles.overviewLabel}>Used</Text>
           <Text style={styles.usedPercent}>{salaryUsedLabel}%</Text>
           <Text
             adjustsFontSizeToFit
@@ -479,9 +475,7 @@ export default function SalaryAnalyticsScreen() {
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: "#34D399" }]} />
             <Text style={styles.legendText}>Carry Forward</Text>
-            <Text style={styles.legendAmount}>
-              {formatMoney(carryForward)}
-            </Text>
+            <Text style={styles.legendAmount}>{formatMoney(carryForward)}</Text>
           </View>
 
           <View style={styles.legendRow}>
@@ -561,7 +555,7 @@ export default function SalaryAnalyticsScreen() {
               <View style={styles.walletIcon}>
                 <Ionicons color={PURPLE} name="wallet" size={21} />
               </View>
-              <Text style={styles.donutLabel}>Total Available</Text>
+              <Text style={styles.donutLabel}>Available</Text>
               <Text
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
@@ -674,7 +668,7 @@ export default function SalaryAnalyticsScreen() {
         style={styles.sectionCard}
       >
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Salary Progress</Text>
+          <Text style={styles.sectionTitle}>Progress</Text>
           <View style={styles.trendPill}>
             <Ionicons color={GREEN} name="calendar-clear-outline" size={15} />
             <Text numberOfLines={1} style={styles.trendPillText}>
