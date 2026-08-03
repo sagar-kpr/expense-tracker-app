@@ -1,19 +1,19 @@
-import { Platform } from "react-native";
 import * as SQLite from "expo-sqlite";
 import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  setDoc,
-  writeBatch,
+    collection,
+    deleteDoc,
+    doc,
+    getDocs,
+    onSnapshot,
+    orderBy,
+    query,
+    setDoc,
+    writeBatch,
 } from "firebase/firestore";
+import { Platform } from "react-native";
 
-import { db } from "@/firebase";
 import { getLocalDatabase } from "@/database/localDb";
+import { db } from "@/firebase";
 import { getLocalProfile } from "@/repositories/profileRepository";
 import { nowMs, toJson } from "@/repositories/shared";
 
@@ -115,8 +115,7 @@ const mapSnapshotRow = (row: any): SalaryCycleSnapshot => ({
   usagePercent: Number(row.usagePercent || 0),
   expenseCount: Number(row.expenseCount || 0),
   status: row.status === "closed" ? "closed" : "open",
-  closedAtMs:
-    row.closedAtMs == null ? undefined : Number(row.closedAtMs),
+  closedAtMs: row.closedAtMs == null ? undefined : Number(row.closedAtMs),
   schemaVersion: Number(row.schemaVersion || 1),
   source: row.source ?? undefined,
   updatedAtMs: Number(row.updatedAtMs || 0),
@@ -135,7 +134,10 @@ const normalizeSnapshotStatuses = (
       ? item
       : {
           ...item,
-          status: index === sorted.length - 1 ? ("open" as const) : ("closed" as const),
+          status:
+            index === sorted.length - 1
+              ? ("open" as const)
+              : ("closed" as const),
         },
   );
 };
@@ -143,7 +145,10 @@ const normalizeSnapshotStatuses = (
 export const listSalaryHistory = async (userId: string) => {
   if (Platform.OS === "web") {
     const snap = await getDocs(
-      query(collection(db, "users", userId, "salaryHistory"), orderBy("createdAtMs", "asc")),
+      query(
+        collection(db, "users", userId, "salaryHistory"),
+        orderBy("createdAtMs", "asc"),
+      ),
     );
     return snap.docs.map((item) => ({
       id: item.id,
@@ -164,7 +169,10 @@ export const listSalaryHistory = async (userId: string) => {
 export const listSalaryArrivals = async (userId: string) => {
   if (Platform.OS === "web") {
     const snap = await getDocs(
-      query(collection(db, "users", userId, "salaryArrivals"), orderBy("arrivedAtMs", "asc")),
+      query(
+        collection(db, "users", userId, "salaryArrivals"),
+        orderBy("arrivedAtMs", "asc"),
+      ),
     );
     return snap.docs.map((item) => ({
       id: item.id,
@@ -185,7 +193,10 @@ export const listSalaryArrivals = async (userId: string) => {
 export const listSalarySnapshots = async (userId: string) => {
   if (Platform.OS === "web") {
     const snap = await getDocs(
-      query(collection(db, "users", userId, "salaryCycleSnapshots"), orderBy("cycleStartMs", "asc")),
+      query(
+        collection(db, "users", userId, "salaryCycleSnapshots"),
+        orderBy("cycleStartMs", "asc"),
+      ),
     );
     return normalizeSnapshotStatuses(
       snap.docs.map((item) =>
@@ -272,7 +283,13 @@ export const upsertSalaryArrival = async (
   entry: Omit<SalaryArrivalEntry, "userId"> & { userId?: string },
 ) => {
   if (Platform.OS === "web") {
-    const docRef = doc(db, "users", userId, "salaryArrivals", entry.expectedCycleKey);
+    const docRef = doc(
+      db,
+      "users",
+      userId,
+      "salaryArrivals",
+      entry.expectedCycleKey,
+    );
     await setDoc(docRef, { ...entry, userId }, { merge: true });
     return { ...entry, id: docRef.id, userId };
   }
@@ -317,23 +334,40 @@ export const upsertSalaryArrival = async (
   const profile = await getLocalProfile(userId);
 
   if (profile?.syncMode === "sync_enabled") {
-    await setDoc(doc(db, "users", userId, "salaryArrivals", entry.expectedCycleKey), {
-      ...payload,
-      id: entry.expectedCycleKey,
-      userId,
-    });
+    await setDoc(
+      doc(db, "users", userId, "salaryArrivals", entry.expectedCycleKey),
+      {
+        ...payload,
+        id: entry.expectedCycleKey,
+        userId,
+      },
+    );
   }
 
   return payload;
 };
+
+const sanitizeFirestorePayload = <T extends Record<string, unknown>>(
+  value: T,
+) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+  ) as T;
 
 export const upsertSalarySnapshot = async (
   userId: string,
   entry: Omit<SalaryCycleSnapshot, "userId"> & { userId?: string },
 ) => {
   if (Platform.OS === "web") {
-    const docRef = doc(db, "users", userId, "salaryCycleSnapshots", entry.cycleKey);
-    await setDoc(docRef, { ...entry, userId }, { merge: true });
+    const docRef = doc(
+      db,
+      "users",
+      userId,
+      "salaryCycleSnapshots",
+      entry.cycleKey,
+    );
+    const payload = sanitizeFirestorePayload({ ...entry, userId });
+    await setDoc(docRef, payload, { merge: true });
     return { ...entry, id: docRef.id, userId };
   }
 
@@ -403,11 +437,15 @@ export const upsertSalarySnapshot = async (
   const profile = await getLocalProfile(userId);
 
   if (profile?.syncMode === "sync_enabled") {
-    await setDoc(doc(db, "users", userId, "salaryCycleSnapshots", entry.cycleKey), {
+    const payloadForFirestore = sanitizeFirestorePayload({
       ...payload,
       id: entry.cycleKey,
       userId,
     });
+    await setDoc(
+      doc(db, "users", userId, "salaryCycleSnapshots", entry.cycleKey),
+      payloadForFirestore,
+    );
   }
 
   return payload;
@@ -431,29 +469,17 @@ export const commitSalaryCycleRollover = async (
 
     batch.set(
       doc(db, "users", userId, "salaryArrivals", arrival.expectedCycleKey),
-      arrival,
+      sanitizeFirestorePayload(arrival),
       { merge: true },
     );
     batch.set(
-      doc(
-        db,
-        "users",
-        userId,
-        "salaryCycleSnapshots",
-        closedSnapshot.cycleKey,
-      ),
-      closedSnapshot,
+      doc(db, "users", userId, "salaryCycleSnapshots", closedSnapshot.cycleKey),
+      sanitizeFirestorePayload(closedSnapshot),
       { merge: true },
     );
     batch.set(
-      doc(
-        db,
-        "users",
-        userId,
-        "salaryCycleSnapshots",
-        openSnapshot.cycleKey,
-      ),
-      openSnapshot,
+      doc(db, "users", userId, "salaryCycleSnapshots", openSnapshot.cycleKey),
+      sanitizeFirestorePayload(openSnapshot),
       { merge: true },
     );
 
@@ -594,24 +620,12 @@ export const commitSalaryCycleRollover = async (
       { merge: true },
     );
     batch.set(
-      doc(
-        db,
-        "users",
-        userId,
-        "salaryCycleSnapshots",
-        closedSnapshot.cycleKey,
-      ),
+      doc(db, "users", userId, "salaryCycleSnapshots", closedSnapshot.cycleKey),
       closedSnapshot,
       { merge: true },
     );
     batch.set(
-      doc(
-        db,
-        "users",
-        userId,
-        "salaryCycleSnapshots",
-        openSnapshot.cycleKey,
-      ),
+      doc(db, "users", userId, "salaryCycleSnapshots", openSnapshot.cycleKey),
       openSnapshot,
       { merge: true },
     );
@@ -643,7 +657,11 @@ export const deleteSalarySnapshot = async (userId: string, id: string) => {
   }
 
   const dbx = await getLocalDatabase();
-  await dbx.runAsync("DELETE FROM salary_cycle_snapshots WHERE id = ? AND userId = ?", id, userId);
+  await dbx.runAsync(
+    "DELETE FROM salary_cycle_snapshots WHERE id = ? AND userId = ?",
+    id,
+    userId,
+  );
 
   const profile = await getLocalProfile(userId);
 
@@ -679,8 +697,16 @@ export const subscribeSalaryRecords = (
 
   if (Platform.OS === "web") {
     const unsubscribers = [
-      onSnapshot(collection(db, "users", userId, "salaryArrivals"), run, onError),
-      onSnapshot(collection(db, "users", userId, "salaryHistory"), run, onError),
+      onSnapshot(
+        collection(db, "users", userId, "salaryArrivals"),
+        run,
+        onError,
+      ),
+      onSnapshot(
+        collection(db, "users", userId, "salaryHistory"),
+        run,
+        onError,
+      ),
       onSnapshot(
         collection(db, "users", userId, "salaryCycleSnapshots"),
         run,
