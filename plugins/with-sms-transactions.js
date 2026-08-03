@@ -66,6 +66,17 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
 
     private var activeReactContext: WeakReference<ReactApplicationContext>? = null
 
+    private fun isPhoneNumberSender(senderId: String): Boolean {
+      val compact = senderId.replace(Regex("""[\\s()\\-]"""), "")
+
+      if (!Regex("""^\\+?\\d+$""").matches(compact)) {
+        return false
+      }
+
+      val digitCount = compact.count { it.isDigit() }
+      return digitCount in 10..15
+    }
+
     fun emitSmsReceived(message: String, senderId: String): Boolean {
       val context = activeReactContext?.get() ?: return false
 
@@ -89,6 +100,10 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
       val sender = senderId.trim()
 
       if (body.isEmpty()) {
+        return
+      }
+
+      if (sender.isNotEmpty() && isPhoneNumberSender(sender)) {
         return
       }
 

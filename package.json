@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test:salary-ledger": "node --experimental-strip-types --test services/salaryMath.test.mjs"
+    "test:salary-ledger": "node --experimental-strip-types --test services/salaryMath.test.mjs",
+    "test:sms-parser": "node --experimental-strip-types --test utils/smsParser.test.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

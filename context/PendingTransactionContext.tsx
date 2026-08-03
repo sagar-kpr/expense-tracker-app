@@ -57,7 +57,8 @@ type PendingSmsResult =
         | "missing-amount"
         | "missing-keyword"
         | "missing-user"
-        | "save-skipped";
+        | "save-skipped"
+        | "untrusted-sender";
       message?: string;
       status?: number;
     };
@@ -264,14 +265,6 @@ export const PendingTransactionProvider = ({
 
   const addPendingTransaction = async (transaction: ParsedSmsTransaction) => {
     if (!user?.uid) {
-      return null;
-    }
-
-    if (
-      userTypeRef.current === "salary" &&
-      transaction.source === "sms-auto" &&
-      transaction.type === "income"
-    ) {
       return null;
     }
 
@@ -552,14 +545,21 @@ export const PendingTransactionProvider = ({
     const result = await saveTransactionWithSalaryValidation({
       profile: userData,
       transaction: {
-      id: transaction.id,
-      amount: transaction.amount,
-      description: transaction.rawMessage?.trim() || transaction.description,
-      category: transaction.category,
-      type: transaction.type || "expense",
-      createdAt:
-        transaction.createdAt || new Date().toISOString(),
-      updatedAt: Date.now(),
+        id: transaction.id,
+        amount: transaction.amount,
+        description:
+          transaction.rawMessage?.trim() || transaction.description,
+        category:
+          userData.type === "salary" && transaction.type === "income"
+            ? "Additional Funds"
+            : transaction.category,
+        type: transaction.type || "expense",
+        createdAt: transaction.createdAt || new Date().toISOString(),
+        updatedAt: Date.now(),
+        source:
+          userData.type === "salary" && transaction.type === "income"
+            ? "sms-additional-funds"
+            : transaction.source,
       },
       userId: user.uid,
     });

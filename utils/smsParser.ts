@@ -22,7 +22,8 @@ export type NativeSmsMessage = {
 export type SmsParseFailureReason =
   | "missing-amount"
   | "missing-keyword"
-  | "missing-user";
+  | "missing-user"
+  | "untrusted-sender";
 
 export type SmsParseResult =
   | {
@@ -113,6 +114,20 @@ const normalizeSmsInput = (input: string | NativeSmsMessage) => {
           ? input.sender.trim()
           : undefined,
   };
+};
+
+export const isPhoneNumberSender = (senderId?: string) => {
+  const compact = String(senderId || "")
+    .trim()
+    .replace(/[\s()-]/g, "");
+
+  if (!/^\+?\d+$/.test(compact)) {
+    return false;
+  }
+
+  const digitCount = compact.replace(/\D/g, "").length;
+
+  return digitCount >= 10 && digitCount <= 15;
 };
 
 const getFirstKeywordIndex = (message: string, keywords: string[]) => {
@@ -289,6 +304,16 @@ export const parseSmsMessageResult = async (
     senderId,
     source,
   });
+
+  if (
+    source === "sms-auto" &&
+    senderId &&
+    isPhoneNumberSender(senderId)
+  ) {
+    debugSmsParse("phone-number sender rejected", { senderId });
+
+    return { reason: "untrusted-sender", transaction: null };
+  }
 
   if (!hasKeyword) {
     debugSmsParse("local gate rejected");

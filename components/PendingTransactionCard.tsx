@@ -16,6 +16,7 @@ import {
   PendingTransaction,
   usePendingTransactions,
 } from "@/context/PendingTransactionContext";
+import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 
 const expenseCategories = [
@@ -36,6 +37,14 @@ const incomeCategories = [
   "Commission",
   "Other",
 ];
+const salaryIncomeCategories = [
+  "Additional Funds",
+  "Bonus",
+  "Refund",
+  "Cash",
+  "Transfer",
+  "Other",
+];
 
 const formatMoney = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN")}`;
@@ -45,6 +54,7 @@ type Props = {
 };
 
 export default function PendingTransactionCard({ transaction }: Props) {
+  const { userData } = useAuth();
   const { theme, dark } = useTheme();
   const {
     approvePendingTransaction,
@@ -66,7 +76,13 @@ export default function PendingTransactionCard({ transaction }: Props) {
 
   const isIncome = transaction.type === "income";
   const color = isIncome ? theme.primary : theme.danger;
-  const categories = type === "income" ? incomeCategories : expenseCategories;
+  const isSalaryCredit = userData?.type === "salary" && type === "income";
+  const categories =
+    type === "income"
+      ? isSalaryCredit
+        ? salaryIncomeCategories
+        : incomeCategories
+      : expenseCategories;
 
   const handleApprove = async () => {
     try {
@@ -207,7 +223,9 @@ export default function PendingTransactionCard({ transaction }: Props) {
                 marginTop: 6,
               }}
             >
-              {transaction.category} •{" "}
+              {userData?.type === "salary" && isIncome
+                ? "Additional Funds"
+                : transaction.category} •{" "}
               {transaction.source === "sms-auto" ? "SMS" : "Paste"}
             </Text>
           </View>
@@ -365,7 +383,13 @@ export default function PendingTransactionCard({ transaction }: Props) {
                     key={item}
                     onPress={() => {
                       setType(item);
-                      setCategory(item === "income" ? "Cash" : "Other");
+                      setCategory(
+                        item === "income"
+                          ? userData?.type === "salary"
+                            ? "Additional Funds"
+                            : "Cash"
+                          : "Other",
+                      );
                     }}
                     style={{
                       alignItems: "center",
@@ -381,7 +405,11 @@ export default function PendingTransactionCard({ transaction }: Props) {
                         fontWeight: "800",
                       }}
                     >
-                      {item === "income" ? "Income" : "Expense"}
+                      {item === "income"
+                        ? userData?.type === "salary"
+                          ? "Additional Funds"
+                          : "Income"
+                        : "Expense"}
                     </Text>
                   </Pressable>
                 );
