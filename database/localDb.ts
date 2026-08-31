@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS pending_transactions (
   type TEXT NOT NULL DEFAULT 'expense',
   createdAt TEXT NOT NULL,
   updatedAt INTEGER NOT NULL,
+  senderId TEXT,
   FOREIGN KEY(userId) REFERENCES user_profiles(userId) ON DELETE CASCADE
 );
 

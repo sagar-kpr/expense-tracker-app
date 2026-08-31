@@ -1,20 +1,23 @@
-import { Platform } from "react-native";
 import * as SQLite from "expo-sqlite";
 import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  setDoc,
-  updateDoc,
+    collection,
+    deleteDoc,
+    doc,
+    getDocs,
+    onSnapshot,
+    orderBy,
+    query,
+    setDoc,
+    updateDoc,
 } from "firebase/firestore";
+import { Platform } from "react-native";
 
-import { db } from "@/firebase";
 import { getLocalDatabase } from "@/database/localDb";
-import { ensureLocalProfile, getLocalProfile } from "@/repositories/profileRepository";
+import { db } from "@/firebase";
+import {
+    ensureLocalProfile,
+    getLocalProfile,
+} from "@/repositories/profileRepository";
 import { nowMs } from "@/repositories/shared";
 
 export type PendingTransactionRecord = {
@@ -31,6 +34,7 @@ export type PendingTransactionRecord = {
   duplicateKey?: string;
   transactionDate?: string;
   rawMessage?: string;
+  senderId?: string;
 };
 
 const mapLocalPending = (row: any): PendingTransactionRecord => ({
@@ -43,6 +47,7 @@ const mapLocalPending = (row: any): PendingTransactionRecord => ({
   createdAt: row.createdAt,
   status: "pending",
   updatedAt: Number(row.updatedAt || 0),
+  senderId: row.senderId ?? undefined,
 });
 
 export const listPendingTransactions = async (userId: string) => {
@@ -116,8 +121,8 @@ export const upsertPendingTransaction = async (
   await dbx.runAsync(
     `
     INSERT INTO pending_transactions (
-      id, userId, amount, description, category, type, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      id, userId, amount, description, category, type, createdAt, updatedAt, senderId
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       userId = excluded.userId,
       amount = excluded.amount,
@@ -125,7 +130,8 @@ export const upsertPendingTransaction = async (
       category = excluded.category,
       type = excluded.type,
       createdAt = excluded.createdAt,
-      updatedAt = excluded.updatedAt
+      updatedAt = excluded.updatedAt,
+      senderId = excluded.senderId
   `,
     [
       transaction.id,
@@ -136,6 +142,7 @@ export const upsertPendingTransaction = async (
       transaction.type || "expense",
       String(transaction.createdAt || new Date().toISOString()),
       timestamp,
+      transaction.senderId ?? null,
     ],
   );
 
@@ -169,7 +176,11 @@ export const deletePendingTransaction = async (userId: string, id: string) => {
   }
 
   const dbx = await getLocalDatabase();
-  await dbx.runAsync("DELETE FROM pending_transactions WHERE id = ? AND userId = ?", id, userId);
+  await dbx.runAsync(
+    "DELETE FROM pending_transactions WHERE id = ? AND userId = ?",
+    id,
+    userId,
+  );
 
   const profile = await getLocalProfile(userId);
 
@@ -209,7 +220,7 @@ export const updatePendingTransaction = async (
   await dbx.runAsync(
     `
     UPDATE pending_transactions
-    SET amount = ?, description = ?, category = ?, type = ?, createdAt = ?, updatedAt = ?
+    SET amount = ?, description = ?, category = ?, type = ?, createdAt = ?, updatedAt = ?, senderId = ?
     WHERE id = ? AND userId = ?
   `,
     [

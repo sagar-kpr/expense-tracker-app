@@ -186,6 +186,13 @@ export const getSalaryCycleKey = (cycleStart: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const getDateFromCycleKey = (cycleKey: string) => {
+  const [year, month, day] = cycleKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 export const getSalaryCycleCollection = (uid: string) =>
   uid;
 
@@ -493,12 +500,20 @@ export const buildSalaryCycleSnapshot = ({
   referenceDate,
   preferCurrentProfile,
 }: SalarySnapshotContext) => {
+  const requestedSnapshot = findSalarySnapshotForCycle(
+    salaryCycleSnapshots,
+    cycleStart,
+  );
+  const openExpectedCycleStart =
+    requestedSnapshot?.expectedCycleKey
+      ? getDateFromCycleKey(requestedSnapshot.expectedCycleKey)
+      : null;
   const boundary = getResolvedCycleBoundary({
     profile,
     salaryHistory,
     salaryArrivals,
     cycleStart,
-    expectedCycleStart,
+    expectedCycleStart: openExpectedCycleStart || expectedCycleStart,
     referenceDate,
     preferCurrentProfile,
   });
@@ -567,6 +582,27 @@ export const findSalarySnapshotForCycle = (
   return snapshots?.find((item) => item.cycleKey === cycleKey) || null;
 };
 
+export const findActiveSalarySnapshot = (
+  snapshots: SalaryCycleSnapshot[] | undefined,
+  boundary: Pick<
+    ReturnType<typeof getResolvedCycleBoundary>,
+    "cycleKey" | "expectedCycleKey"
+  >,
+) => {
+  const sortedSnapshots = [...(snapshots || [])].sort(
+    (left, right) => right.cycleStartMs - left.cycleStartMs,
+  );
+
+  return (
+    sortedSnapshots.find((item) => item.cycleKey === boundary.cycleKey) ||
+    sortedSnapshots.find(
+      (item) => item.expectedCycleKey === boundary.expectedCycleKey,
+    ) ||
+    sortedSnapshots.find((item) => item.status === "open") ||
+    null
+  );
+};
+
 export const resolveSalaryCycleSummary = ({
   profile,
   salaryHistory,
@@ -578,12 +614,22 @@ export const resolveSalaryCycleSummary = ({
   referenceDate,
   preferCurrentProfile = false,
 }: SalarySnapshotContext) => {
+  const requestedSnapshot = findSalarySnapshotForCycle(
+    salaryCycleSnapshots,
+    cycleStart,
+  );
+  const openExpectedCycleStart =
+    requestedSnapshot?.expectedCycleKey
+      ? getDateFromCycleKey(requestedSnapshot.expectedCycleKey)
+      : null;
+  const resolvedExpectedCycleStart =
+    openExpectedCycleStart || expectedCycleStart || undefined;
   const boundary = getResolvedCycleBoundary({
     profile,
     salaryHistory,
     salaryArrivals,
     cycleStart,
-    expectedCycleStart,
+    expectedCycleStart: resolvedExpectedCycleStart,
     referenceDate,
     preferCurrentProfile,
   });
@@ -600,6 +646,7 @@ export const resolveSalaryCycleSummary = ({
     profile,
     salaryHistory,
     salaryArrivals,
+    salaryCycleSnapshots,
     expenses,
     cycleStart: boundary.start,
     expectedCycleStart: boundary.expectedStart,

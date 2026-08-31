@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import {
   commitSalaryCycleRollover,
+  deleteSalarySnapshot,
   subscribeSalaryRecords,
   upsertSalaryHistory,
   upsertSalarySnapshot,
@@ -22,6 +23,7 @@ import {
 import {
   buildSalaryCycleSnapshot,
   ExpenseLike,
+  findActiveSalarySnapshot,
   getCycleTimeline,
   getCycleStartForExpenseDate,
   getExpectedCycleForDate,
@@ -255,9 +257,10 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
           end: referenceDate,
         }
       : boundary;
-    const openSnapshot = [...salaryCycleSnapshots]
-      .filter((item) => item.status === "open")
-      .sort((left, right) => right.cycleStartMs - left.cycleStartMs)[0];
+    const openSnapshot = findActiveSalarySnapshot(
+      salaryCycleSnapshots,
+      activeBoundary,
+    );
     const persistedActiveBoundary = openSnapshot
       ? {
           ...activeBoundary,
@@ -281,6 +284,72 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
       needsConfirmation,
     };
   };
+
+  useEffect(() => {
+    if (
+      loading ||
+      !user?.uid ||
+      !userData ||
+      userData.type !== "salary"
+    ) {
+      return;
+    }
+
+    const arrivalStatus = getCurrentArrivalStatus();
+
+    if (!arrivalStatus.needsConfirmation) {
+      return;
+    }
+
+    const activeSnapshot = findActiveSalarySnapshot(
+      salaryCycleSnapshots,
+      arrivalStatus,
+    );
+    const prematureSnapshot = salaryCycleSnapshots
+      .filter(
+        (item) =>
+          item.expectedCycleKey === arrivalStatus.expectedCycleKey &&
+          item.cycleKey !== activeSnapshot?.cycleKey &&
+          !salaryArrivals.some(
+            (arrival) =>
+              arrival.expectedCycleKey === item.expectedCycleKey,
+          ),
+      )
+      .sort((left, right) => right.cycleStartMs - left.cycleStartMs)[0];
+
+    if (!activeSnapshot || !prematureSnapshot) {
+      return;
+    }
+
+    const repairKey = `${activeSnapshot.cycleKey}:${prematureSnapshot.cycleKey}`;
+
+    if (migratedCycleRef.current === repairKey) {
+      return;
+    }
+
+    migratedCycleRef.current = repairKey;
+
+    upsertSalarySnapshot(user.uid, {
+      ...activeSnapshot,
+      status: "open",
+      closedAtMs: undefined,
+      updatedAtMs: Date.now(),
+      source: "salary-cycle-pending-confirmation-repair",
+      userId: user.uid,
+    })
+      .then(() => deleteSalarySnapshot(user.uid, prematureSnapshot.id))
+      .catch((error) => {
+        migratedCycleRef.current = null;
+        console.log("Salary cycle pending-confirmation repair error:", error);
+      });
+  }, [
+    getCurrentArrivalStatus,
+    loading,
+    salaryArrivals,
+    salaryCycleSnapshots,
+    user?.uid,
+    userData,
+  ]);
 
   const getTimeline: SalaryContextType["getCycleTimeline"] = (
     count = 12,
@@ -311,9 +380,11 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const openSnapshot = [...salaryCycleSnapshots]
-        .filter((item) => item.status === "open")
-        .sort((left, right) => right.cycleStartMs - left.cycleStartMs)[0];
+      const activeBoundary = getCurrentArrivalStatus(expenseDate);
+      const openSnapshot = findActiveSalarySnapshot(
+        salaryCycleSnapshots,
+        activeBoundary,
+      );
       const cycleStart =
         openSnapshot && expenseDate >= new Date(openSnapshot.cycleStartMs)
           ? new Date(openSnapshot.cycleStartMs)
