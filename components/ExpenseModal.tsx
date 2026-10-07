@@ -1,3 +1,4 @@
+import { formatMoney } from "@/utils/money";
 import { useTheme } from "@/context/ThemeContext";
 
 import { useAuth } from "@/context/AuthContext";
@@ -142,15 +143,11 @@ const ExpenseModal = forwardRef<any, Props>(
           );
           Alert.alert(
             "Add Additional Funds first?",
-            `This expense is ₹${result.shortfall.toLocaleString(
-              "en-IN",
-            )} above your available balance of ₹${result.available.toLocaleString(
-              "en-IN",
-            )}.`,
+            `This expense is ${formatMoney(result.shortfall)} above your available balance of ${formatMoney(result.available)}.`,
             [
               { text: "Cancel", style: "cancel" },
               {
-                text: `Add ₹${result.shortfall.toLocaleString("en-IN")} & Save`,
+                text: `Add ${formatMoney(result.shortfall)} & Save`,
                 onPress: async () => {
                   try {
                     setLoading(true);

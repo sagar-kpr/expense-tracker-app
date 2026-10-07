@@ -240,7 +240,7 @@ export const upsertSalaryHistory = async (
       id, userId, salary, salaryDate, effectiveFromMs, createdAtMs, source,
       note, updatedAt, payload
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+    ON CONFLICT(userId, id) DO UPDATE SET
       userId = excluded.userId,
       salary = excluded.salary,
       salaryDate = excluded.salaryDate,
@@ -304,7 +304,7 @@ export const upsertSalaryArrival = async (
       id, userId, arrivedAtMs, createdAtMs, cycleKey, expectedCycleKey,
       salary, salaryDate, source, updatedAt, payload
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+    ON CONFLICT(userId, id) DO UPDATE SET
       userId = excluded.userId,
       arrivedAtMs = excluded.arrivedAtMs,
       createdAtMs = excluded.createdAtMs,
@@ -383,7 +383,7 @@ export const upsertSalarySnapshot = async (
       totalSpent, remaining, usagePercent, expenseCount, status, closedAtMs,
       schemaVersion, source, updatedAtMs, createdAtMs, updatedAt, payload
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+    ON CONFLICT(userId, id) DO UPDATE SET
       userId = excluded.userId,
       cycleKey = excluded.cycleKey,
       expectedCycleKey = excluded.expectedCycleKey,
@@ -513,7 +513,7 @@ export const commitSalaryCycleRollover = async (
         id, userId, arrivedAtMs, createdAtMs, cycleKey, expectedCycleKey,
         salary, salaryDate, source, updatedAt, payload
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(userId, id) DO UPDATE SET
         arrivedAtMs = excluded.arrivedAtMs,
         cycleKey = excluded.cycleKey,
         expectedCycleKey = excluded.expectedCycleKey,
@@ -547,7 +547,7 @@ export const commitSalaryCycleRollover = async (
           totalSpent, remaining, usagePercent, expenseCount, status, closedAtMs,
           schemaVersion, source, updatedAtMs, createdAtMs, updatedAt, payload
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
+        ON CONFLICT(userId, id) DO UPDATE SET
           cycleKey = excluded.cycleKey,
           expectedCycleKey = excluded.expectedCycleKey,
           cycleStartMs = excluded.cycleStartMs,

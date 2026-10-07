@@ -1,3 +1,7 @@
+import { addMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
+import useScreenLayout from "@/components/useScreenLayout";
+import { formatMoney } from "@/utils/money";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
@@ -44,7 +48,6 @@ const FILTERS: Filter[] = [
   "Yesterday",
   "This Week",
 ];
-const RUPEE = "\u20B9";
 const GREEN = "#169B6B";
 const GREEN_DARK = "#0C7A53";
 const RED = "#E64B55";
@@ -120,8 +123,6 @@ const webDateInputStyle = (color: string, borderColor: string) => ({
   width: "100%",
 });
 
-const formatMoney = (value: number) =>
-  `${RUPEE}${Math.round(Number(value || 0)).toLocaleString("en-IN")}`;
 
 const escapeHtml = (value: unknown) =>
   String(value ?? "")
@@ -132,6 +133,7 @@ const escapeHtml = (value: unknown) =>
     .replaceAll("'", "&#039;");
 
 export default function SalaryHistoryScreen() {
+  const screenLayout = useScreenLayout();
   const { width, height, fontScale } = useWindowDimensions();
   const { expenses, deleteExpense } = useExpense();
   const {
@@ -287,7 +289,7 @@ export default function SalaryHistoryScreen() {
     () =>
       filteredExpenses
         .filter((item) => (item.type || "expense") === "expense")
-        .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+        .reduce((sum, item) => addMoney(sum, Number(item.amount || 0)), 0),
     [filteredExpenses],
   );
 
@@ -311,9 +313,9 @@ export default function SalaryHistoryScreen() {
       if (!date) return;
 
       if (date >= currentCycle.start && date < currentCycle.end) {
-        current += Number(item.amount || 0);
+        current = addMoney(current, Number(item.amount || 0));
       } else if (date >= previousCycle.start && date < previousCycle.end) {
-        previous += Number(item.amount || 0);
+        previous = addMoney(previous, Number(item.amount || 0));
       }
     });
 
@@ -515,7 +517,7 @@ export default function SalaryHistoryScreen() {
     <>
       <ScrollView
         style={styles.screen}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, screenLayout.contentStyle]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -848,14 +850,10 @@ export default function SalaryHistoryScreen() {
                           ? "Spent Current Cycle"
                           : "Total Spent"}
                 </Text>
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.65}
+                <MoneyText
                   style={styles.summaryAmount}
-                >
-                  {formatMoney(totalSpent)}
-                </Text>
+                 value={totalSpent}
+               />
                 <View style={styles.transactionCountPill}>
                   <Text style={styles.transactionCountText}>
                     {filteredExpenses.length} Transaction
@@ -868,14 +866,10 @@ export default function SalaryHistoryScreen() {
 
               {/* <View style={styles.summaryMetric}>
                 <Text style={styles.summaryLabel}>Daily Avg</Text>
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.65}
+                <MoneyText
                   style={styles.averageAmount}
-                >
-                  {formatMoney(averagePerDay)}
-                </Text>
+                 value={averagePerDay}
+               />
                 <View style={styles.transactionCountPill}>
                   <Text style={styles.transactionCountText}>
                     {monthlyComparison.previous > 0
@@ -925,10 +919,8 @@ export default function SalaryHistoryScreen() {
             <View style={styles.insightCopy}>
               <Text style={styles.insightTitle}>
                 {monthlyComparison.previous === 0
-                  ? "✨ First month of tracking"
-                  : `₹${Math.abs(monthlyComparison.difference).toLocaleString(
-                      "en-IN",
-                    )} ${spentLess ? "less" : "more"} than previous cycle`}
+                  ? "No spending in previous cycle"
+                  : `${formatMoney(Math.abs(monthlyComparison.difference))} ${spentLess ? "less" : "more"} than previous cycle`}
               </Text>
 
               <Text style={styles.insightText}>
@@ -1034,18 +1026,13 @@ export default function SalaryHistoryScreen() {
                     </View>
 
                     <View style={styles.transactionRight}>
-                      <Text
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.7}
+                      <MoneyText
                         style={[
                           styles.transactionAmount,
                           isIncome && { color: GREEN },
                         ]}
-                      >
-                        {isIncome ? "+" : "-"}
-                        {formatMoney(Number(item.amount || 0))}
-                      </Text>
+                       value={Number(item.amount || 0)} prefix={isIncome ? "+" : "-"}
+                     />
                     </View>
 
                     <Pressable
@@ -1297,8 +1284,9 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
       paddingTop: 60,
     },
     headerRow: {
-      alignItems: "center",
-      flexDirection: "row",
+      alignItems: compactLayout ? "flex-start" : "center",
+      flexDirection: compactLayout ? "column" : "row",
+      gap: 12,
       justifyContent: "space-between",
     },
     title: {
@@ -1307,12 +1295,14 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
       fontWeight: "900",
     },
     exportButton: {
+      alignSelf: "flex-start",
       alignItems: "center",
       backgroundColor: dark ? "rgba(22,155,107,0.16)" : "#EDF8F4",
       borderRadius: 14,
       flexDirection: "row",
       gap: 7,
-      height: 44,
+      minHeight: 44,
+      paddingVertical: 10,
       justifyContent: "center",
       minWidth: 108,
       paddingHorizontal: 14,
@@ -1730,10 +1720,11 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
     transactionRight: {
       alignItems: "flex-end",
       marginLeft: 8,
-      maxWidth: 104,
+      maxWidth: "48%",
       minWidth: 72,
     },
     transactionAmount: {
+      fontVariant: ["tabular-nums"],
       color: theme.text,
       fontSize: 16,
       fontWeight: "900",

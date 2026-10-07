@@ -1,11 +1,12 @@
+import { buildFinancialReportSummary } from "@/services/financialReportSummary";
+import { addMoney } from "@/services/salaryMath";
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { deleteUser } from "firebase/auth";
-import { useState } from "react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -19,8 +20,6 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 import { useTheme } from "@/context/ThemeContext";
 import { auth } from "@/firebase";
 import {
-  buildSalaryCycleSnapshot,
-  getResolvedCycleBoundary,
   SalaryCycleSnapshot,
   SalaryArrivalEntry,
   SalaryHistoryEntry,
@@ -103,7 +102,7 @@ const getCategoryTotals = (transactions: ExportTransaction[]) => {
     }
 
     const category = String(item.category || "Other");
-    acc[category] = (acc[category] || 0) + Number(item.amount || 0);
+    acc[category] = addMoney(acc[category] || 0, Number(item.amount || 0));
 
     return acc;
   }, {});
@@ -133,87 +132,16 @@ const buildPdfHtml = ({
   const exportedAt = new Date();
   const accountType = String(profile.type || "");
   const isSalary = accountType === "salary";
-  const selectedSnapshot = isSalary && selectedSalaryCycleKey
-    ? salaryCycleSnapshots.find(
-        (item) => item.cycleKey === selectedSalaryCycleKey,
-      )
-    : null;
-  const currentBoundary = getResolvedCycleBoundary({
-    profile,
-    salaryArrivals,
-    salaryHistory,
-    cycleStart: new Date(),
-    referenceDate: new Date(),
-    preferCurrentProfile: true,
-  });
-  const fallbackCycleStart = selectedSnapshot
-    ? new Date(selectedSnapshot.cycleStartMs)
-    : currentBoundary.start;
-  const fallbackCycleEnd = selectedSnapshot
-    ? new Date(selectedSnapshot.cycleEndMs)
-    : currentBoundary.end;
-  const salaryCycle = selectedSnapshot
-    ? {
-        start: fallbackCycleStart,
-        end: fallbackCycleEnd,
-      }
-    : {
-        start: currentBoundary.start,
-        end: currentBoundary.end,
-      };
-  const cycleKey = selectedSnapshot?.cycleKey || currentBoundary.cycleKey;
-  const storedSalarySnapshot = salaryCycleSnapshots.find(
-    (item) => item.cycleKey === cycleKey,
-  );
-  const fallbackSalarySnapshot = buildSalaryCycleSnapshot({
-    profile,
-    salaryArrivals,
-    salaryHistory,
-    expenses: expenses.map((item) => ({
-      amount: Number(item.amount || 0),
-      createdAt: item.createdAt as any,
-      type: String(item.type || "expense"),
-    })),
-    cycleStart: salaryCycle.start,
-    expectedCycleStart: salaryCycle.start,
-    referenceDate: salaryCycle.start,
-    preferCurrentProfile: true,
-  });
-  const salarySnapshot = storedSalarySnapshot || fallbackSalarySnapshot;
-  const reportExpenses = isSalary
-    ? expenses.filter((item) => {
-        const date = getExportDate(item.createdAt);
-
-        return (
-          !!date &&
-          date >= salaryCycle.start &&
-          date < salaryCycle.end &&
-          String(item.type || "expense") !== "income"
-        );
-      })
-    : expenses;
-  const income = isSalary
-    ? Number(salarySnapshot.salary || profile.salary || 0)
-    : reportExpenses
-        .filter((item) => item.type === "income")
-        .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const spending = reportExpenses
-    .filter((item) => String(item.type || "expense") !== "income")
-    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const balance = income - spending;
-  const usagePercent = income > 0 ? Math.round((spending / income) * 100) : 0;
+  const { salaryCycle, salarySnapshot, reportExpenses, income, spending, balance, usagePercent, usageLabel } = buildFinancialReportSummary({ expenses, profile, salaryArrivals, salaryHistory, salaryCycleSnapshots, selectedSalaryCycleKey, referenceDate: exportedAt });
   const categoryTotals = getCategoryTotals(reportExpenses);
-  const topCategoryTotal = Math.max(
-    ...categoryTotals.map((item) => item.amount),
-    1,
-  );
+  const topCategoryTotal = categoryTotals.reduce((sum, item) => addMoney(sum, item.amount), 0);
   const firstShare =
     isSalary && income > 0
       ? Math.max(0, Math.min(100, 100 - usagePercent))
       : income + spending > 0
         ? Math.round((income / (income + spending)) * 100)
         : 0;
-  const secondShare = 100 - firstShare;
+  const secondShare = income + spending > 0 ? 100 - firstShare : 0;
   const recentRows = [...reportExpenses]
     .sort((a, b) => {
       const first = getExportDate(a.createdAt)?.getTime() || 0;
@@ -245,7 +173,7 @@ const buildPdfHtml = ({
           (item) => `
             <tr>
               <td>${escapeHtml(formatDate(item.cycleStartMs))}</td>
-              <td>${escapeHtml(formatDate(item.cycleEndMs))}</td>
+              <td>${escapeHtml(formatDate(Number(item.cycleEndMs) - 1))}</td>
               <td>${escapeHtml(formatMoney(item.salary))}</td>
               <td>${escapeHtml(formatMoney(item.totalSpent))}</td>
               <td>${escapeHtml(formatMoney(item.remaining))}</td>
@@ -259,11 +187,11 @@ const buildPdfHtml = ({
     ? "Salary Spending Report"
     : "Business Financial Report";
   const reportSubtitle = isSalary
-    ? `Salary cycle ${formatDate(salaryCycle.start)} to ${formatDate(salaryCycle.end)}`
+    ? `Salary cycle ${formatDate(salaryCycle.start)} to ${formatDate(new Date(salaryCycle.end.getTime() - 1))}`
     : "Income, expense, and pending transaction summary";
   const personName = profile.name || profile.email || "User";
   const metricLabels = isSalary
-    ? ["Monthly Salary", "Salary Used", "Remaining", "Usage"]
+    ? ["Available Funds", "Salary Used", "Remaining", "Usage"]
     : ["Income", "Expense", "Net Profit", "Transactions"];
   const chartTitle = isSalary ? "Salary Usage" : "Income vs Expense";
   const ringCircumference = 302;
@@ -279,7 +207,7 @@ const buildPdfHtml = ({
   const usedAmountLabel = escapeHtml(formatMoney(spending));
   const remainingAmountLabel = escapeHtml(formatMoney(balance));
   const incomeAmountLabel = escapeHtml(formatMoney(income));
-  const profitLabel = balance >= 0 ? "Net profit" : "Net loss";
+  const profitLabel = balance === 0 ? "Break even" : balance > 0 ? "Net profit" : "Net loss";
   const usageSummary = isSalary
     ? `
       <div class="usage-panel">
@@ -299,13 +227,13 @@ const buildPdfHtml = ({
             <circle cx="69" cy="69" r="48" fill="none" stroke="url(#salaryRemainingGradient)" stroke-width="18" stroke-linecap="round" />
             <circle cx="69" cy="69" r="48" fill="none" stroke="url(#salaryUsedGradient)" stroke-width="18" stroke-linecap="round" stroke-dasharray="${salaryRingUsedLength} ${salaryRingRemainingLength}" transform="rotate(-90 69 69)" />
             <circle cx="69" cy="69" r="35" fill="#ffffff" />
-            <text x="69" y="66" fill="#172033" font-size="24" font-weight="900" text-anchor="middle">${usagePercent}%</text>
+            <text x="69" y="66" fill="#172033" font-size="${usageLabel.length > 6 ? 12 : 24}" font-weight="900" text-anchor="middle">${usageLabel}</text>
             <text x="69" y="84" fill="#667085" font-size="10" font-weight="900" text-anchor="middle">USED</text>
           </svg>
           <div class="usage-copy">
             <div class="usage-eyebrow">Current cycle</div>
-            <div class="usage-headline">${usagePercent}% used</div>
-            <div class="usage-total">Salary ${escapeHtml(formatMoney(income))}</div>
+            <div class="usage-headline">${usageLabel} used</div>
+            <div class="usage-total">Available ${escapeHtml(formatMoney(income))}</div>
             <div class="usage-split">
               <div><span class="used-key"></span>Used <strong>${usedAmountLabel}</strong></div>
               <div><span class="remaining-key"></span>Remaining <strong>${remainingAmountLabel}</strong></div>
@@ -468,7 +396,7 @@ const buildPdfHtml = ({
             padding: 16px;
           }
           .metric-label { color: #667085; font-size: 11px; font-weight: 800; text-transform: uppercase; }
-          .metric-value { color: #172033; font-size: 22px; font-weight: 900; margin-top: 8px; }
+          .metric-value { overflow-wrap: anywhere; min-width: 0; font-variant-numeric: tabular-nums; color: #172033; font-size: 22px; font-weight: 900; margin-top: 8px; }
           .metric-value.good { color: #159665; }
           .metric-value.bad { color: #dc2626; }
           .section { margin-top: 18px; }
@@ -637,7 +565,7 @@ const buildPdfHtml = ({
             </div>
             <div class="card">
               <div class="metric-label">${escapeHtml(metricLabels[3])}</div>
-              <div class="metric-value">${isSalary ? `${usagePercent}%` : reportExpenses.length}</div>
+              <div class="metric-value">${isSalary ? `${usageLabel}` : reportExpenses.length}</div>
             </div>
           </div>
 
@@ -662,8 +590,10 @@ const buildPdfHtml = ({
                 isSalary
                   ? `
                     <tr><th>Monthly Salary</th><td>${escapeHtml(formatMoney(salarySnapshot.salary))}</td></tr>
+                    <tr><th>Carry Forward</th><td>${escapeHtml(formatMoney(salarySnapshot.carryForward))}</td></tr>
+                    <tr><th>Additional Funds</th><td>${escapeHtml(formatMoney(salarySnapshot.additionalFunds))}</td></tr>
                     <tr><th>Salary Date</th><td>${escapeHtml(salarySnapshot.salaryDate || profile.salaryDate || "")}</td></tr>
-                    <tr><th>Cycle</th><td>${escapeHtml(`${formatDate(salaryCycle.start)} to ${formatDate(salaryCycle.end)}`)}</td></tr>
+                    <tr><th>Cycle</th><td>${escapeHtml(`${formatDate(salaryCycle.start)} to ${formatDate(new Date(salaryCycle.end.getTime() - 1))}`)}</td></tr>
                   `
                   : `
                     <tr><th>Business Name</th><td>${escapeHtml(profile.businessName || "")}</td></tr>
@@ -966,8 +896,8 @@ export default function PrivacyDataSection() {
     try {
       setDeleting(true);
 
-      await clearLocalAccountData(user.uid);
-      await deleteRemoteAccountData(user.uid);
+      await deleteRemoteAccountData(user.uid, true);
+      await clearLocalAccountData(user.uid, true);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 

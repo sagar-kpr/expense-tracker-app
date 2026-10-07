@@ -229,6 +229,33 @@ const getDescription = (rawMessage: string, type: SmsTransactionType) => {
 export const getSmsDuplicateKey = (rawMessage: string) =>
   rawMessage.toLowerCase().replace(/\s+/g, " ").trim();
 
+export const getNativeSmsMessageKey = (input: string | NativeSmsMessage) => {
+  const { rawMessage, senderId } = normalizeSmsInput(input);
+  return `${String(senderId || "").toLowerCase()}:${getSmsDuplicateKey(rawMessage)}`;
+};
+
+export const getSmsTransactionDuplicateKey = (transaction: ParsedSmsTransaction) =>
+  `${String(transaction.senderId || "").toLowerCase()}:${transaction.type}:${getSmsDuplicateKey(transaction.rawMessage)}`;
+
+export const isRecentSmsDuplicate = (
+  fingerprint: string,
+  pending: Array<{ duplicateKey?: string; createdAt?: unknown }>,
+  now = Date.now(),
+) => pending.some((item) => {
+  const age = now - new Date(String(item.createdAt || "")).getTime();
+  return item.duplicateKey === fingerprint && age >= 0 && age <= 7_000;
+});
+
+export const isSalaryCredit = (transaction: {
+  type?: string;
+  category?: string;
+  rawMessage?: string;
+  description?: string;
+}) => transaction.type === "income" && (
+  transaction.category?.toLowerCase() === "salary" ||
+  /\bsalary\b/i.test(transaction.rawMessage || transaction.description || "")
+);
+
 export const getSmsDuplicateId = (rawMessage: string) => {
   const normalized = getSmsDuplicateKey(rawMessage);
   let hash = 0;

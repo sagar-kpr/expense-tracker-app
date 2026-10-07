@@ -1,5 +1,26 @@
+/** Monetary arithmetic is rounded to paise, including each recorded amount. */
+const paiseFormatter = new Intl.NumberFormat("en-US", {
+  useGrouping: false,
+  maximumFractionDigits: 2,
+});
+export const roundMoney = (value: number) =>
+  Number(paiseFormatter.format(Number(value || 0)));
+export const addMoney = (left: number, right: number) =>
+  roundMoney(roundMoney(left) + roundMoney(right));
+export const subtractMoney = (left: number, right: number) =>
+  roundMoney(roundMoney(left) - roundMoney(right));
+export const normalizeMoneyInput = (value: number) => {
+  const cents = Math.round(roundMoney(value) * 100);
+  if (!Number.isFinite(value) || !Number.isSafeInteger(cents) || cents <= 0) {
+    throw new Error(
+      "Enter a positive amount that can be represented accurately in paise.",
+    );
+  }
+  return cents / 100;
+};
+
 export const normalizeCarryForward = (value: number) =>
-  Math.max(Number(value || 0), 0);
+  Math.max(roundMoney(value), 0);
 
 export const calculateSalaryCycleTotals = ({
   additionalFunds,
@@ -12,11 +33,11 @@ export const calculateSalaryCycleTotals = ({
   salary: number;
   totalSpent: number;
 }) => {
-  const availableTotal =
-    Number(carryForward || 0) +
-    Number(salary || 0) +
-    Number(additionalFunds || 0);
-  const remaining = availableTotal - Number(totalSpent || 0);
+  const availableTotal = addMoney(
+    addMoney(carryForward, salary),
+    additionalFunds,
+  );
+  const remaining = subtractMoney(availableTotal, totalSpent);
   const usagePercent =
     availableTotal > 0
       ? Math.round((Number(totalSpent || 0) / availableTotal) * 100)
@@ -36,10 +57,10 @@ export const getExpenseShortfall = ({
   expenseAmount: number;
   remaining: number;
 }) => {
-  const available = Math.max(Number(remaining || 0), 0);
+  const available = Math.max(roundMoney(remaining), 0);
 
   return {
     available,
-    shortfall: Math.max(Number(expenseAmount || 0) - available, 0),
+    shortfall: Math.max(subtractMoney(expenseAmount, available), 0),
   };
 };

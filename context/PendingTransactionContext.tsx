@@ -1,3 +1,4 @@
+import { confirmSalaryArrivalRecord } from "@/services/salaryArrival";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
@@ -37,7 +38,10 @@ import {
 } from "@/services/salaryBalance";
 import {
   getSmsDuplicateId,
-  getSmsDuplicateKey,
+  getNativeSmsMessageKey,
+  getSmsTransactionDuplicateKey,
+  isSalaryCredit,
+  isRecentSmsDuplicate,
   parseSmsMessageResult,
   ParsedSmsTransaction,
   parseSmsMessage,
@@ -45,6 +49,8 @@ import {
 } from "@/utils/smsParser";
 
 export type PendingTransaction = PendingTransactionRecord;
+
+type PendingApprovalResult = SalaryTransactionSaveResult | { status: "salary-confirmed" };
 
 type PendingTransactionInput = Omit<PendingTransaction, "id">;
 type PendingSmsResult =
@@ -74,7 +80,7 @@ type PendingTransactionContextType = {
   ) => Promise<PendingSmsResult>;
   approvePendingTransaction: (
     transaction: PendingTransaction,
-  ) => Promise<SalaryTransactionSaveResult>;
+  ) => Promise<PendingApprovalResult>;
   approvePendingTransactionWithFunds: (
     transaction: PendingTransaction,
     additionalFunds: number,
@@ -117,14 +123,14 @@ const hasSmsEventApi =
 
 const NOTIFICATION_ACCESS_PROMPTED_KEY =
   "bank_message_notification_access_prompted";
-const DUPLICATE_AMOUNT_WINDOW_MS = 7_000;
+const DUPLICATE_MESSAGE_WINDOW_MS = 7_000;
 
-const getPendingDuplicateId = (transaction: ParsedSmsTransaction) => {
+const getPendingDuplicateFingerprint = (transaction: ParsedSmsTransaction) => {
   if (transaction.source !== "sms-auto") {
     return null;
   }
 
-  return getSmsDuplicateId(transaction.rawMessage);
+  return getSmsDuplicateId(getSmsTransactionDuplicateKey(transaction));
 };
 
 export const PendingTransactionProvider = ({
@@ -138,9 +144,7 @@ export const PendingTransactionProvider = ({
   >([]);
   const [loading, setLoading] = useState(true);
   const processedNativeMessagesRef = useRef<string[]>([]);
-  const recentPendingAmountRef = useRef<
-    Array<{ amount: number; timestamp: number }>
-  >([]);
+  const recentPendingMessagesRef = useRef(new Map<string, number>());
   const requestedStartupImportRef = useRef(false);
   const userTypeRef = useRef(userData?.type);
 
@@ -201,35 +205,6 @@ export const PendingTransactionProvider = ({
     [pendingTransactions],
   );
 
-  const isRecentSameAmountPending = (
-    amount: number,
-    now: number,
-  ) => {
-    const inMemoryMatch = recentPendingAmountRef.current.some(
-      (entry) =>
-        entry.amount === amount &&
-        now - entry.timestamp <= DUPLICATE_AMOUNT_WINDOW_MS,
-    );
-
-    if (inMemoryMatch) {
-      return true;
-    }
-
-    return pendingTransactions.some((item) => {
-      if (item.amount !== amount) {
-        return false;
-      }
-
-      const createdAt = new Date(
-        String(item.createdAt || item.transactionDate || ""),
-      ).getTime();
-
-      return Number.isFinite(createdAt)
-        ? now - createdAt <= DUPLICATE_AMOUNT_WINDOW_MS
-        : false;
-    });
-  };
-
   useEffect(() => {
     if (Platform.OS !== "android" && Platform.OS !== "web") {
       return;
@@ -269,41 +244,33 @@ export const PendingTransactionProvider = ({
     }
 
     const now = Date.now();
-    recentPendingAmountRef.current = recentPendingAmountRef.current.filter(
-      (entry) => now - entry.timestamp <= DUPLICATE_AMOUNT_WINDOW_MS,
-    );
-
-    if (
-      transaction.source === "sms-auto" &&
-      isRecentSameAmountPending(transaction.amount, now)
-    ) {
+    const duplicateFingerprint = getPendingDuplicateFingerprint(transaction);
+    const duplicateKey = `${user.uid}:${getSmsTransactionDuplicateKey(transaction)}`;
+    const recentMessages = recentPendingMessagesRef.current;
+    for (const [key, timestamp] of recentMessages) {
+      if (now - timestamp > DUPLICATE_MESSAGE_WINDOW_MS) recentMessages.delete(key);
+    }
+    if (duplicateFingerprint && (recentMessages.has(duplicateKey) ||
+        isRecentSmsDuplicate(duplicateFingerprint, pendingTransactions, now))) {
       return null;
     }
+    if (duplicateFingerprint) recentMessages.set(duplicateKey, now);
 
-    if (transaction.source === "sms-auto") {
-      recentPendingAmountRef.current = [
-        ...recentPendingAmountRef.current,
-        { amount: transaction.amount, timestamp: now },
-      ];
-    }
-
-    const duplicateId = getPendingDuplicateId(transaction);
     const payload = {
       ...transaction,
-      duplicateKey:
-        transaction.duplicateKey || getSmsDuplicateKey(transaction.rawMessage),
+      duplicateKey: getSmsDuplicateId(getSmsTransactionDuplicateKey(transaction)),
       createdAt: new Date().toISOString(),
       status: "pending" as const,
       updatedAt: Date.now(),
     };
 
-    const id = duplicateId || createId();
-    const pending = await upsertPendingTransaction(user.uid, {
-      ...payload,
-      id,
-    });
-
-    return pending as PendingTransaction;
+    const id = createId();
+    try {
+      return await upsertPendingTransaction(user.uid, { ...payload, id }) as PendingTransaction;
+    } catch (error) {
+      recentMessages.delete(duplicateKey);
+      throw error;
+    }
   };
 
   const addPendingFromSms = async (
@@ -412,10 +379,7 @@ export const PendingTransactionProvider = ({
     const alreadyProcessed = new Set(processedNativeMessagesRef.current);
 
     for (const message of messages) {
-      const rawMessage =
-        typeof message === "string"
-          ? message
-          : String(message.body || message.message || "");
+      const rawMessage = getNativeSmsMessageKey(message);
 
       if (alreadyProcessed.has(rawMessage)) {
         continue;
@@ -506,19 +470,18 @@ export const PendingTransactionProvider = ({
         ? new NativeEventEmitter(SmsTransactionModule as any).addListener(
             "SmsTransactionReceived",
             (message: string | NativeSmsMessage) => {
-              const rawMessage =
-                typeof message === "string"
-                  ? message
-                  : String(message.body || message.message || "");
+              const rawMessage = getNativeSmsMessageKey(message);
 
-              processedNativeMessagesRef.current = [
-                ...processedNativeMessagesRef.current,
-                rawMessage,
-              ];
-
-              addNativeSmsMessage(message).catch((error) => {
-                console.log("Native SMS event import error:", error);
-              });
+              if (!user?.uid) return;
+              addNativeSmsMessage(message)
+                .then(() => {
+                  processedNativeMessagesRef.current = [
+                    ...processedNativeMessagesRef.current, rawMessage,
+                  ];
+                })
+                .catch((error) => {
+                  console.log("Native SMS event import error:", error);
+                });
             },
           )
         : undefined;
@@ -537,9 +500,19 @@ export const PendingTransactionProvider = ({
     };
   }, [user?.uid]);
 
-  const approvePendingTransaction = async (transaction: PendingTransaction) => {
+  const approvePendingTransaction = async (transaction: PendingTransaction): Promise<PendingApprovalResult> => {
     if (!user?.uid || !userData) {
       throw new Error("Sign in before approving a transaction.");
+    }
+
+    if (userData.type === "salary" && isSalaryCredit(transaction)) {
+      const arrivedAtMs = new Date(String(transaction.createdAt || new Date().toISOString())).getTime();
+      await confirmSalaryArrivalRecord({
+        userId: user.uid, profile: userData, arrivedAtMs,
+        salary: transaction.amount, source: "sms-salary-arrival", skipIfConfirmed: true,
+      });
+      await deletePendingTransaction(user.uid, transaction.id);
+      return { status: "salary-confirmed" };
     }
 
     const result = await saveTransactionWithSalaryValidation({
@@ -587,6 +560,10 @@ export const PendingTransactionProvider = ({
       expenseAmount: transaction.amount,
       fundsDescription: "Additional funds for detected expense",
       profile: userData,
+      transaction: {
+        id: transaction.id,
+        createdAt: transaction.createdAt as string | undefined,
+      },
       userId: user.uid,
     });
 

@@ -48,6 +48,7 @@ const mapLocalPending = (row: any): PendingTransactionRecord => ({
   status: "pending",
   updatedAt: Number(row.updatedAt || 0),
   senderId: row.senderId ?? undefined,
+  duplicateKey: row.duplicateKey ?? undefined,
 });
 
 export const listPendingTransactions = async (userId: string) => {
@@ -121,9 +122,9 @@ export const upsertPendingTransaction = async (
   await dbx.runAsync(
     `
     INSERT INTO pending_transactions (
-      id, userId, amount, description, category, type, createdAt, updatedAt, senderId
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+      id, userId, amount, description, category, type, createdAt, updatedAt, senderId, duplicateKey
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(userId, id) DO UPDATE SET
       userId = excluded.userId,
       amount = excluded.amount,
       description = excluded.description,
@@ -131,7 +132,8 @@ export const upsertPendingTransaction = async (
       type = excluded.type,
       createdAt = excluded.createdAt,
       updatedAt = excluded.updatedAt,
-      senderId = excluded.senderId
+      senderId = excluded.senderId,
+      duplicateKey = excluded.duplicateKey
   `,
     [
       transaction.id,
@@ -143,6 +145,7 @@ export const upsertPendingTransaction = async (
       String(transaction.createdAt || new Date().toISOString()),
       timestamp,
       transaction.senderId ?? null,
+      transaction.duplicateKey ?? null,
     ],
   );
 
@@ -220,7 +223,7 @@ export const updatePendingTransaction = async (
   await dbx.runAsync(
     `
     UPDATE pending_transactions
-    SET amount = ?, description = ?, category = ?, type = ?, createdAt = ?, updatedAt = ?, senderId = ?
+    SET amount = ?, description = ?, category = ?, type = ?, createdAt = ?, updatedAt = ?, senderId = ?, duplicateKey = ?
     WHERE id = ? AND userId = ?
   `,
     [
@@ -230,6 +233,8 @@ export const updatePendingTransaction = async (
       next.type || "expense",
       String(next.createdAt || new Date().toISOString()),
       next.updatedAt,
+      next.senderId ?? null,
+      next.duplicateKey ?? null,
       id,
       userId,
     ],

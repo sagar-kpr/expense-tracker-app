@@ -14,7 +14,7 @@ import {
   fromJson,
   intToBool,
   nowMs,
-  SyncMode,
+  type SyncMode,
   toJson,
 } from "@/repositories/shared";
 

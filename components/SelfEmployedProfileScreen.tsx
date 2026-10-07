@@ -1,3 +1,6 @@
+import { addMoney, subtractMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
+import useScreenLayout from "@/components/useScreenLayout";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
@@ -19,12 +22,10 @@ import { useTheme } from "@/context/ThemeContext";
 import { auth } from "@/firebase";
 import { saveProfile, setProfileSyncMode } from "@/repositories/profileRepository";
 
-const RUPEE = "\u20B9";
 
-const formatMoney = (value: number) =>
-  `${RUPEE}${Number(value || 0).toLocaleString("en-IN")}`;
 
 export default function SelfEmployedProfileScreen() {
+  const screenLayout = useScreenLayout();
   const { expenses } = useExpense();
   const { userData, logout } = useAuth();
   const { theme, dark, setDark } = useTheme();
@@ -38,9 +39,9 @@ export default function SelfEmployedProfileScreen() {
           const amount = Number(item.amount || 0);
 
           if ((item.type || "expense") === "income") {
-            acc.income += amount;
+            acc.income = addMoney(acc.income, amount);
           } else {
-            acc.expense += amount;
+            acc.expense = addMoney(acc.expense, amount);
           }
 
           return acc;
@@ -50,7 +51,7 @@ export default function SelfEmployedProfileScreen() {
     [expenses],
   );
 
-  const netProfit = totals.income - totals.expense;
+  const netProfit = subtractMoney(totals.income, totals.expense);
   const totalTransactions = expenses.length;
   const incomeTransactions = expenses.filter(
     (item) => (item.type || "expense") === "income",
@@ -68,11 +69,11 @@ export default function SelfEmployedProfileScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{
+      contentContainerStyle={[{
         padding: 20,
         paddingTop: 60,
         paddingBottom: 120,
-      }}
+      }, screenLayout.contentStyle]}
       showsVerticalScrollIndicator={false}
     >
       <Text
@@ -157,6 +158,8 @@ export default function SelfEmployedProfileScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 marginTop: 13,
+                flexWrap: "wrap",
+                gap: 8,
               }}
             >
               <View
@@ -189,6 +192,8 @@ export default function SelfEmployedProfileScreen() {
         <View
           style={{
             flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 12,
             justifyContent: "space-between",
             marginTop: 28,
             paddingTop: 22,
@@ -198,11 +203,11 @@ export default function SelfEmployedProfileScreen() {
         >
           <ProfileHeaderStat
             label="Income"
-            value={formatMoney(totals.income)}
+            value={totals.income}
           />
           <ProfileHeaderStat
             label="Expense"
-            value={formatMoney(totals.expense)}
+            value={totals.expense}
             alignRight
           />
         </View>
@@ -220,13 +225,14 @@ export default function SelfEmployedProfileScreen() {
         <View
           style={{
             flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 12,
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
-          <View>
-            <Text
-              style={{ fontSize: 20, fontWeight: "900", color: theme.text }}
+          <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+            <Text style={{ fontSize: 20, fontWeight: "900", color: theme.text }}
             >
               Business Overview
             </Text>
@@ -251,11 +257,7 @@ export default function SelfEmployedProfileScreen() {
 
         <View style={{ marginTop: 26 }}>
           <Text style={{ color: theme.subText, fontSize: 14 }}>Net Profit</Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            ellipsizeMode="tail"
-            style={{
+          <MoneyText value={netProfit} style={{
               fontSize: 38,
               fontWeight: "900",
               color: netProfit >= 0 ? theme.text : theme.danger,
@@ -263,17 +265,14 @@ export default function SelfEmployedProfileScreen() {
               width: "100%",
               flexShrink: 1,
               textAlign: "left",
-            }}
-          >
-            {netProfit < 0
-              ? `${RUPEE} -${Math.abs(netProfit).toLocaleString("en-IN")}`
-              : formatMoney(Math.abs(netProfit))}
-          </Text>
+            }} />
         </View>
 
         <View
           style={{
             flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 12,
             justifyContent: "space-between",
             marginTop: 26,
           }}
@@ -307,6 +306,8 @@ export default function SelfEmployedProfileScreen() {
         style={{
           marginTop: 24,
           flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 12,
           justifyContent: "space-between",
         }}
       >
@@ -349,7 +350,7 @@ export default function SelfEmployedProfileScreen() {
 
         <SettingsRow
           label="Business Status"
-          value={netProfit < 0 ? "Running Loss" : "Profit Running"}
+          value={totalTransactions === 0 ? "No activity" : netProfit < 0 ? "Running Loss" : netProfit === 0 ? "Break even" : "Profitable"}
           last
         />
       </Animated.View>
@@ -399,25 +400,23 @@ function ProfileHeaderStat({
   alignRight,
 }: {
   label: string;
-  value: string;
+  value: number;
   alignRight?: boolean;
 }) {
+  const { singleColumn } = useScreenLayout();
   return (
     <View
       style={{
         alignItems: alignRight ? "flex-end" : "flex-start",
         flex: 1,
+        flexBasis: singleColumn ? "100%" : "47%",
         paddingHorizontal: 6,
       }}
     >
       <Text style={{ color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
         {label}
       </Text>
-      <Text
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        ellipsizeMode="tail"
-        style={{
+      <MoneyText value={value} style={{
           color: "#FFFFFF",
           fontSize: 21,
           fontWeight: "900",
@@ -425,10 +424,7 @@ function ProfileHeaderStat({
           width: "100%",
           flexShrink: 1,
           textAlign: alignRight ? "right" : "left",
-        }}
-      >
-        {value}
-      </Text>
+        }} />
     </View>
   );
 }

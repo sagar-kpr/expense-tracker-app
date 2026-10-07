@@ -109,7 +109,7 @@ class SmsTransactionModule(private val reactContext: ReactApplicationContext) :
 
       val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
       val now = System.currentTimeMillis()
-      val fingerprint = body
+      val fingerprint = sender.lowercase() + ":" + body
         .lowercase()
         .replace("₹", "rs")
         .replace(Regex("""[^a-z0-9]+"""), "")

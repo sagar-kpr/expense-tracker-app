@@ -1,3 +1,4 @@
+import MoneyText from "@/components/MoneyText";
 import { Text, View } from "react-native";
 
 type Props = {
@@ -14,14 +15,13 @@ export default function ExpenseItem({ item }: Props) {
         marginBottom: 12,
       }}
     >
-      <Text
+      <MoneyText
         style={{
           fontSize: 20,
           fontWeight: "bold",
         }}
-      >
-        ₹{item.amount}
-      </Text>
+        value={Number(item.amount)}
+      />
 
       <Text
         style={{

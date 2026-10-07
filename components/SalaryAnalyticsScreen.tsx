@@ -1,3 +1,9 @@
+import { formatPercent, getBudgetMetrics, getChangePercent } from "@/services/financialMetrics";
+import { addMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
+import useScreenLayout from "@/components/useScreenLayout";
+import FinancialOverview from "@/components/FinancialOverview";
+import { formatMoney, formatCompactMoney, formatReadableMoney } from "@/utils/money";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useState } from "react";
@@ -28,9 +34,7 @@ import { useOnboardingStore } from "@/store/useOnboardingStore";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const RUPEE = "\u20B9";
 const PURPLE = "#6E3CFF";
-const PURPLE_DARK = "#371872"; //"#35108E";
 const GREEN = "#0F9B58";
 const BLUE = "#1877F2";
 const ORANGE = "#F97316";
@@ -46,29 +50,7 @@ const getExpenseDate = (value: any) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const formatMoney = (value: number) => {
-  const amount = Number(value || 0);
 
-  if (amount >= 10000000) {
-    const cr = amount / 10000000;
-    return `${RUPEE}${Number(cr.toFixed(1))} Cr`;
-  }
-
-  if (amount >= 1000000) {
-    const lakh = amount / 100000;
-    return `${RUPEE}${Number(lakh.toFixed(1))} L`;
-  }
-
-  return `${RUPEE}${amount.toLocaleString("en-IN")}`;
-};
-
-const formatCompactMoney = (value: number) => {
-  const amount = Number(value || 0);
-  if (Math.abs(amount) < 1000) return formatMoney(amount);
-
-  const thousands = amount / 1000;
-  return `${RUPEE}${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}k`;
-};
 
 const categoryColor = (category: string, index: number) => {
   const metaColor = getCategoryMeta(category).color;
@@ -115,6 +97,7 @@ function DonutProgress({
 }
 
 export default function SalaryAnalyticsScreen() {
+  const screenLayout = useScreenLayout();
   const { expenses } = useExpense();
   const { theme, dark } = useTheme();
   const { userData } = useAuth();
@@ -129,7 +112,7 @@ export default function SalaryAnalyticsScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const progress = useSharedValue(0);
-  const compact = width < 422 || fontScale > 1.05;
+  const compact = width / fontScale < 440;
 
   const styles = useMemo(
     () => getStyles(theme, dark, compact),
@@ -230,7 +213,7 @@ export default function SalaryAnalyticsScreen() {
     () =>
       filteredExpenses.reduce((acc: Record<string, number>, item: any) => {
         const category = item.category || "Other";
-        acc[category] = (acc[category] || 0) + Number(item.amount || 0);
+        acc[category] = addMoney(acc[category] || 0, Number(item.amount || 0));
         return acc;
       }, {}),
     [filteredExpenses],
@@ -244,7 +227,7 @@ export default function SalaryAnalyticsScreen() {
     [groupedCategories],
   );
 
-  const totalSpent = ranges.reduce((sum, item) => sum + item[1], 0);
+  const totalSpent = ranges.reduce((sum, item) => addMoney(sum, item[1]), 0);
   const selectedCycleSummary = getCycleSummary(selectedDate, {
     expectedCycleStart: activeSelectedCycle?.expectedStart,
     referenceDate:
@@ -253,21 +236,16 @@ export default function SalaryAnalyticsScreen() {
         : selectedDate,
   });
   const salaryAmount = Number(
-    selectedCycleSummary.salary || userData?.salary || onboardingSalary || 0,
+    selectedCycleSummary.salary ?? userData?.salary ?? onboardingSalary ?? 0,
   );
   const carryForward = Number(selectedCycleSummary.carryForward || 0);
   const additionalFunds = Number(selectedCycleSummary.additionalFunds || 0);
-  const availableTotal = carryForward + salaryAmount + additionalFunds;
-  const remaining = availableTotal - totalSpent;
-  const salaryUsed =
-    availableTotal > 0 ? Math.min((totalSpent / availableTotal) * 100, 100) : 0;
-  const salaryUsedLabel =
-    totalSpent > 0 && salaryUsed < 1
-      ? salaryUsed.toFixed(1)
-      : String(Math.round(salaryUsed));
-  const savingsRate =
-    availableTotal > 0 ? Math.round((remaining / availableTotal) * 100) : 0;
-  const savingsBarWidth = Math.min(Math.max(savingsRate, 0), 100);
+  const availableTotal = addMoney(addMoney(carryForward, salaryAmount), additionalFunds);
+  const { remaining, usagePercent: usageRatio, savingsPercent } = getBudgetMetrics(availableTotal, totalSpent);
+  const salaryUsed = Math.min(Math.max(usageRatio ?? 0, 0), 100);
+  const salaryUsedLabel = formatPercent(usageRatio);
+  const savingsRate = savingsPercent;
+  const savingsBarWidth = Math.min(Math.max(savingsRate ?? 0, 0), 100);
 
   const isOverspent = remaining < 0;
   const topCategory = ranges[0];
@@ -316,12 +294,12 @@ export default function SalaryAnalyticsScreen() {
         bucketCount - 1,
         Math.floor((dayOffset * bucketCount) / totalDays),
       );
-      buckets[bucketIndex].value += Number(item.amount || 0);
+      buckets[bucketIndex].value = addMoney(buckets[bucketIndex].value, Number(item.amount || 0));
     });
 
     let cumulativeSpend = 0;
     return buckets.map((bucket) => {
-      cumulativeSpend += bucket.value;
+      cumulativeSpend = addMoney(cumulativeSpend, bucket.value);
       return { ...bucket, value: cumulativeSpend };
     });
   }, [filteredExpenses, selectedCycleEnd, selectedDate]);
@@ -342,19 +320,18 @@ export default function SalaryAnalyticsScreen() {
       if (!date || (item.type || "expense") !== "expense") return sum;
 
       return date >= previousCycle.start && date < previousCycle.end
-        ? sum + Number(item.amount || 0)
+        ? addMoney(sum, Number(item.amount || 0))
         : sum;
     }, 0);
   }, [expenses, selectedDate, visibleSalaryCycles]);
 
-  const hasPreviousCycle = previousCycleSpend > 0;
-  const comparisonPercent =
-    previousCycleSpend > 0
-      ? Math.round(
-          ((totalSpent - previousCycleSpend) / previousCycleSpend) * 100,
-        )
-      : 0;
-  const comparisonUp = comparisonPercent >= 0;
+  const hasPreviousCycle = visibleSalaryCycles.findIndex((cycle) => cycle.start.getTime() === selectedDate.getTime()) > 0;
+  const comparisonPercent = getChangePercent(totalSpent, previousCycleSpend);
+  const comparisonUp = totalSpent > previousCycleSpend;
+  const comparisonLabel = !hasPreviousCycle ? "First Cycle"
+    : comparisonPercent === null ? "No previous spending"
+    : totalSpent === previousCycleSpend ? "No change vs previous cycle"
+    : `${formatPercent(Math.abs(comparisonPercent))} ${comparisonUp ? "more" : "less"} spending`;
   const visibleSelectedCycleIndex = visibleSalaryCycles.findIndex(
     (cycle) => cycle.start.getTime() === selectedDate.getTime(),
   );
@@ -383,7 +360,7 @@ export default function SalaryAnalyticsScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, screenLayout.contentStyle]}
       refreshControl={
         <RefreshControl
           colors={[PURPLE]}
@@ -451,87 +428,23 @@ export default function SalaryAnalyticsScreen() {
         entering={FadeInUp.delay(80).duration(550)}
         style={styles.overviewCard}
       >
-        <View style={styles.overviewLeft}>
-          <View style={styles.cardTitleRow}>
-            <Ionicons
-              color="rgba(255,255,255,0.86)"
-              name="pie-chart-outline"
-              size={compact ? 20 : 24}
-            />
-            <Text style={styles.overviewTitle}>Salary Overview</Text>
-          </View>
-
-          <Text style={styles.overviewLabel}>Used</Text>
-          <Text style={styles.usedPercent}>{salaryUsedLabel}%</Text>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.75}
-            numberOfLines={1}
-            style={styles.usedAmount}
-          >
-            {formatMoney(totalSpent)} of {formatMoney(availableTotal)}
-          </Text>
-
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#34D399" }]} />
-            <Text style={styles.legendText}>Carry Forward</Text>
-            <Text style={styles.legendAmount}>{formatMoney(carryForward)}</Text>
-          </View>
-
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#60A5FA" }]} />
-            <Text style={styles.legendText}>Salary</Text>
-            <Text style={styles.legendAmount}>{formatMoney(salaryAmount)}</Text>
-          </View>
-
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#FBBF24" }]} />
-            <Text style={styles.legendText}>Additional Funds</Text>
-            <Text style={styles.legendAmount}>
-              {formatMoney(additionalFunds)}
-            </Text>
-          </View>
-
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#7A4CFF" }]} />
-            <Text style={styles.legendText}>Used</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              numberOfLines={1}
-              style={styles.legendAmount}
-            >
-              {formatMoney(totalSpent)}
-            </Text>
-          </View>
-
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#C9D1CC" }]} />
-            <Text style={styles.legendText}>Remaining</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              numberOfLines={1}
-              style={styles.legendAmount}
-            >
-              {formatMoney(remaining)}
-            </Text>
-          </View>
-
-          <View style={styles.comparisonPill}>
-            <Ionicons
-              color={comparisonUp ? "#11D86E" : "#FF7474"}
-              name={comparisonUp ? "arrow-up" : "arrow-down"}
-              size={22}
-            />
-            <Text style={styles.comparisonText}>
-              {hasPreviousCycle
-                ? `${Math.abs(comparisonPercent)}% vs Last Month`
-                : "First Cycle"}
-            </Text>
-          </View>
-        </View>
-
+        <FinancialOverview
+          title="Salary Overview"
+          label="Used"
+          percent={salaryUsedLabel}
+          summary={`Spent ${formatReadableMoney(totalSpent)}\nAvailable ${formatReadableMoney(availableTotal)}`}
+          rows={[
+            { label: "Carry Forward", amount: carryForward, color: "#34D399" },
+            { label: "Salary", amount: salaryAmount, color: "#60A5FA" },
+            { label: "Additional Funds", amount: additionalFunds, color: "#FBBF24" },
+            { label: "Used", amount: totalSpent, color: "#9676FF" },
+            { label: "Remaining", amount: remaining, color: "#C9D1CC" },
+          ]}
+          comparison={comparisonLabel}
+          comparisonFavorable={!comparisonUp}
+          comparisonNeutral={!hasPreviousCycle || comparisonPercent === null || totalSpent === previousCycleSpend}
+          comparisonUp={comparisonUp}
+        >
         {availableTotal > 0 && (
           <View style={styles.donutBox}>
             <Svg width={155} height={155} viewBox="0 0 180 180">
@@ -560,13 +473,16 @@ export default function SalaryAnalyticsScreen() {
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
                 numberOfLines={1}
+                accessibilityLabel={formatMoney(availableTotal)}
+                maxFontSizeMultiplier={1.2}
                 style={styles.donutAmount}
               >
-                {formatMoney(availableTotal)}
+                {formatCompactMoney(availableTotal)}
               </Text>
             </View>
           </View>
         )}
+        </FinancialOverview>
       </Animated.View>
 
       <Animated.View
@@ -630,14 +546,10 @@ export default function SalaryAnalyticsScreen() {
                       <Text numberOfLines={1} style={styles.categoryName}>
                         {category}
                       </Text>
-                      <Text
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.72}
-                        numberOfLines={1}
+                      <MoneyText
                         style={[styles.categoryAmount, { color }]}
-                      >
-                        {formatMoney(value)}
-                      </Text>
+                       value={value}
+                     />
                     </View>
 
                     <Text style={styles.categoryPercent}>
@@ -651,7 +563,7 @@ export default function SalaryAnalyticsScreen() {
                         styles.progressFill,
                         {
                           backgroundColor: color,
-                          width: `${Math.max(percent, value > 0 ? 3 : 0)}%`,
+                          width: `${Math.min(100, Math.max(percent, value > 0 ? 3 : 0))}%`,
                         },
                       ]}
                     />
@@ -695,19 +607,19 @@ export default function SalaryAnalyticsScreen() {
           <View style={styles.savingsIcon}>
             <Ionicons color={GREEN} name="shield-checkmark-outline" size={31} />
           </View>
-          <View>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.savingsLabel}>Savings Rate</Text>
-            <Text style={styles.savingsPercent}>{savingsRate}%</Text>
+            <Text style={styles.savingsPercent}>{formatPercent(savingsRate)}</Text>
             <Text style={styles.savingsCaption}>
               {salaryAmount <= 0
                 ? "Add salary to unlock analytics."
                 : totalSpent === 0
                   ? "No spending recorded this cycle."
                   : isOverspent
-                    ? `Overspent by ${formatMoney(Math.abs(remaining))}`
-                    : savingsRate >= 30
+                    ? `Overspent by ${formatReadableMoney(Math.abs(remaining))}`
+                    : (savingsRate ?? 0) >= 30
                       ? "Excellent saving rate."
-                      : savingsRate >= 10
+                      : (savingsRate ?? 0) >= 10
                         ? "Healthy spending habits."
                         : "Keep watching the big categories."}
             </Text>
@@ -729,17 +641,10 @@ export default function SalaryAnalyticsScreen() {
                 ]}
               />
             </View>
-            <Text style={styles.savingsSmallPercent}>{savingsRate}%</Text>
+            <Text style={styles.savingsSmallPercent}>{formatPercent(savingsRate)}</Text>
           </View>
-          <Text
-            adjustsFontSizeToFit
-            numberOfLines={2}
-            style={styles.savingsAmount}
-          >
-            {isOverspent
-              ? `${formatMoney(Math.abs(remaining))} overspent`
-              : `${formatMoney(remaining)} remaining`}
-          </Text>
+          <Text style={styles.savingsLabel}>{isOverspent ? "Overspent" : "Remaining"}</Text>
+          <MoneyText value={Math.abs(remaining)} style={styles.savingsAmount} />
           <Text numberOfLines={1} style={styles.cycleLabel}>
             {activeSelectedCycle?.label}
           </Text>
@@ -756,9 +661,9 @@ function TrendChart({
   data: { label: string; value: number }[];
   styles: ReturnType<typeof getStyles>;
 }) {
-  const chartWidth = 300;
+  const [chartWidth, setChartWidth] = useState(300);
   const chartHeight = 160;
-  const left = 38;
+  const left = 68;
   const right = 10;
   const top = 12;
   const bottom = 32;
@@ -769,13 +674,6 @@ function TrendChart({
   const maxValue = Math.ceil(highestValue / magnitude) * magnitude;
   const yTicks = [1, 0.75, 0.5, 0.25, 0].map((ratio) => maxValue * ratio);
 
-  const formatAxisValue = (value: number) => {
-    if (value === 0) return `${RUPEE}0`;
-    if (value < 1000) return `${RUPEE}${Math.round(value)}`;
-
-    const thousands = value / 1000;
-    return `${RUPEE}${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
-  };
 
   const points = data.map((item, index) => {
     const x = left + (plotWidth / Math.max(data.length - 1, 1)) * index;
@@ -791,7 +689,7 @@ function TrendChart({
     : "";
 
   return (
-    <View style={styles.trendChart}>
+    <View style={styles.trendChart} onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
       <Svg
         height={chartHeight}
         viewBox={`0 0 ${chartWidth} ${chartHeight}`}
@@ -840,16 +738,11 @@ function TrendChart({
 
       {points.length > 0 && points[points.length - 1].value > 0 ? (
         <Text
+          maxFontSizeMultiplier={1.2}
           style={[
             styles.pointLabel,
             {
-              left: `${Math.min(
-                84,
-                Math.max(
-                  8,
-                  ((points[points.length - 1].x - 30) / chartWidth) * 100,
-                ),
-              )}%`,
+              right: 0,
               top: Math.max(0, points[points.length - 1].y - 24),
             },
           ]}
@@ -860,9 +753,7 @@ function TrendChart({
 
       <View style={styles.yAxisLabels}>
         {yTicks.map((tick) => (
-          <Text key={tick} style={styles.axisText}>
-            {formatAxisValue(tick)}
-          </Text>
+          <MoneyText key={tick} value={tick} style={[styles.axisText, { width: "100%" }]} maxFontSizeMultiplier={1.1} />
         ))}
       </View>
 
@@ -871,6 +762,7 @@ function TrendChart({
           <Text
             adjustsFontSizeToFit
             key={item.label}
+            maxFontSizeMultiplier={1.1}
             minimumFontScale={0.72}
             numberOfLines={1}
             style={styles.monthLabel}
@@ -895,15 +787,15 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       paddingTop: 60,
     },
     headerRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: compact ? 8 : 12,
+      alignItems: compact ? "flex-start" : "center",
+      flexDirection: compact ? "column" : "row",
+      gap: compact ? 12 : 16,
       justifyContent: "space-between",
     },
     title: {
       color: dark ? "#FFFFFF" : "#070E2D",
       flexShrink: 0,
-      fontSize: compact ? 30 : 33,
+      fontSize: compact ? 28 : 33,
       fontWeight: "900",
     },
     monthSelector: {
@@ -912,10 +804,13 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       borderColor: dark ? "#2D3240" : "#D9DDE8",
       borderRadius: 16,
       borderWidth: 1,
-      flex: 1,
+      flexGrow: 0,
+      flexShrink: 1,
       flexDirection: "row",
       justifyContent: "space-between",
-      maxWidth: compact ? 176 : 196,
+      maxWidth: compact ? 220 : 196,
+      width: compact ? "100%" : undefined,
+      alignSelf: compact ? "flex-start" : undefined,
       minWidth: 0,
       paddingHorizontal: 4,
     },
@@ -940,101 +835,14 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       fontSize: compact ? 12 : 14,
       fontWeight: "800",
     },
-    overviewCard: {
-      backgroundColor: PURPLE_DARK,
-      borderRadius: 24,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 24,
-      minHeight: 250,
-      overflow: "hidden",
-      padding: compact ? 16 : 18,
-    },
-    overviewLeft: {
-      flex: 0.9,
-      minWidth: 0,
-      paddingRight: compact ? 8 : 8,
-      zIndex: 1,
-    },
-    cardTitleRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: 5,
-      marginBottom: 12,
-    },
-    overviewTitle: {
-      color: "rgba(255,255,255,0.86)",
-      fontSize: compact ? 14 : 16,
-      fontWeight: "600",
-    },
-    overviewLabel: {
-      color: "#FFFFFF",
-      // fontSize: 12,
-      // fontWeight: "800",
-      marginBottom: 8,
-
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    usedPercent: {
-      color: "#FFFFFF",
-      fontSize: compact ? 26 : 34,
-      fontWeight: "800",
-      lineHeight: 28,
-    },
-    usedAmount: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "800",
-      marginBottom: compact ? 14 : 20,
-    },
-    legendRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      marginTop: compact ? 8 : 11,
-    },
-    legendDot: {
-      borderRadius: 9,
-      height: 15,
-      marginRight: compact ? 8 : 12,
-      width: 15,
-    },
-    legendText: {
-      color: "#FFFFFF",
-      flex: 1,
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    legendAmount: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    comparisonPill: {
-      alignItems: "center",
-      alignSelf: "flex-start",
-      backgroundColor: "rgba(6, 4, 44, 0.45)",
-      borderRadius: 9,
-      flexDirection: "row",
-      gap: 8,
-      marginTop: compact ? 18 : 23,
-      paddingHorizontal: compact ? 8 : 8,
-      paddingVertical: compact ? 6 : 6,
-    },
-    comparisonText: {
-      color: "#FFFFFF",
-      fontSize: compact ? 11 : 11,
-      fontWeight: "900",
-    },
+    overviewCard: { marginTop: 24 },
     donutBox: {
       alignItems: "center",
-      flex: 1,
-      alignSelf: "flex-start",
-      marginTop: 8,
+      alignSelf: "center",
       justifyContent: "center",
-      marginRight: 0,
-      width: compact ? 150 : 170,
-      height: compact ? 150 : 170,
+      flexShrink: 0,
+      width: 155,
+      height: 155,
     },
     donutCenter: {
       alignItems: "center",
@@ -1064,7 +872,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       color: "#0B102B",
       fontSize: compact ? 12 : 12,
       fontWeight: "900",
-      maxWidth: compact ? 82 : 94,
+      maxWidth: 88,
       marginTop: 4,
     },
     insightCard: {
@@ -1128,6 +936,8 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       marginBottom: 18,
     },
     sectionTitle: {
+      flexShrink: 1,
+      marginRight: 8,
       color: dark ? "#FFFFFF" : "#080D27",
       fontSize: compact ? 17 : 18,
       fontWeight: "900",
@@ -1187,6 +997,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       marginLeft: 10,
     },
     categoryAmount: {
+      fontVariant: ["tabular-nums"],
       fontSize: compact ? 12 : 14,
       fontWeight: "800",
       marginTop: 3,
@@ -1220,7 +1031,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       left: 0,
       position: "absolute",
       top: 9,
-      width: 38,
+      width: 62,
     },
     axisText: {
       color: theme.subText,
@@ -1232,7 +1043,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       bottom: 0,
       flexDirection: "row",
       justifyContent: "space-between",
-      left: 44,
+      left: 68,
       position: "absolute",
       right: 5,
     },
@@ -1241,7 +1052,8 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       fontSize: compact ? 9 : 10,
       fontWeight: "900",
       textAlign: "center",
-      width: compact ? 40 : 44,
+      flex: 1,
+      minWidth: 0,
     },
     pointLabel: {
       backgroundColor: theme.card,
@@ -1250,6 +1062,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       fontSize: 11,
       fontWeight: "900",
       minWidth: 56,
+      maxWidth: 120,
       paddingHorizontal: 4,
       paddingVertical: 2,
       position: "absolute",
@@ -1310,7 +1123,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       color: theme.subText,
       fontSize: 12,
       fontWeight: "700",
-      maxWidth: 170,
+      maxWidth: "100%",
     },
     savingsDivider: {
       alignSelf: "stretch",

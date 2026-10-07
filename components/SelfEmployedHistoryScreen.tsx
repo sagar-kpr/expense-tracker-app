@@ -1,3 +1,7 @@
+import { addMoney, subtractMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
+import useScreenLayout from "@/components/useScreenLayout";
+import { formatMoney } from "@/utils/money";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
@@ -44,7 +48,6 @@ const FILTERS: Filter[] = [
   "This Month",
 ];
 const TRANSACTION_FILTERS: TransactionFilter[] = ["All", "Income", "Expense"];
-const RUPEE = "\u20B9";
 const GREEN = "#169B6B";
 const GREEN_DARK = "#0C7A53";
 const RED = "#E64B55";
@@ -120,8 +123,6 @@ const webDateInputStyle = (color: string, borderColor: string) => ({
   width: "100%",
 });
 
-const formatMoney = (value: number) =>
-  `${RUPEE}${Math.round(Number(value || 0)).toLocaleString("en-IN")}`;
 
 const escapeHtml = (value: unknown) =>
   String(value ?? "")
@@ -132,6 +133,7 @@ const escapeHtml = (value: unknown) =>
     .replaceAll("'", "&#039;");
 
 export default function SelfEmployedHistoryScreen() {
+  const screenLayout = useScreenLayout();
   const { width, height, fontScale } = useWindowDimensions();
   const { expenses, deleteExpense } = useExpense();
   const { theme, dark } = useTheme();
@@ -264,15 +266,15 @@ export default function SelfEmployedHistoryScreen() {
       filteredExpenses.reduce(
         (totals, item) => {
           const amount = Number(item.amount || 0);
-          if ((item.type || "expense") === "income") totals.income += amount;
-          else totals.expense += amount;
+          if ((item.type || "expense") === "income") totals.income = addMoney(totals.income, amount);
+          else totals.expense = addMoney(totals.expense, amount);
           return totals;
         },
         { expense: 0, income: 0 },
       ),
     [filteredExpenses],
   );
-  const businessNet = filteredTotals.income - filteredTotals.expense;
+  const businessNet = subtractMoney(filteredTotals.income, filteredTotals.expense);
   const businessInsight = useMemo(() => {
     if (filteredExpenses.length === 0) {
       return {
@@ -499,7 +501,7 @@ export default function SelfEmployedHistoryScreen() {
     <>
       <ScrollView
         style={styles.screen}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, screenLayout.contentStyle]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -863,27 +865,18 @@ export default function SelfEmployedHistoryScreen() {
 
             <View style={styles.netSummaryContent}>
               <Text style={styles.netSummaryLabel}>Net Profit</Text>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.65}
+              <MoneyText
                 style={[
                   styles.netSummaryAmount,
                   businessNet < 0 && styles.netSummaryAmountNegative,
                 ]}
-              >
-                {businessNet < 0 ? "-" : ""}
-                {formatMoney(Math.abs(businessNet))}
-              </Text>
+               value={Math.abs(businessNet)} prefix={businessNet < 0 ? "-" : ""}
+             />
 
               <View style={styles.netBreakdownRow}>
-                <Text style={styles.netIncomeText}>
-                  Income {formatMoney(filteredTotals.income)}
-                </Text>
-                <Text style={styles.netBreakdownDot}>{"\u2022"}</Text>
-                <Text style={styles.netExpenseText}>
-                  Expense {formatMoney(filteredTotals.expense)}
-                </Text>
+                <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.netIncomeText}>Income</Text><MoneyText value={filteredTotals.income} style={styles.netIncomeText} /></View>
+
+                <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.netExpenseText}>Expense</Text><MoneyText value={filteredTotals.expense} style={styles.netExpenseText} /></View>
               </View>
 
               <View style={styles.transactionCountPill}>
@@ -1004,20 +997,15 @@ export default function SelfEmployedHistoryScreen() {
                     </View>
 
                     <View style={styles.transactionRight}>
-                      <Text
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.7}
+                      <MoneyText
                         style={[
                           styles.transactionAmount,
                           isIncome
                             ? styles.incomeTransactionAmount
                             : styles.expenseTransactionAmount,
                         ]}
-                      >
-                        {isIncome ? "+" : "-"}
-                        {formatMoney(Number(item.amount || 0))}
-                      </Text>
+                       value={Number(item.amount || 0)} prefix={isIncome ? "+" : "-"}
+                     />
                     </View>
 
                     <Pressable
@@ -1237,8 +1225,9 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
       paddingTop: 60,
     },
     headerRow: {
-      alignItems: "center",
-      flexDirection: "row",
+      alignItems: compactLayout ? "flex-start" : "center",
+      flexDirection: compactLayout ? "column" : "row",
+      gap: 12,
       justifyContent: "space-between",
     },
     title: {
@@ -1247,12 +1236,14 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
       fontWeight: "900",
     },
     exportButton: {
+      alignSelf: "flex-start",
       alignItems: "center",
       backgroundColor: dark ? "rgba(22,155,107,0.16)" : "#EDF8F4",
       borderRadius: 14,
       flexDirection: "row",
       gap: 7,
-      height: 44,
+      minHeight: 44,
+      paddingVertical: 10,
       justifyContent: "center",
       minWidth: 108,
       paddingHorizontal: 14,
@@ -1722,10 +1713,11 @@ const getStyles = (theme: any, dark: boolean, compactLayout: boolean) =>
     transactionRight: {
       alignItems: "flex-end",
       marginLeft: 8,
-      maxWidth: 104,
+      maxWidth: "48%",
       minWidth: 72,
     },
     transactionAmount: {
+      fontVariant: ["tabular-nums"],
       color: theme.text,
       fontSize: 16,
       fontWeight: "900",

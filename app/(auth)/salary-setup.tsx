@@ -1,3 +1,4 @@
+import { normalizeMoneyInput } from "@/services/salaryMath";
 import { Pressable, Text, TextInput, View } from "react-native";
 
 import { useEffect, useState } from "react";
@@ -70,12 +71,10 @@ export default function SalarySetupScreen() {
 
       setError("");
 
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setShowSuccess(true);
-
+      const normalizedSalary = normalizeMoneyInput(Number(salary));
       const salaryProfile = {
         name,
-        salary: Number(salary),
+        salary: normalizedSalary,
         salaryDate: Number(salaryDate),
         type: "salary",
         onboarding: true,
@@ -87,7 +86,7 @@ export default function SalarySetupScreen() {
 
       await upsertSalaryHistory(user.uid, {
         id: createId(),
-        salary: Number(salary),
+        salary: normalizedSalary,
         salaryDate: Number(salaryDate),
         effectiveFromMs: now,
         createdAtMs: now,
@@ -99,7 +98,7 @@ export default function SalarySetupScreen() {
 
       const snapshot = buildSalaryCycleSnapshot({
         profile: {
-          salary: Number(salary),
+          salary: normalizedSalary,
           salaryDate: Number(salaryDate),
         },
         salaryHistory: [],
@@ -114,13 +113,15 @@ export default function SalarySetupScreen() {
         userId: user.uid,
       });
 
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowSuccess(true);
       setSalary("");
       setSalaryDate("");
 
       router.replace("/(auth)/success" as any);
     } catch (err) {
       console.log("Salary setup error:", err);
-      setError("Something went wrong");
+      setError(err instanceof Error ? err.message : "Something went wrong");
       setShowSuccess(false);
     } finally {
       setLoading(false);

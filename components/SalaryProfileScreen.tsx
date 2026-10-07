@@ -1,3 +1,7 @@
+import { getTransactionTotals } from "@/services/financialMetrics";
+import { addMoney, subtractMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
+import useScreenLayout from "@/components/useScreenLayout";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -33,6 +37,7 @@ import {
 import { getSalaryArrivalWindow } from "@/services/salaryLedger";
 
 export default function ProfileScreen() {
+  const screenLayout = useScreenLayout();
   const { expenses } = useExpense();
 
   const { userData, logout } = useAuth();
@@ -59,10 +64,7 @@ export default function ProfileScreen() {
   const [confirmingArrival, setConfirmingArrival] = useState(false);
   const [syncSaving, setSyncSaving] = useState(false);
 
-  const totalSpent = useMemo(() => {
-    return expenses.reduce((sum, item) => sum + Number(item.amount), 0);
-  }, [expenses]);
-
+  const spendingStats = useMemo(() => getTransactionTotals(expenses), [expenses]);
   const arrivalStatus = getCurrentArrivalStatus();
   const arrivalWindow = getSalaryArrivalWindow({
     profile: userData || {},
@@ -71,7 +73,7 @@ export default function ProfileScreen() {
 
   const currentCycleSpent = useMemo(() => {
     return getCycleExpenses(arrivalStatus, expenses).reduce(
-      (sum, item) => sum + Number(item.amount),
+      (sum, item) => addMoney(sum, Number(item.amount || 0)),
       0,
     );
   }, [arrivalStatus, expenses, getCycleExpenses]);
@@ -81,15 +83,12 @@ export default function ProfileScreen() {
     referenceDate: new Date(),
   });
   const currentCycleAvailable =
-    Number(currentCycleSummary.carryForward || 0) +
-    Number(currentCycleSummary.salary || 0) +
-    Number(currentCycleSummary.additionalFunds || 0);
-  const remaining = currentCycleAvailable - currentCycleSpent;
+    addMoney(addMoney(Number(currentCycleSummary.carryForward || 0), Number(currentCycleSummary.salary || 0)), Number(currentCycleSummary.additionalFunds || 0));
+  const remaining = subtractMoney(currentCycleAvailable, currentCycleSpent);
 
   const totalTransactions = expenses.length;
 
-  const avgExpense =
-    totalTransactions > 0 ? Math.round(totalSpent / totalTransactions) : 0;
+  const avgExpense = spendingStats.averageExpense;
 
   const activeDays = new Set(
     expenses.map((item: any) => {
@@ -188,13 +187,13 @@ export default function ProfileScreen() {
 
         backgroundColor: theme.background,
       }}
-      contentContainerStyle={{
+      contentContainerStyle={[{
         padding: 20,
 
         paddingTop: 60,
 
         paddingBottom: 120,
-      }}
+      }, screenLayout.contentStyle]}
       showsVerticalScrollIndicator={false}
     >
       <Text
@@ -300,6 +299,8 @@ export default function ProfileScreen() {
                 alignItems: "center",
 
                 marginTop: 14,
+                flexWrap: "wrap",
+                gap: 8,
               }}
             >
               <View
@@ -353,6 +354,10 @@ export default function ProfileScreen() {
           style={{
             flexDirection: "row",
 
+            flexWrap: "wrap",
+
+            gap: 12,
+
             justifyContent: "space-between",
 
             marginTop: 28,
@@ -375,7 +380,7 @@ export default function ProfileScreen() {
               Monthly Salary
             </Text>
 
-            <Text
+            <MoneyText
               style={{
                 color: "#FFFFFF",
 
@@ -385,9 +390,8 @@ export default function ProfileScreen() {
 
                 marginTop: 8,
               }}
-            >
-              ₹{Number(userData?.salary || 0).toLocaleString("en-IN")}
-            </Text>
+             value={Number(userData?.salary || 0)}
+           />
           </View>
 
           {/* <View
@@ -458,15 +462,17 @@ export default function ProfileScreen() {
           style={{
             flexDirection: "row",
 
+            flexWrap: "wrap",
+
+            gap: 12,
+
             justifyContent: "space-between",
 
             alignItems: "center",
           }}
         >
-          <View>
-            <Text
-              style={{
-                fontSize: 20,
+          <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+            <Text style={{ fontSize: 20,
 
                 fontWeight: "800",
 
@@ -529,7 +535,7 @@ export default function ProfileScreen() {
             Monthly Salary
           </Text>
 
-          <Text
+          <MoneyText
             style={{
               fontSize: 42,
 
@@ -539,14 +545,17 @@ export default function ProfileScreen() {
 
               marginTop: 10,
             }}
-          >
-            ₹{Number(userData?.salary || 0).toLocaleString("en-IN")}
-          </Text>
+           value={Number(userData?.salary || 0)}
+         />
         </View>
 
         <View
           style={{
             flexDirection: "row",
+
+            flexWrap: "wrap",
+
+            gap: 12,
 
             justifyContent: "space-between",
 
@@ -709,6 +718,8 @@ export default function ProfileScreen() {
             backgroundColor: "#E9F6FF",
             borderRadius: 20,
             marginTop: 14,
+                flexWrap: "wrap",
+                gap: 8,
             minHeight: 52,
             justifyContent: "center",
           }}
@@ -732,6 +743,10 @@ export default function ProfileScreen() {
 
           flexDirection: "row",
 
+          flexWrap: "wrap",
+
+          gap: 12,
+
           justifyContent: "space-between",
         }}
       >
@@ -739,7 +754,7 @@ export default function ProfileScreen() {
           style={{
             backgroundColor: theme.card,
 
-            width: "48%",
+            width: screenLayout.singleColumn ? "100%" : "48%",
 
             borderRadius: 24,
 
@@ -758,11 +773,7 @@ export default function ProfileScreen() {
             Used
           </Text>
 
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-            ellipsizeMode="tail"
+          <MoneyText
             style={{
               fontSize: 20,
 
@@ -772,16 +783,15 @@ export default function ProfileScreen() {
 
               width: "100%",
             }}
-          >
-            ₹{currentCycleSpent.toLocaleString("en-IN")}
-          </Text>
+           value={currentCycleSpent}
+         />
         </View>
 
         <View
           style={{
             backgroundColor: theme.card,
 
-            width: "48%",
+            width: screenLayout.singleColumn ? "100%" : "48%",
 
             borderRadius: 24,
 
@@ -800,11 +810,8 @@ export default function ProfileScreen() {
             Remaining
           </Text>
 
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-            ellipsizeMode="tail"
+          <MoneyText
+            value={remaining}
             style={{
               fontSize: 20,
 
@@ -814,9 +821,7 @@ export default function ProfileScreen() {
 
               width: "100%",
             }}
-          >
-            ₹{remaining.toLocaleString("en-IN")}
-          </Text>
+          />
         </View>
       </Animated.View>
 
@@ -850,6 +855,10 @@ export default function ProfileScreen() {
           style={{
             flexDirection: "row",
 
+            flexWrap: "wrap",
+
+            gap: 12,
+
             justifyContent: "space-between",
 
             marginBottom: 20,
@@ -882,6 +891,10 @@ export default function ProfileScreen() {
           style={{
             flexDirection: "row",
 
+            flexWrap: "wrap",
+
+            gap: 12,
+
             justifyContent: "space-between",
 
             marginBottom: 20,
@@ -897,7 +910,7 @@ export default function ProfileScreen() {
             Avg Spend
           </Text>
 
-          <Text
+          <MoneyText
             style={{
               color: theme.text,
 
@@ -905,14 +918,17 @@ export default function ProfileScreen() {
 
               fontSize: 16,
             }}
-          >
-            ₹{avgExpense.toLocaleString("en-IN")}
-          </Text>
+           value={avgExpense}
+         />
         </View>
 
         {/* <View
           style={{
             flexDirection: "row",
+
+            flexWrap: "wrap",
+
+            gap: 12,
 
             justifyContent: "space-between",
           }}
@@ -971,6 +987,10 @@ export default function ProfileScreen() {
           style={{
             flexDirection: "row",
 
+            flexWrap: "wrap",
+
+            gap: 12,
+
             justifyContent: "space-between",
 
             alignItems: "center",
@@ -1017,6 +1037,8 @@ export default function ProfileScreen() {
               style={{
                 marginTop: 18,
                 flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 12,
                 justifyContent: "space-between",
                 alignItems: "center",
               }}

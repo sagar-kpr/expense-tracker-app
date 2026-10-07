@@ -200,3 +200,89 @@ test("the active boundary ignores a premature newer open snapshot", () => {
 
   assert.equal(selected?.cycleKey, getSalaryCycleKey(julyStart));
 });
+
+const {
+  buildSalaryArrivalRollover, getCycleTimeline, getExpectedCycleForArrival,
+  getResolvedCycleBoundary,
+} = await import("./salaryLedger.ts");
+
+test("late payday summary includes expenses and funds after the scheduled end", () => {
+  const cycleStart = new Date(2026,8,7);
+  const profile = {salary: 50000, salaryDate: 7};
+  const open = buildSalaryCycleSnapshot({profile, cycleStart, referenceDate: cycleStart});
+  const summary = resolveSalaryCycleSummary({profile, cycleStart, salaryCycleSnapshots: [open],
+    referenceDate: new Date(2026,9,9,12), expenses: [
+      {type: "expense", amount: 50000, createdAt: new Date(2026,9,8).toISOString()},
+      {type: "income", amount: 1000, createdAt: new Date(2026,9,9,10).toISOString()},
+    ]});
+  assert.equal(summary.totalSpent, 50000);
+  assert.equal(summary.additionalFunds, 1000);
+  assert.equal(summary.remaining, 1000);
+});
+
+test("an early arrival belongs to the upcoming payday and preserves carry forward", () => {
+  const profile = {salary: 50000, salaryDate: 7};
+  const cycleStart = new Date(2026,8,7);
+  const old = buildSalaryCycleSnapshot({profile, cycleStart, referenceDate: cycleStart});
+  const arrivedAtMs = new Date(2026,9,5,12).getTime();
+  const plan = buildSalaryArrivalRollover({profile, salaryCycleSnapshots: [old],
+    arrivedAtMs, salary: 60000, now: new Date(2026,9,9).getTime(), expenses: [
+      {type: "expense", amount: 49000, createdAt: new Date(2026,9,5,10).toISOString()},
+      {type: "expense", amount: 2000, createdAt: new Date(2026,9,5,13).toISOString()},
+    ]});
+  assert.equal(plan.arrival.expectedCycleKey, "2026-10-07");
+  assert.equal(plan.closedSnapshot.cycleStartMs, cycleStart.getTime());
+  assert.equal(plan.closedSnapshot.remaining, 1000);
+  assert.equal(plan.openSnapshot.carryForward, 1000);
+  assert.equal(plan.openSnapshot.salary, 60000);
+  assert.equal(plan.openSnapshot.remaining, 59000);
+  assert.equal(plan.openSnapshot.totalSpent, 2000);
+  const boundary = getResolvedCycleBoundary({profile, salaryArrivals: [plan.arrival],
+    cycleStart: new Date(2026,9,6), referenceDate: new Date(2026,9,6)});
+  assert.equal(boundary.start.getTime(), arrivedAtMs);
+  const timeline = getCycleTimeline({profile, salaryArrivals: [plan.arrival], referenceDate: new Date(2026,9,6), count: 3});
+  assert.equal(timeline.length, 3);
+  assert.equal(new Set(timeline.map((cycle) => cycle.expectedCycleKey)).size, 3);
+  assert.equal(timeline.at(-1).cycleKey, "2026-10-05");
+  assert.equal(timeline.at(-2).cycleKey, "2026-09-07");
+});
+
+test("late confirmation keeps spending before the actual arrival in the previous cycle", () => {
+  const profile = {salary: 50000, salaryDate: 7};
+  const cycleStart = new Date(2026,8,7);
+  const old = buildSalaryCycleSnapshot({profile, cycleStart, referenceDate: cycleStart});
+  const arrivedAtMs = new Date(2026,9,9,12).getTime();
+  const plan = buildSalaryArrivalRollover({profile, salaryCycleSnapshots: [old],
+    arrivedAtMs, salary: 50000, now: arrivedAtMs, expenses: [
+      {type: "expense", amount: 40000, createdAt: new Date(2026,9,8).toISOString()},
+      {type: "expense", amount: 9000, createdAt: new Date(2026,9,9,10).toISOString()},
+    ]});
+  assert.equal(plan.closedSnapshot.totalSpent, 49000);
+  assert.equal(plan.openSnapshot.availableTotal, 51000);
+  const beforeArrival = new Date(2026,9,9,10);
+  const boundary = getResolvedCycleBoundary({profile, salaryArrivals: [plan.arrival], cycleStart: beforeArrival, referenceDate: beforeArrival});
+  assert.equal(boundary.start.getTime(), cycleStart.getTime());
+  assert.equal(boundary.end.getTime(), arrivedAtMs);
+});
+
+test("expected arrival dates clamp payday 31 to the end of February", () => {
+  const expected = getExpectedCycleForArrival({salary: 50000, salaryDate: 31}, [], new Date(2026,1,25));
+  assert.equal(getSalaryCycleKey(expected.start), "2026-02-28");
+  assert.equal(getSalaryCycleKey(expected.end), "2026-03-31");
+});
+
+test("a late-arrival snapshot stays anchored through another missed payday", () => {
+  const profile = {salary: 50000, salaryDate: 7};
+  const start = new Date(2026,9,9,12);
+  const arrival = {id: "2026-10-07", expectedCycleKey: "2026-10-07", cycleKey: "2026-10-09", salary: 50000,
+    salaryDate: 7, arrivedAtMs: start.getTime(), createdAtMs: start.getTime()};
+  const open = buildSalaryCycleSnapshot({profile, salaryArrivals: [arrival], cycleStart: start,
+    expectedCycleStart: new Date(2026,9,7), referenceDate: start});
+  const summary = resolveSalaryCycleSummary({profile, salaryArrivals: [arrival], salaryCycleSnapshots: [open],
+    cycleStart: start, referenceDate: new Date(2026,10,8), expenses: [
+      {type: "expense", amount: 49000, createdAt: new Date(2026,9,20).toISOString()},
+      {type: "expense", amount: 1000, createdAt: new Date(2026,10,7,12).toISOString()},
+    ]});
+  assert.equal(summary.cycleStartMs, start.getTime());
+  assert.equal(summary.remaining, 0);
+});

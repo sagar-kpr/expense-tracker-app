@@ -1,3 +1,5 @@
+import { formatReadableMoney as formatMoney } from "@/utils/money";
+import MoneyText from "@/components/MoneyText";
 import { Text, View } from "react-native";
 
 type Props = {
@@ -23,16 +25,15 @@ export default function SalaryCard({ remainingSalary, totalSpent }: Props) {
         Remaining Salary
       </Text>
 
-      <Text
+      <MoneyText
         style={{
           color: "white",
           fontSize: 36,
           fontWeight: "bold",
           marginTop: 10,
         }}
-      >
-        ₹{remainingSalary}
-      </Text>
+        value={Number(remainingSalary)}
+      />
 
       <Text
         style={{
@@ -40,7 +41,7 @@ export default function SalaryCard({ remainingSalary, totalSpent }: Props) {
           marginTop: 10,
         }}
       >
-        Total Spent: ₹{totalSpent}
+        Total Spent: {formatMoney(totalSpent)}
       </Text>
     </View>
   );

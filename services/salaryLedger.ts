@@ -1,5 +1,8 @@
 import { createId } from "@/repositories/shared";
 import {
+  addMoney,
+  roundMoney,
+  normalizeMoneyInput,
   calculateSalaryCycleTotals,
   normalizeCarryForward,
 } from "@/services/salaryMath";
@@ -221,7 +224,7 @@ const toDate = (value: ExpenseLike["createdAt"] | number | string | Date) => {
 export const getExpenseCreatedAtDate = (value: ExpenseLike["createdAt"]) =>
   toDate(value as ExpenseLike["createdAt"] | number | string | Date);
 
-const toAmount = (value: ExpenseLike["amount"]) => Number(value || 0);
+const toAmount = (value: ExpenseLike["amount"]) => roundMoney(Number(value || 0));
 
 const normalizeHistory = (history: SalaryHistoryEntry[] = []) =>
   [...history].sort(
@@ -322,6 +325,19 @@ export const getCycleStartForExpenseDate = ({
   }).start;
 };
 
+export type SalaryCycleBoundary = {
+  arrival: SalaryArrivalEntry | null;
+  confirmed: boolean;
+  cycleKey: string;
+  end: Date;
+  expectedCycleKey: string;
+  expectedEnd: Date;
+  expectedStart: Date;
+  salary: number;
+  salaryDate: number;
+  start: Date;
+};
+
 export const getResolvedCycleBoundary = ({
   profile,
   salaryHistory,
@@ -330,7 +346,7 @@ export const getResolvedCycleBoundary = ({
   expectedCycleStart,
   referenceDate,
   preferCurrentProfile = false,
-}: SalarySnapshotContext) => {
+}: SalarySnapshotContext): SalaryCycleBoundary => {
   const resolvedReferenceDate = referenceDate || cycleStart;
   const baseState = expectedCycleStart
     ? getSalaryStateForCycle(
@@ -368,6 +384,24 @@ export const getResolvedCycleBoundary = ({
     ? new Date(nextArrival.arrivedAtMs)
     : resolvedExpectedEnd;
 
+  if (!expectedCycleStart && nextArrival && resolvedReferenceDate >= actualEnd) {
+    return getResolvedCycleBoundary({
+      profile, salaryHistory, salaryArrivals, cycleStart,
+      expectedCycleStart: resolvedExpectedEnd, referenceDate: resolvedReferenceDate,
+      preferCurrentProfile,
+    });
+  }
+  if (!expectedCycleStart && currentArrival && resolvedReferenceDate < actualStart) {
+    const previous = getCurrentSalaryCycle(
+      baseState.salaryDate, new Date(resolvedExpectedStart.getTime() - 1),
+    );
+    return getResolvedCycleBoundary({
+      profile, salaryHistory, salaryArrivals, cycleStart,
+      expectedCycleStart: previous.start, referenceDate: resolvedReferenceDate,
+      preferCurrentProfile,
+    });
+  }
+
   return {
     arrival: currentArrival,
     confirmed: Boolean(currentArrival),
@@ -401,6 +435,7 @@ export const getCycleTimeline = ({
     ReturnType<typeof getResolvedCycleBoundary>
   > = [];
   let cursor = new Date(referenceDate);
+  let expectedCycleStart: Date | undefined;
 
   for (let index = 0; index < count; index += 1) {
     const boundary = getResolvedCycleBoundary({
@@ -408,6 +443,7 @@ export const getCycleTimeline = ({
       salaryHistory,
       salaryArrivals,
       cycleStart: cursor,
+      expectedCycleStart,
       referenceDate: cursor,
       preferCurrentProfile,
     });
@@ -421,6 +457,9 @@ export const getCycleTimeline = ({
     }
 
     cursor = previousCursor;
+    expectedCycleStart = getExpectedCycleForDate(
+      profile, salaryHistory, previousCursor, preferCurrentProfile,
+    ).start;
   }
 
   return timeline;
@@ -446,9 +485,9 @@ const getExpenseStatsForCycle = (
   );
   const additionalFunds = relevant
     .filter((item) => item.type === "income")
-    .reduce((sum, item) => sum + toAmount(item.amount), 0);
+    .reduce((sum, item) => addMoney(sum, toAmount(item.amount)), 0);
   const totalSpent = expensesOnly.reduce(
-    (sum, item) => sum + toAmount(item.amount),
+    (sum, item) => addMoney(sum, toAmount(item.amount)),
     0,
   );
 
@@ -487,6 +526,106 @@ export const getExpectedCycleForDate = (
     preferCurrentProfile,
   );
   return getCurrentSalaryCycle(salaryDate, referenceDate);
+};
+
+// An arrival belongs to the scheduled payday in its calendar month, even
+// when the money arrives before that payday.
+export const getExpectedCycleForArrival = (
+  profile: SalaryProfileLike,
+  salaryHistory: SalaryHistoryEntry[] | undefined,
+  arrivedAt: Date,
+) => {
+  const { salaryDate } = getSalaryStateForDate(profile, salaryHistory, arrivedAt);
+  const start = getSafeCycleDate(
+    arrivedAt.getFullYear(), arrivedAt.getMonth(), salaryDate,
+  );
+  return { start, end: getNextSalaryCycleStart(start, salaryDate) };
+};
+
+export const buildSalaryArrivalRollover = ({
+  profile, salaryHistory = [], salaryArrivals = [], salaryCycleSnapshots = [],
+  expenses = [], arrivedAtMs, salary, source = "manual-confirm", now = Date.now(),
+}: {
+  profile: SalaryProfileLike;
+  salaryHistory?: SalaryHistoryEntry[];
+  salaryArrivals?: SalaryArrivalEntry[];
+  salaryCycleSnapshots?: SalaryCycleSnapshot[];
+  expenses?: ExpenseLike[];
+  arrivedAtMs: number;
+  salary: number;
+  source?: string;
+  now?: number;
+}) => {
+  salary = normalizeMoneyInput(salary);
+  const arrivedAt = new Date(arrivedAtMs);
+  if (!Number.isFinite(arrivedAtMs) || !Number.isFinite(salary) || salary <= 0) {
+    throw new Error("Enter a valid salary arrival and amount.");
+  }
+  const expected = getExpectedCycleForArrival(profile, salaryHistory, arrivedAt);
+  const expectedCycleKey = getSalaryCycleKey(expected.start);
+  const cycleKey = getSalaryCycleKey(arrivedAt);
+  const existingArrival = salaryArrivals.find(
+    (item) => item.expectedCycleKey === expectedCycleKey,
+  );
+  const current = salaryCycleSnapshots.find((item) =>
+    item.cycleKey === existingArrival?.cycleKey || item.expectedCycleKey === expectedCycleKey);
+  if (current?.status === "closed") {
+    throw new Error("Completed salary cycles are read-only.");
+  }
+  const previous = [...salaryCycleSnapshots]
+    .filter((item) => item.cycleKey !== current?.cycleKey &&
+      item.cycleStartMs < arrivedAtMs)
+    .sort((left, right) => right.cycleStartMs - left.cycleStartMs)[0];
+  const previousStart = previous ? new Date(previous.cycleStartMs) :
+    getCurrentSalaryCycle(Number(profile.salaryDate || 1),
+      new Date(expected.start.getTime() - 1)).start;
+  if (previousStart >= arrivedAt || getSalaryCycleKey(previousStart) === cycleKey ||
+      salaryCycleSnapshots.some((item) => item.status === "open" &&
+        item.cycleKey !== current?.cycleKey && item.cycleStartMs >= arrivedAtMs)) {
+    throw new Error("Salary arrival must follow the active salary cycle start.");
+  }
+  const arrival: SalaryArrivalEntry = {
+    id: expectedCycleKey, expectedCycleKey, cycleKey, arrivedAtMs,
+    createdAtMs: existingArrival?.createdAtMs || now,
+    salary, salaryDate: Number(profile.salaryDate || 1), source,
+  };
+  const arrivals = [...salaryArrivals.filter(
+    (item) => item.expectedCycleKey !== expectedCycleKey,
+  ), arrival];
+  const previousBase = previous || buildSalaryCycleSnapshot({
+    profile: current ? { ...profile, salary: 0 } : profile,
+    salaryHistory: current ? [] : salaryHistory, salaryArrivals: arrivals, expenses,
+    cycleStart: previousStart, referenceDate: previousStart,
+  });
+  const previousStats = getExpenseStatsForCycle(expenses, previousStart, arrivedAt);
+  const previousTotals = calculateSalaryCycleTotals({
+    ...previousStats, salary: previousBase.salary, carryForward: previousBase.carryForward,
+  });
+  const closedSnapshot: SalaryCycleSnapshot = {
+    ...previousBase, ...previousStats, ...previousTotals,
+    cycleEndMs: arrivedAtMs, status: "closed", closedAtMs: arrivedAtMs,
+    updatedAtMs: now, schemaVersion: 2,
+  };
+  const nextArrival = arrivals.find(
+    (item) => item.expectedCycleKey === getSalaryCycleKey(expected.end),
+  );
+  const cycleEnd = nextArrival ? new Date(nextArrival.arrivedAtMs) :
+    new Date(Math.max(expected.end.getTime(), now + 1));
+  const stats = getExpenseStatsForCycle(expenses, arrivedAt, cycleEnd);
+  const carryForward = normalizeCarryForward(closedSnapshot.remaining);
+  const totals = calculateSalaryCycleTotals({ ...stats, carryForward, salary });
+  const openSnapshot: SalaryCycleSnapshot = {
+    id: cycleKey, cycleKey, expectedCycleKey,
+    cycleStartMs: arrivedAtMs, cycleEndMs: cycleEnd.getTime(),
+    carryForward, salary, salaryDate: arrival.salaryDate, ...stats, ...totals,
+    status: "open", schemaVersion: 2, source, updatedAtMs: now,
+    createdAtMs: current?.createdAtMs || now,
+  };
+  return {
+    arrival, closedSnapshot, openSnapshot,
+    deleteSnapshotId: current && current.cycleKey !== cycleKey
+      ? current.cycleKey : undefined,
+  };
 };
 
 export const buildSalaryCycleSnapshot = ({
@@ -650,7 +789,7 @@ export const resolveSalaryCycleSummary = ({
     expenses,
     cycleStart: boundary.start,
     expectedCycleStart: boundary.expectedStart,
-    referenceDate: boundary.start,
+    referenceDate: referenceDate || boundary.start,
     preferCurrentProfile,
   });
 };

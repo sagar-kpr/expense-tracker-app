@@ -1,3 +1,12 @@
+import {
+  formatPercent,
+  getBudgetMetrics,
+  getDailyBudget,
+} from "@/services/financialMetrics";
+import { addMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
+import useScreenLayout from "@/components/useScreenLayout";
+import { formatMoney } from "@/utils/money";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -38,26 +47,8 @@ type DashboardExpense = {
   id?: string;
   type?: "income" | "expense" | string;
 };
-const formatMoney = (value: number) => {
-  const amount = Number(value || 0);
-
-  if (amount >= 10000000) {
-    const cr = amount / 10000000;
-    return `${RUPEE}${Number(cr.toFixed(1))} Cr`;
-  }
-
-  if (amount >= 1000000) {
-    const lakh = amount / 100000;
-    return `${RUPEE}${Number(lakh.toFixed(1))} L`;
-  }
-
-  return `${RUPEE}${amount.toLocaleString("en-IN")}`;
-};
 
 const formatMaskedMoney = () => `${RUPEE} ••••••`;
-
-// const formatMoney = (value: number) =>
-//   `${RUPEE}${Number(value || 0).toLocaleString("en-IN")}`;
 
 const getRelativeDate = (
   value: string | Date | { toDate?: () => Date } | null | undefined,
@@ -95,6 +86,7 @@ const getRelativeDate = (
 };
 
 export default function SalaryDashboard() {
+  const screenLayout = useScreenLayout();
   const router = useRouter();
   const { expenses } = useExpense();
   const { userData } = useAuth();
@@ -108,7 +100,10 @@ export default function SalaryDashboard() {
   const { theme, dark } = useTheme();
   const hidden = useAmountVisibilityStore((state) => state.hidden);
   const toggleVisibility = useAmountVisibilityStore((state) => state.toggle);
-  const styles = useMemo(() => getStyles(theme, dark), [theme, dark]);
+  const styles = useMemo(
+    () => getStyles(theme, dark, screenLayout.compact),
+    [theme, dark, screenLayout.compact],
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [arrivalModalVisible, setArrivalModalVisible] = useState(false);
   const [confirmingArrival, setConfirmingArrival] = useState(false);
@@ -130,24 +125,30 @@ export default function SalaryDashboard() {
     preferCurrentProfile: true,
     referenceDate: new Date(),
   });
-  const salary = Number(cycleSummary.salary || userData?.salary || 0);
+  const salary = Number(cycleSummary.salary ?? userData?.salary ?? 0);
   const carryForward = Number(cycleSummary.carryForward || 0);
   const additionalFunds = Number(cycleSummary.additionalFunds || 0);
-  const availableTotal = carryForward + salary + additionalFunds;
+  const availableTotal = addMoney(
+    addMoney(carryForward, salary),
+    additionalFunds,
+  );
   const spent = useMemo(
-    () => expenseItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    () =>
+      expenseItems.reduce(
+        (sum, item) => addMoney(sum, Number(item.amount || 0)),
+        0,
+      ),
     [expenseItems],
   );
-  const remaining = availableTotal - spent;
+  const { remaining, usagePercent: usageRatio } = getBudgetMetrics(
+    availableTotal,
+    spent,
+  );
   const saved = Math.max(remaining, 0);
   const savedPercent =
     availableTotal > 0 ? Math.round((saved / availableTotal) * 100) : 0;
-  const usagePercent = availableTotal > 0 ? (spent / availableTotal) * 100 : 0;
-  // const usageLabel = usagePercent > 999 ? "999" : "...";
-  const usageLabel =
-    spent > 0 && usagePercent < 1
-      ? usagePercent.toFixed(2)
-      : Math.round(usagePercent).toString();
+  const usagePercent = usageRatio ?? 0;
+  const usageLabel = formatPercent(usageRatio);
   const progressWidth = Math.min(
     Math.max(usagePercent, spent > 0 ? 4 : 0),
     100,
@@ -169,8 +170,9 @@ export default function SalaryDashboard() {
       (arrivalStatus.end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
     ),
   );
-  const safeToSpend = daysLeft > 0 ? remaining / daysLeft : remaining;
-  const safeToSpendDisplay = Math.max(0, Math.round(safeToSpend));
+  const safeToSpendDisplay = getDailyBudget(remaining, daysLeft);
+  const dailyBudgetCaption =
+    daysLeft > 0 ? `${daysLeft} days left` : "Awaiting salary arrival";
 
   const progress = useSharedValue(0);
 
@@ -202,7 +204,7 @@ export default function SalaryDashboard() {
     const grouped = expenseItems.reduce<Record<string, number>>((acc, item) => {
       const category = item.category || "Other";
 
-      acc[category] = (acc[category] || 0) + Number(item.amount || 0);
+      acc[category] = addMoney(acc[category] || 0, Number(item.amount || 0));
 
       return acc;
     }, {});
@@ -290,7 +292,7 @@ export default function SalaryDashboard() {
     <>
       <ScrollView
         style={styles.screen}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, screenLayout.contentStyle]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -341,32 +343,36 @@ export default function SalaryDashboard() {
           <View style={styles.balanceCard}>
             <View style={styles.balanceHeader}>
               <View style={styles.balanceTextWrap}>
-                <Text style={styles.balanceLabel}>Remaining Balance</Text>
-                <View style={styles.balanceAmountRow}>
-                  <Text
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.7}
-                    style={styles.balanceAmount}
-                  >
-                    {hidden
-                      ? formatMaskedMoney()
-                      : `${remaining < 0 ? "-" : ""}${formatMoney(Math.abs(remaining))}`}
-                  </Text>
+                <View style={styles.balanceLabelRow}>
+                  <Text style={styles.balanceLabel}>Remaining Balance</Text>
                   <Pressable
-                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      hidden
+                        ? "Show dashboard amounts"
+                        : "Hide dashboard amounts"
+                    }
+                    accessibilityHint="Changes visibility of all amounts on this dashboard"
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       toggleVisibility();
                     }}
+                    hitSlop={8}
                     style={styles.inlineVisibilityButton}
                   >
                     <Ionicons
                       color="#F3F0FF"
                       name={hidden ? "eye-outline" : "eye-off-outline"}
-                      size={18}
+                      size={16}
                     />
                   </Pressable>
+                </View>
+                <View style={styles.balanceAmountRow}>
+                  <MoneyText
+                    hidden={hidden}
+                    style={styles.balanceAmount}
+                    value={remaining}
+                  />
                 </View>
                 <Text style={styles.balanceMeta}>
                   {hidden
@@ -389,26 +395,24 @@ export default function SalaryDashboard() {
                 >
                   Safe to Spend
                 </Text>
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                  style={styles.safeSpendValue}
-                >
-                  {formatMoney(safeToSpendDisplay)}
-                  <Text style={styles.detailUnit}>/day</Text>
-                </Text>
-                <Text style={styles.detailCaption}>{daysLeft} days left</Text>
+                {safeToSpendDisplay === null ? (
+                  <Text style={styles.safeSpendValue}>—</Text>
+                ) : (
+                  <MoneyText
+                    hidden={hidden}
+                    value={safeToSpendDisplay}
+                    suffix="/day"
+                    style={styles.safeSpendValue}
+                  />
+                )}
+                <Text style={styles.detailCaption}>{dailyBudgetCaption}</Text>
               </View>
 
               <View style={styles.detailDivider} />
 
               <View style={styles.detailPanel}>
                 <Text style={styles.detailLabel}>Monthly Usage</Text>
-                <Text style={styles.usageValue}>
-                  {usageLabel}
-                  {usagePercent > 999 ? "+" : "%"}
-                </Text>
+                <Text style={styles.usageValue}>{usageLabel}</Text>
                 <View style={styles.progressTrack}>
                   <Animated.View
                     style={[
@@ -446,6 +450,8 @@ export default function SalaryDashboard() {
             <OverviewCard
               title="Carry Forward"
               value={hidden ? formatMaskedMoney() : formatMoney(carryForward)}
+              amount={carryForward}
+              hidden={hidden}
               caption="Previous cycle"
               icon="wallet-outline"
               iconColor="#159665"
@@ -456,6 +462,8 @@ export default function SalaryDashboard() {
             <OverviewCard
               title="Salary"
               value={hidden ? formatMaskedMoney() : formatMoney(salary)}
+              amount={salary}
+              hidden={hidden}
               caption="Current cycle"
               icon="cash-outline"
               iconColor="#2563EB"
@@ -468,6 +476,8 @@ export default function SalaryDashboard() {
               value={
                 hidden ? formatMaskedMoney() : formatMoney(additionalFunds)
               }
+              amount={additionalFunds}
+              hidden={hidden}
               caption="Current cycle"
               icon="add-circle-outline"
               iconColor="#D97706"
@@ -475,12 +485,12 @@ export default function SalaryDashboard() {
               backgroundColor="#FFFBEB"
               borderColor="rgba(217,119,6,0.12)"
             />
-          </View>
 
-          <View style={[styles.overviewRow, { marginTop: 10 }]}>
             <OverviewCard
               title="Spent"
               value={hidden ? formatMaskedMoney() : formatMoney(spent)}
+              amount={spent}
+              hidden={hidden}
               caption="Used"
               icon="arrow-down-circle"
               iconColor="#EF4444"
@@ -491,6 +501,8 @@ export default function SalaryDashboard() {
             <OverviewCard
               title="Remaining"
               value={hidden ? formatMaskedMoney() : formatMoney(remaining)}
+              amount={remaining}
+              hidden={hidden}
               caption="Available now"
               icon="shield-checkmark-outline"
               iconColor="#159665"
@@ -501,9 +513,15 @@ export default function SalaryDashboard() {
             <OverviewCard
               title="Daily Budget"
               value={
-                hidden ? formatMaskedMoney() : formatMoney(safeToSpendDisplay)
+                hidden
+                  ? formatMaskedMoney()
+                  : safeToSpendDisplay === null
+                    ? "—"
+                    : formatMoney(safeToSpendDisplay)
               }
-              caption={`${daysLeft} days left`}
+              amount={safeToSpendDisplay ?? undefined}
+              hidden={hidden}
+              caption={dailyBudgetCaption}
               icon="calendar-outline"
               iconColor="#7C3AED"
               iconBackground="#E4D5FF"
@@ -526,7 +544,11 @@ export default function SalaryDashboard() {
             <Text style={styles.insightTitle}>Insight</Text>
           </View>
           <View style={styles.insightBody}>
-            <Text style={styles.insightText}>{insightSummary}</Text>
+            <Text style={styles.insightText}>
+              {hidden
+                ? "Show amounts to see your spending insight."
+                : insightSummary}
+            </Text>
           </View>
           {/* {pendingCount >= 0 ? (
           <Pressable
@@ -574,17 +596,17 @@ export default function SalaryDashboard() {
 
                   <View style={styles.categoryContent}>
                     <View style={styles.categoryTopRow}>
-                      <View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.categoryName}>{item.key}</Text>
 
-                        <Text
+                        <MoneyText
+                          hidden={hidden}
                           style={[
                             styles.categoryAmount,
                             { color: item.meta.color },
                           ]}
-                        >
-                          {formatMoney(item.value)}
-                        </Text>
+                          value={item.value}
+                        />
                       </View>
 
                       <Text style={styles.categoryPercent}>
@@ -649,9 +671,12 @@ export default function SalaryDashboard() {
                     </View>
                   </View>
 
-                  <Text style={styles.transactionAmount}>
-                    -{formatMoney(Number(item.amount || 0))}
-                  </Text>
+                  <MoneyText
+                    hidden={hidden}
+                    style={styles.transactionAmount}
+                    value={Number(item.amount || 0)}
+                    prefix="-"
+                  />
                 </View>
               );
             })
@@ -745,6 +770,8 @@ export default function SalaryDashboard() {
 function OverviewCard({
   title,
   value,
+  amount,
+  hidden,
   caption,
   icon,
   iconColor,
@@ -754,6 +781,8 @@ function OverviewCard({
 }: {
   title: string;
   value: string;
+  amount?: number;
+  hidden?: boolean;
   caption: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
@@ -761,8 +790,18 @@ function OverviewCard({
   backgroundColor: string;
   borderColor: string;
 }) {
+  const { singleColumn } = useScreenLayout();
   return (
-    <View style={[stylesShared.overviewCard, { backgroundColor, borderColor }]}>
+    <View
+      style={[
+        stylesShared.overviewCard,
+        {
+          backgroundColor,
+          borderColor,
+          flexBasis: singleColumn ? "100%" : "47%",
+        },
+      ]}
+    >
       <View
         style={[
           stylesShared.overviewIconWrap,
@@ -772,13 +811,21 @@ function OverviewCard({
         <Ionicons name={icon} size={16} color={iconColor} />
       </View>
       <Text style={stylesShared.overviewTitle}>{title}</Text>
-      <Text
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        style={stylesShared.overviewValue}
-      >
-        {value}
-      </Text>
+      {amount === undefined ? (
+        <Text
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          style={stylesShared.overviewValue}
+        >
+          {value}
+        </Text>
+      ) : (
+        <MoneyText
+          hidden={hidden}
+          style={[stylesShared.overviewValue, { width: "100%" }]}
+          value={amount}
+        />
+      )}
       <Text style={stylesShared.overviewCaption}>{caption}</Text>
     </View>
   );
@@ -800,7 +847,11 @@ function SectionHeader({
       <Text style={[stylesShared.sectionHeaderTitle, { color: theme.text }]}>
         {title}
       </Text>
-      <Pressable hitSlop={8} onPress={onPress}>
+      <Pressable
+        hitSlop={8}
+        onPress={onPress}
+        style={{ flexShrink: 1, maxWidth: "35%" }}
+      >
         <Text style={stylesShared.sectionHeaderAction}>{action}</Text>
       </Pressable>
     </View>
@@ -822,6 +873,7 @@ function EmptyState({ label }: { label: string }) {
 
 const stylesShared = StyleSheet.create({
   overviewCard: {
+    minWidth: 0,
     borderWidth: 1,
     borderRadius: 20,
     flex: 1,
@@ -851,6 +903,7 @@ const stylesShared = StyleSheet.create({
     opacity: 0.8,
   },
   overviewValue: {
+    fontVariant: ["tabular-nums"],
     color: "#111827",
     fontSize: 14,
     fontWeight: "800",
@@ -869,6 +922,9 @@ const stylesShared = StyleSheet.create({
     marginBottom: 16,
   },
   sectionHeaderTitle: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 12,
     fontSize: 22,
     fontWeight: "900",
   },
@@ -888,7 +944,7 @@ const stylesShared = StyleSheet.create({
   },
 });
 
-const getStyles = (theme: any, dark: boolean) =>
+const getStyles = (theme: any, dark: boolean, compact: boolean) =>
   StyleSheet.create({
     screen: {
       backgroundColor: dark ? "#111316" : "#FAFAFA",
@@ -973,17 +1029,26 @@ const getStyles = (theme: any, dark: boolean) =>
     },
     balanceAmountRow: {
       alignItems: "center",
-      alignSelf: "flex-start",
+      width: "100%",
       flexDirection: "row",
       gap: 8,
       marginTop: 4,
     },
+    balanceLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
     balanceLabel: {
+      flexShrink: 1,
       color: "rgba(255,255,255,0.86)",
       fontSize: 16,
       fontWeight: "600",
     },
     balanceAmount: {
+      flex: 1,
+      minWidth: 0,
+      fontVariant: ["tabular-nums"],
       color: "#FFFFFF",
       fontSize: 34,
       fontWeight: "900",
@@ -995,6 +1060,7 @@ const getStyles = (theme: any, dark: boolean) =>
       marginTop: 10,
     },
     walletIconWrap: {
+      display: compact ? "none" : "flex",
       alignItems: "center",
       backgroundColor: "#6D4BCF",
       borderRadius: 20,
@@ -1005,15 +1071,16 @@ const getStyles = (theme: any, dark: boolean) =>
     inlineVisibilityButton: {
       alignItems: "center",
       backgroundColor: "rgba(255,255,255,0.12)",
-      borderRadius: 14,
-      height: 36,
+      borderRadius: 8,
+      height: 28,
       justifyContent: "center",
-      width: 36,
+      width: 28,
+      flexShrink: 0,
     },
     balanceDetailGrid: {
       backgroundColor: "rgba(255,255,255,0.08)",
       borderRadius: 22,
-      flexDirection: "row",
+      flexDirection: compact ? "column" : "row",
       marginTop: 22,
       overflow: "hidden",
     },
@@ -1022,8 +1089,8 @@ const getStyles = (theme: any, dark: boolean) =>
       padding: 16,
     },
     detailDivider: {
-      width: 1,
-      height: 72,
+      width: compact ? "90%" : 1,
+      height: compact ? 1 : 72,
       alignSelf: "center",
       backgroundColor: "rgba(255,255,255,0.12)",
     },
@@ -1087,6 +1154,7 @@ const getStyles = (theme: any, dark: boolean) =>
     },
     overviewRow: {
       flexDirection: "row",
+      flexWrap: "wrap",
       gap: 10,
     },
     insightCard: {
@@ -1269,6 +1337,8 @@ const getStyles = (theme: any, dark: boolean) =>
       fontWeight: "700",
     },
     categoryPercent: {
+      flexShrink: 1,
+      maxWidth: "35%",
       color: theme.subText,
       fontSize: 12,
       fontWeight: "600",
@@ -1341,6 +1411,10 @@ const getStyles = (theme: any, dark: boolean) =>
       marginTop: 4,
     },
     transactionAmount: {
+      flexShrink: 1,
+      maxWidth: "48%",
+      textAlign: "right",
+      fontVariant: ["tabular-nums"],
       color: "#EF4444",
       fontSize: 15,
       fontWeight: "800",

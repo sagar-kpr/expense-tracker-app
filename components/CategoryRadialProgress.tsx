@@ -1,3 +1,5 @@
+import MoneyText from "@/components/MoneyText";
+import { formatCompactMoney, formatMoney } from "@/utils/money";
 import React, { useEffect } from "react";
 import { Text, View } from "react-native";
 import Animated, {
@@ -12,7 +14,6 @@ import { getCategoryMeta } from "@/components/categoryMeta";
 import { useTheme } from "@/context/ThemeContext";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const RUPEE = "\u20B9";
 
 type CategoryItem = [string, number];
 
@@ -23,8 +24,6 @@ type Props = {
   totalSpent: number;
 };
 
-const formatMoney = (value: number) =>
-  `${RUPEE}${Number(value || 0).toLocaleString("en-IN")}`;
 
 export default function CategoryRadialProgress({
   items,
@@ -121,9 +120,11 @@ export default function CategoryRadialProgress({
           }}
         >
           <Text
+            accessibilityLabel={formatMoney(totalSpent)}
+            maxFontSizeMultiplier={1.2}
             numberOfLines={1}
             adjustsFontSizeToFit
-            minimumFontScale={0.5}
+            minimumFontScale={0.85}
             style={{
               color: theme.text,
               fontSize: 18,
@@ -132,7 +133,7 @@ export default function CategoryRadialProgress({
               width: "100%",
             }}
           >
-            {formatMoney(totalSpent)}
+            {formatCompactMoney(totalSpent)}
           </Text>
           <Text
             numberOfLines={1}
@@ -192,14 +193,12 @@ export default function CategoryRadialProgress({
               <View
                 style={{
                   alignItems: "flex-end",
-                  flexShrink: 0,
-                  width: 112,
+                  flexShrink: 1,
+                  minWidth: 0,
+                  width: "50%",
                 }}
               >
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.65}
+                <MoneyText
                   style={{
                     color: theme.text,
                     fontSize: 14,
@@ -207,9 +206,8 @@ export default function CategoryRadialProgress({
                     textAlign: "right",
                     width: "100%",
                   }}
-                >
-                  {formatMoney(value)}
-                </Text>
+                 value={value}
+               />
                 <Text
                   numberOfLines={1}
                   style={{

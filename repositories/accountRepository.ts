@@ -1,3 +1,4 @@
+import { buildSalaryCycleSnapshot, getCurrentSalaryCycle } from "@/services/salaryLedger";
 import { Platform } from "react-native";
 import {
   collection,
@@ -17,6 +18,8 @@ import {
   listSalaryArrivals,
   listSalaryHistory,
   listSalarySnapshots,
+  upsertSalaryHistory,
+  upsertSalarySnapshot,
 } from "@/repositories/salaryRepository";
 import { mirrorProfileMetadataToRemote } from "@/repositories/profileRepository";
 import { createId } from "@/repositories/shared";
@@ -107,21 +110,40 @@ export const uploadLocalAccountToFirestore = async (uid: string) => {
   ]);
 };
 
-export const clearLocalAccountData = async (uid: string) => {
+export const clearLocalAccountData = async (uid: string, preserveProfile = false) => {
   if (Platform.OS === "web") {
     return;
   }
 
   const dbx = await getLocalDatabase();
-  await dbx.runAsync("DELETE FROM salary_cycle_snapshots WHERE userId = ?", uid);
-  await dbx.runAsync("DELETE FROM salary_arrivals WHERE userId = ?", uid);
-  await dbx.runAsync("DELETE FROM salary_history WHERE userId = ?", uid);
-  await dbx.runAsync("DELETE FROM pending_transactions WHERE userId = ?", uid);
-  await dbx.runAsync("DELETE FROM expenses WHERE userId = ?", uid);
-  await dbx.runAsync("DELETE FROM user_profiles WHERE userId = ?", uid);
-}
+  const profile = preserveProfile ? await getLocalProfile(uid) : null;
+  await dbx.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync("DELETE FROM salary_cycle_snapshots WHERE userId = ?", uid);
+    await txn.runAsync("DELETE FROM salary_arrivals WHERE userId = ?", uid);
+    await txn.runAsync("DELETE FROM salary_history WHERE userId = ?", uid);
+    await txn.runAsync("DELETE FROM pending_transactions WHERE userId = ?", uid);
+    await txn.runAsync("DELETE FROM expenses WHERE userId = ?", uid);
+    if (!preserveProfile) {
+      await txn.runAsync("DELETE FROM user_profiles WHERE userId = ?", uid);
+    }
+  });
+  // Start a clean baseline, so old savings and confirmation prompts do not
+  // survive a transaction reset while the account remains usable.
+  if (profile?.type === "salary" && Number(profile.salary || 0) > 0) {
+    const now = Date.now();
+    await upsertSalaryHistory(uid, {
+      id: createId(), salary: Number(profile.salary), salaryDate: Number(profile.salaryDate || 1),
+      effectiveFromMs: now, createdAtMs: now, source: "transaction-data-reset",
+    });
+    const cycle = getCurrentSalaryCycle(Number(profile.salaryDate || 1));
+    await upsertSalarySnapshot(uid, {
+      ...buildSalaryCycleSnapshot({profile, cycleStart: cycle.start, referenceDate: new Date()}),
+      source: "transaction-data-reset",
+    });
+  }
+};
 
-export const deleteRemoteAccountData = async (uid: string) => {
+export const deleteRemoteAccountData = async (uid: string, preserveProfile = false) => {
   await Promise.all([
     deleteCollectionInBatches(`users/${uid}/expenses`),
     deleteCollectionInBatches(`users/${uid}/pendingTransactions`),
@@ -130,5 +152,7 @@ export const deleteRemoteAccountData = async (uid: string) => {
     deleteCollectionInBatches(`users/${uid}/salaryCycleSnapshots`),
   ]);
 
-  await deleteDoc(doc(db, "users", uid));
+  if (!preserveProfile) {
+    await deleteDoc(doc(db, "users", uid));
+  }
 };

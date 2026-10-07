@@ -1,3 +1,5 @@
+import { normalizeMoneyInput, addMoney } from "@/services/salaryMath";
+import { confirmSalaryArrivalRecord } from "@/services/salaryArrival";
 import {
   createContext,
   ReactNode,
@@ -11,7 +13,6 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import {
-  commitSalaryCycleRollover,
   deleteSalarySnapshot,
   subscribeSalaryRecords,
   upsertSalaryHistory,
@@ -26,7 +27,6 @@ import {
   findActiveSalarySnapshot,
   getCycleTimeline,
   getCycleStartForExpenseDate,
-  getExpectedCycleForDate,
   getExpenseCreatedAtDate,
   getExpensesForCycle,
   getNextSalaryCycleStart,
@@ -99,6 +99,7 @@ const mapSnapshot = (item: any): SalaryCycleSnapshot => ({
   id: item.id,
   userId: item.userId,
   cycleKey: String(item.cycleKey || item.id),
+  expectedCycleKey: item.expectedCycleKey,
   cycleStartMs: Number(item.cycleStartMs || 0),
   cycleEndMs: Number(item.cycleEndMs || 0),
   carryForward: Number(item.carryForward || 0),
@@ -106,10 +107,8 @@ const mapSnapshot = (item: any): SalaryCycleSnapshot => ({
   salaryDate: Number(item.salaryDate || 1),
   additionalFunds: Number(item.additionalFunds || 0),
   availableTotal: Number(
-    item.availableTotal ||
-      Number(item.carryForward || 0) +
-        Number(item.salary || 0) +
-        Number(item.additionalFunds || 0),
+    item.availableTotal ??
+      addMoney(addMoney(Number(item.carryForward || 0), Number(item.salary || 0)), Number(item.additionalFunds || 0)),
   ),
   totalSpent: Number(item.totalSpent || 0),
   remaining: Number(item.remaining || 0),
@@ -424,135 +423,13 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const arrivedAtMs = Number(input?.arrivedAtMs || Date.now());
-    const arrivedAt = new Date(arrivedAtMs);
-    const confirmedSalary = Math.floor(
-      Number(input?.salary ?? userData.salary ?? 0),
-    );
-
-    if (!Number.isFinite(confirmedSalary) || confirmedSalary <= 0) {
-      throw new Error("Enter a valid salary amount.");
-    }
-    const expectedCycle = getExpectedCycleForDate(
-      userData,
-      salaryHistory,
-      arrivedAt,
-    );
-    const expectedCycleKey = `${expectedCycle.start.getFullYear()}-${String(
-      expectedCycle.start.getMonth() + 1,
-    ).padStart(2, "0")}-${String(expectedCycle.start.getDate()).padStart(2, "0")}`;
-    const cycleKey = `${arrivedAt.getFullYear()}-${String(
-      arrivedAt.getMonth() + 1,
-    ).padStart(2, "0")}-${String(arrivedAt.getDate()).padStart(2, "0")}`;
-    const now = Date.now();
-    const existingArrival =
-      salaryArrivals.find((item) => item.expectedCycleKey === expectedCycleKey) ||
-      null;
-
-    const nextArrivalRecord: SalaryArrivalEntry = {
-      id: expectedCycleKey,
+    await confirmSalaryArrivalRecord({
       userId: user.uid,
-      arrivedAtMs,
-      createdAtMs: existingArrival?.createdAtMs || now,
-      cycleKey,
-      expectedCycleKey,
-      salary: confirmedSalary,
-      salaryDate: Number(userData.salaryDate || 1),
-      source: input?.source || "manual-confirm",
-    };
-
-    const nextArrivals: SalaryArrivalEntry[] = [
-      ...salaryArrivals.filter((item) => item.expectedCycleKey !== expectedCycleKey),
-      nextArrivalRecord,
-    ];
-
-    const currentBoundary = getResolvedCycleBoundary({
       profile: userData,
-      salaryArrivals: nextArrivals,
-      salaryHistory,
-      cycleStart: arrivedAt,
-      expectedCycleStart: expectedCycle.start,
-      referenceDate: arrivedAt,
+      arrivedAtMs: input?.arrivedAtMs,
+      salary: input?.salary,
+      source: input?.source,
     });
-
-    const previousReference = new Date(expectedCycle.start.getTime() - 1);
-    const previousBoundary = getResolvedCycleBoundary({
-      profile: userData,
-      salaryArrivals: nextArrivals,
-      salaryHistory,
-      cycleStart: previousReference,
-      referenceDate: previousReference,
-    });
-
-    const previousSnapshot = buildSalaryCycleSnapshot({
-      profile: userData,
-      salaryArrivals: nextArrivals,
-      salaryHistory,
-      salaryCycleSnapshots,
-      expenses,
-      cycleStart: previousBoundary.start,
-      expectedCycleStart: previousBoundary.expectedStart,
-      referenceDate: previousReference,
-    });
-    const closedPreviousSnapshot = {
-      ...previousSnapshot,
-      status: "closed" as const,
-      closedAtMs: arrivedAtMs,
-      cycleEndMs: arrivedAtMs,
-      updatedAtMs: Date.now(),
-    };
-
-    const currentSnapshot = buildSalaryCycleSnapshot({
-      profile: {
-        ...userData,
-        salary: confirmedSalary,
-      },
-      salaryArrivals: nextArrivals,
-      salaryHistory,
-      salaryCycleSnapshots: [
-        ...salaryCycleSnapshots.filter(
-          (item) => item.cycleKey !== closedPreviousSnapshot.cycleKey,
-        ),
-        closedPreviousSnapshot,
-      ],
-      expenses,
-      cycleStart: currentBoundary.start,
-      expectedCycleStart: currentBoundary.expectedStart,
-      referenceDate: arrivedAt,
-      preferCurrentProfile: true,
-    });
-
-    const openCurrentSnapshot = {
-      ...currentSnapshot,
-      carryForward: Math.max(closedPreviousSnapshot.remaining, 0),
-      salary: confirmedSalary,
-      availableTotal:
-        Math.max(closedPreviousSnapshot.remaining, 0) +
-        confirmedSalary +
-        currentSnapshot.additionalFunds,
-      remaining:
-        Math.max(closedPreviousSnapshot.remaining, 0) +
-        confirmedSalary +
-        currentSnapshot.additionalFunds -
-        currentSnapshot.totalSpent,
-      status: "open" as const,
-      closedAtMs: undefined,
-      source: input?.source || "salary-arrival",
-    };
-
-    await commitSalaryCycleRollover(user.uid, {
-      arrival: nextArrivalRecord,
-      closedSnapshot: closedPreviousSnapshot,
-      deleteSnapshotId:
-        existingArrival && existingArrival.cycleKey !== cycleKey
-          ? existingArrival.cycleKey
-          : undefined,
-      openSnapshot: openCurrentSnapshot,
-    });
-
-    if (confirmedSalary !== Number(userData.salary || 0)) {
-      await saveProfile(user.uid, { salary: confirmedSalary });
-    }
   };
 
   const saveSalaryProfile = async (updates: SalaryProfileUpdate) => {
@@ -560,7 +437,7 @@ export function SalaryProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const nextSalary = Number(updates.salary ?? userData.salary ?? 0);
+    const nextSalary = typeof updates.salary === "number" ? normalizeMoneyInput(updates.salary) : Number(userData.salary ?? 0);
     const nextSalaryDate = Math.max(
       1,
       Math.floor(Number(updates.salaryDate ?? userData.salaryDate ?? 1)),

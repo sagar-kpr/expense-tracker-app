@@ -124,7 +124,7 @@ export const upsertExpenses = async (
         INSERT INTO expenses (
           id, userId, amount, description, category, type, createdAt, updatedAt, payload
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
+        ON CONFLICT(userId, id) DO UPDATE SET
           userId = excluded.userId,
           amount = excluded.amount,
           description = excluded.description,

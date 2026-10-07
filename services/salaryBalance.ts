@@ -1,3 +1,4 @@
+import { withUserTransactionLock } from "@/services/transactionLock";
 import {
   listSalaryArrivals,
   listSalaryHistory,
@@ -10,14 +11,14 @@ import {
   upsertExpenses,
 } from "@/repositories/expenseRepository";
 import { createId } from "@/repositories/shared";
-import { getExpenseShortfall } from "@/services/salaryMath";
+import { addMoney, normalizeMoneyInput, getExpenseShortfall } from "@/services/salaryMath";
 import {
-  ExpenseLike,
+  type ExpenseLike,
   getCurrentSalaryCycle,
   getExpenseCreatedAtDate,
   resolveSalaryCycleSummary,
-  SalaryCycleSnapshot,
-  SalaryProfileLike,
+  type SalaryCycleSnapshot,
+  type SalaryProfileLike,
 } from "@/services/salaryLedger";
 
 export type SalaryBalanceState = {
@@ -36,33 +37,6 @@ export type SalaryTransactionSaveResult =
       available: number;
       shortfall: number;
     };
-
-const userTransactionLocks = new Map<string, Promise<void>>();
-
-const withUserTransactionLock = async <T>(
-  userId: string,
-  task: () => Promise<T>,
-) => {
-  const previous = userTransactionLocks.get(userId) || Promise.resolve();
-  let release: () => void = () => {};
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const queued = previous.then(() => gate);
-
-  userTransactionLocks.set(userId, queued);
-  await previous;
-
-  try {
-    return await task();
-  } finally {
-    release();
-
-    if (userTransactionLocks.get(userId) === queued) {
-      userTransactionLocks.delete(userId);
-    }
-  }
-};
 
 export const getSalaryBalanceState = async ({
   expenses,
@@ -138,26 +112,28 @@ export const saveTransactionWithSalaryValidation = async ({
   userId: string;
 }): Promise<SalaryTransactionSaveResult> =>
   withUserTransactionLock(userId, async () => {
+    transaction = { ...transaction, amount: normalizeMoneyInput(transaction.amount) };
     const currentExpenses =
       profile.type === "salary"
         ? await listExpenses(userId)
         : expenses || (await listExpenses(userId));
 
-    if (
-      profile.type === "salary" &&
-      (transaction.type || "expense") === "expense"
-    ) {
+    if (profile.type === "salary") {
       const balance = await getSalaryBalanceState({
-        expenses: currentExpenses,
+        expenses: currentExpenses.filter((item) => item.id !== transaction.id),
         profile,
         userId,
       });
+      if (!isTransactionInOpenSalaryCycle(transaction, balance)) {
+        throw new Error("Completed salary cycles are read-only.");
+      }
+
       const { available, shortfall } = getExpenseShortfall({
         expenseAmount: transaction.amount,
         remaining: balance.cycle.remaining,
       });
 
-      if (shortfall > 0) {
+      if ((transaction.type || "expense") === "expense" && shortfall > 0) {
         return {
           status: "insufficient-funds",
           available,
@@ -181,6 +157,7 @@ export const saveExpenseWithAdditionalFunds = async ({
   expenseAmount,
   fundsDescription = "Additional funds",
   profile,
+  transaction,
   userId,
 }: {
   additionalFunds: number;
@@ -189,6 +166,7 @@ export const saveExpenseWithAdditionalFunds = async ({
   expenseAmount: number;
   fundsDescription?: string;
   profile: SalaryProfileLike & { type?: string };
+  transaction?: Pick<ExpenseRecord, "id" | "createdAt">;
   userId: string;
 }): Promise<SalaryTransactionSaveResult> =>
   withUserTransactionLock(userId, async () => {
@@ -196,14 +174,24 @@ export const saveExpenseWithAdditionalFunds = async ({
       throw new Error("Additional Funds are available for salary accounts.");
     }
 
+    expenseAmount = normalizeMoneyInput(expenseAmount);
+    additionalFunds = normalizeMoneyInput(additionalFunds);
     const currentExpenses = await listExpenses(userId);
+    if (transaction?.id) {
+      const saved = currentExpenses.find((item) => item.id === transaction.id);
+      if (saved) return { status: "saved", expense: saved };
+    }
     const balance = await getSalaryBalanceState({
       expenses: currentExpenses,
       profile,
       userId,
     });
+    if (transaction && !isTransactionInOpenSalaryCycle(transaction, balance)) {
+      throw new Error("Completed salary cycles are read-only.");
+    }
+
     const availableAfterFunds =
-      Number(balance.cycle.remaining || 0) + additionalFunds;
+      addMoney(balance.cycle.remaining, additionalFunds);
     const { available, shortfall } = getExpenseShortfall({
       expenseAmount,
       remaining: availableAfterFunds,
@@ -230,12 +218,12 @@ export const saveExpenseWithAdditionalFunds = async ({
         source: "insufficient-funds-flow",
       },
       {
-        id: createId(),
+        id: transaction?.id || createId(),
         amount: expenseAmount,
         description,
         category,
         type: "expense",
-        createdAt,
+        createdAt: transaction?.createdAt || createdAt,
         updatedAt: Date.now(),
       },
     ]);

@@ -1,3 +1,5 @@
+import { addMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
 import { Text, View } from "react-native";
 
 type Props = {
@@ -6,20 +8,34 @@ type Props = {
 
 export default function CategorySummary({ expenses }: Props) {
   const small = expenses
-    .filter((item) => item.amount <= 100)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .filter(
+      (item) => (item.type || "expense") === "expense" && item.amount <= 100,
+    )
+    .reduce((sum, item) => addMoney(sum, Number(item.amount)), 0);
 
   const medium = expenses
-    .filter((item) => item.amount > 100 && item.amount <= 500)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .filter(
+      (item) =>
+        (item.type || "expense") === "expense" &&
+        item.amount > 100 &&
+        item.amount <= 500,
+    )
+    .reduce((sum, item) => addMoney(sum, Number(item.amount)), 0);
 
   const heavy = expenses
-    .filter((item) => item.amount > 500 && item.amount <= 1000)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .filter(
+      (item) =>
+        (item.type || "expense") === "expense" &&
+        item.amount > 500 &&
+        item.amount <= 1000,
+    )
+    .reduce((sum, item) => addMoney(sum, Number(item.amount)), 0);
 
   const major = expenses
-    .filter((item) => item.amount > 1000)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .filter(
+      (item) => (item.type || "expense") === "expense" && item.amount > 1000,
+    )
+    .reduce((sum, item) => addMoney(sum, Number(item.amount)), 0);
 
   const categories = [
     {
@@ -28,17 +44,17 @@ export default function CategorySummary({ expenses }: Props) {
       color: "#22C55E",
     },
     {
-      title: "101 - 500",
+      title: ">100 - 500",
       amount: medium,
       color: "#3B82F6",
     },
     {
-      title: "501 - 1000",
+      title: ">500 - 1000",
       amount: heavy,
       color: "#F59E0B",
     },
     {
-      title: "1000+",
+      title: ">1000",
       amount: major,
       color: "#EF4444",
     },
@@ -60,7 +76,7 @@ export default function CategorySummary({ expenses }: Props) {
           marginBottom: 20,
         }}
       >
-        By Category
+        By Amount
       </Text>
 
       {categories.map((item) => (
@@ -77,6 +93,8 @@ export default function CategorySummary({ expenses }: Props) {
             style={{
               flexDirection: "row",
               alignItems: "center",
+              flex: 1,
+              minWidth: 0,
             }}
           >
             <View
@@ -92,13 +110,14 @@ export default function CategorySummary({ expenses }: Props) {
             <Text>{item.title}</Text>
           </View>
 
-          <Text
+          <MoneyText
             style={{
               fontWeight: "bold",
+              maxWidth: "50%",
+              flexShrink: 1,
             }}
-          >
-            ₹{item.amount}
-          </Text>
+            value={Number(item.amount)}
+          />
         </View>
       ))}
     </View>

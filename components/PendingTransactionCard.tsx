@@ -1,3 +1,5 @@
+import { formatMoney } from "@/utils/money";
+import MoneyText from "@/components/MoneyText";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
@@ -46,8 +48,6 @@ const salaryIncomeCategories = [
   "Other",
 ];
 
-const formatMoney = (value: number) =>
-  `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
 type Props = {
   transaction: PendingTransaction;
@@ -91,13 +91,11 @@ export default function PendingTransactionCard({ transaction }: Props) {
       if (result.status === "insufficient-funds") {
         Alert.alert(
           "Add Additional Funds first?",
-          `This expense needs ₹${result.shortfall.toLocaleString(
-            "en-IN",
-          )} more than the available balance.`,
+          `This expense needs ${formatMoney(result.shortfall)} more than the available balance.`,
           [
             { text: "Cancel", style: "cancel" },
             {
-              text: `Add ₹${result.shortfall.toLocaleString("en-IN")} & Save`,
+              text: `Add ${formatMoney(result.shortfall)} & Save`,
               onPress: async () => {
                 try {
                   setSaving("add");
@@ -227,20 +225,18 @@ export default function PendingTransactionCard({ transaction }: Props) {
             </Text>
           </View>
 
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
+          <MoneyText
             style={{
               color,
               fontSize: 20,
               fontWeight: "900",
               marginLeft: 12,
-              maxWidth: 116,
+              maxWidth: "48%",
+              flexShrink: 1,
+              fontVariant: ["tabular-nums"],
             }}
-          >
-            {isIncome ? "+" : "-"}
-            {formatMoney(transaction.amount)}
-          </Text>
+           value={transaction.amount} prefix={isIncome ? "+" : "-"}
+         />
         </View>
 
         <View

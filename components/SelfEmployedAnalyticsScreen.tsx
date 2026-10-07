@@ -1,3 +1,9 @@
+import { formatPercent, getBusinessMetrics, getChangePercent } from "@/services/financialMetrics";
+import { addMoney, subtractMoney } from "@/services/salaryMath";
+import MoneyText from "@/components/MoneyText";
+import useScreenLayout from "@/components/useScreenLayout";
+import FinancialOverview from "@/components/FinancialOverview";
+import { formatMoney, formatCompactMoney, formatReadableMoney } from "@/utils/money";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useState } from "react";
@@ -25,9 +31,7 @@ import { useTheme } from "@/context/ThemeContext";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const RUPEE = "\u20B9";
 const GREEN = "#159665";
-const PURPLE_DARK = "#371872";
 const RED = "#EF4444";
 const BLUE = "#2563EB";
 const GOLD = "#F59E0B";
@@ -74,29 +78,7 @@ const formatShortDate = (date: Date) =>
     month: "short",
   });
 
-const formatMoney = (value: number) => {
-  const amount = Number(value || 0);
 
-  if (amount >= 10000000) {
-    const cr = amount / 10000000;
-    return `${RUPEE}${Number(cr.toFixed(1))} Cr`;
-  }
-
-  if (amount >= 1000000) {
-    const lakh = amount / 100000;
-    return `${RUPEE}${Number(lakh.toFixed(1))} L`;
-  }
-
-  return `${RUPEE}${amount.toLocaleString("en-IN")}`;
-};
-
-const formatCompactMoney = (value: number) => {
-  const amount = Number(value || 0);
-  if (Math.abs(amount) < 1000) return formatMoney(amount);
-
-  const thousands = amount / 1000;
-  return `${RUPEE}${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}k`;
-};
 
 const getMonthStart = (date: Date) => {
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -274,11 +256,12 @@ function IncomeProgress({
 }
 
 export default function SelfEmployedAnalyticsScreen() {
+  const screenLayout = useScreenLayout();
   const { expenses } = useExpense();
   const { theme, dark } = useTheme();
   const { width, fontScale } = useWindowDimensions();
   const [refreshing, setRefreshing] = useState(false);
-  const compact = width < 422 || fontScale > 1.05;
+  const compact = width / fontScale < 440;
   const progress = useSharedValue(0);
 
   const styles = useMemo(
@@ -333,9 +316,9 @@ export default function SelfEmployedAnalyticsScreen() {
           const amount = Number(item.amount || 0);
 
           if ((item.type || "expense") === "income") {
-            acc.income += amount;
+            acc.income = addMoney(acc.income, amount);
           } else {
-            acc.expense += amount;
+            acc.expense = addMoney(acc.expense, amount);
           }
 
           return acc;
@@ -345,7 +328,7 @@ export default function SelfEmployedAnalyticsScreen() {
     [filteredTransactions],
   );
 
-  const profit = totals.income - totals.expense;
+  const { profit, expenseRatio, profitMargin } = getBusinessMetrics(totals.income, totals.expense);
   const totalExpense = totals.expense;
   const heroMode: HeroMode =
     totals.income > 0 && totals.expense > 0
@@ -355,12 +338,6 @@ export default function SelfEmployedAnalyticsScreen() {
         : totals.expense > 0
           ? "expenseOnly"
           : "empty";
-  const expenseShare =
-    totals.income > 0
-      ? Math.min((totals.expense / totals.income) * 100, 100)
-      : totals.expense > 0
-        ? 100
-        : 0;
   const donutIncomeShare =
     totals.income + totals.expense > 0
       ? Math.max(
@@ -381,17 +358,12 @@ export default function SelfEmployedAnalyticsScreen() {
           ),
         )
       : 0;
-  const expenseShareLabel =
-    totals.expense > 0 && expenseShare < 1
-      ? expenseShare.toFixed(1)
-      : String(Math.round(expenseShare));
+  const expenseShareLabel = formatPercent(expenseRatio);
   const visualArcShares = getVisualArcShares({
     donutExpenseShare,
     heroMode,
     donutIncomeShare,
   });
-  const profitMargin =
-    totals.income > 0 ? Math.round((profit / totals.income) * 100) : 0;
   const isLoss = profit < 0;
   const heroCenterTitle =
     heroMode === "expenseOnly"
@@ -399,10 +371,6 @@ export default function SelfEmployedAnalyticsScreen() {
       : isLoss
         ? "Net Loss"
         : "Net Profit";
-  const heroCenterValue =
-    heroMode === "expenseOnly"
-      ? formatMoney(totalExpense)
-      : `${profit < 0 ? "-" : ""}${formatMoney(Math.abs(profit))}`;
   const heroCenterSubtitle =
     heroMode === "balanced"
       ? isLoss
@@ -415,14 +383,6 @@ export default function SelfEmployedAnalyticsScreen() {
           : "No activity yet";
   const heroLeadLabel = "Expense Ratio";
   const heroLeadValue = expenseShareLabel;
-  const heroLeadAmount =
-    heroMode === "incomeOnly"
-      ? `${formatMoney(totalExpense)} of ${formatMoney(totals.income)}`
-      : heroMode === "expenseOnly"
-        ? `${formatMoney(totalExpense)} of ${formatMoney(0)}`
-        : heroMode === "empty"
-          ? `${formatMoney(0)} of ${formatMoney(0)}`
-          : `${formatMoney(totalExpense)} of ${formatMoney(totals.income)}`;
 
   const groupedExpenseCategories = useMemo(
     () =>
@@ -430,7 +390,7 @@ export default function SelfEmployedAnalyticsScreen() {
         .filter((item) => (item.type || "expense") === "expense")
         .reduce((acc: Record<string, number>, item) => {
           const category = item.category || "Other";
-          acc[category] = (acc[category] || 0) + Number(item.amount || 0);
+          acc[category] = addMoney(acc[category] || 0, Number(item.amount || 0));
           return acc;
         }, {}),
     [filteredTransactions],
@@ -497,13 +457,13 @@ export default function SelfEmployedAnalyticsScreen() {
         bucketCount - 1,
         Math.floor((dayOffset * bucketCount) / totalDays),
       );
-      buckets[bucketIndex].value += signedAmount;
+      buckets[bucketIndex].value = addMoney(buckets[bucketIndex].value, signedAmount);
     });
 
     let cumulativeNet = 0;
 
     return buckets.map((bucket) => {
-      cumulativeNet += bucket.value;
+      cumulativeNet = addMoney(cumulativeNet, bucket.value);
       return {
         ...bucket,
         value: cumulativeNet,
@@ -511,7 +471,7 @@ export default function SelfEmployedAnalyticsScreen() {
     });
   }, [filteredTransactions, selectedMonth]);
 
-  const showTrend = monthTrend.some((item) => item.value !== 0);
+  const showTrend = filteredTransactions.length > 0;
   const previousMonth = useMemo(() => {
     const selectedIndex = months.findIndex(
       (month) => month.start.getTime() === selectedMonth.start.getTime(),
@@ -535,17 +495,17 @@ export default function SelfEmployedAnalyticsScreen() {
       const amount = Number(item.amount || 0);
 
       return (item.type || "expense") === "income"
-        ? sum + amount
-        : sum - amount;
+        ? addMoney(sum, amount)
+        : subtractMoney(sum, amount);
     }, 0);
   }, [expenses, previousMonth]);
 
   const hasPreviousMonth = previousMonth !== null;
-  const comparisonPercent =
-    previousProfit !== 0
-      ? Math.round(((profit - previousProfit) / Math.abs(previousProfit)) * 100)
-      : 0;
-  const comparisonUp = comparisonPercent >= 0;
+  const comparisonPercent = getChangePercent(profit, previousProfit);
+  const comparisonUp = profit > previousProfit;
+  const comparisonLabel = !hasPreviousMonth ? "First Month" : comparisonPercent === null
+    ? `Previous profit ${formatMoney(0)}` : profit === previousProfit ? "No change in profit"
+    : `${formatPercent(Math.abs(comparisonPercent))} ${comparisonUp ? "higher" : "lower"} profit`;
 
   const selectAdjacentMonth = (offset: number) => {
     const selectedIndex = months.findIndex(
@@ -572,7 +532,7 @@ export default function SelfEmployedAnalyticsScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, screenLayout.contentStyle]}
       refreshControl={
         <RefreshControl
           colors={[GREEN]}
@@ -640,57 +600,20 @@ export default function SelfEmployedAnalyticsScreen() {
         entering={FadeInUp.delay(80).duration(550)}
         style={styles.overviewCard}
       >
-        <View style={styles.overviewLeft}>
-          <View style={styles.cardTitleRow}>
-            <Ionicons
-              color="rgba(255,255,255,0.86)"
-              name="stats-chart-outline"
-              size={compact ? 20 : 24}
-            />
-            <Text style={styles.overviewTitle}>Business Overview</Text>
-          </View>
-
-          <Text style={styles.overviewLabel}>{heroLeadLabel}</Text>
-          <Text style={styles.usedPercent}>
-            {heroMode === "empty" ? "0%" : `${heroLeadValue}%`}
-          </Text>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.75}
-            numberOfLines={1}
-            style={styles.usedAmount}
-          >
-            {heroLeadAmount}
-          </Text>
-
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#34D399" }]} />
-            <Text style={styles.legendText}>Income</Text>
-            <Text style={styles.legendAmount}>
-              {formatMoney(totals.income)}
-            </Text>
-          </View>
-
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#F97316" }]} />
-            <Text style={styles.legendText}>Expense</Text>
-            <Text style={styles.legendAmount}>{formatMoney(totalExpense)}</Text>
-          </View>
-
-          <View style={styles.comparisonPill}>
-            <Ionicons
-              color={comparisonUp ? "#11D86E" : "#FF7474"}
-              name={comparisonUp ? "arrow-up" : "arrow-down"}
-              size={22}
-            />
-            <Text style={styles.comparisonText}>
-              {hasPreviousMonth
-                ? `${Math.abs(comparisonPercent)}% vs Last Month`
-                : "First Month"}
-            </Text>
-          </View>
-        </View>
-
+        <FinancialOverview
+          title="Business Overview"
+          label={heroLeadLabel}
+          percent={heroLeadValue}
+          summary={`Expense ${formatReadableMoney(totalExpense)}\nIncome ${formatReadableMoney(totals.income)}`}
+          rows={[
+            { label: "Income", amount: totals.income, color: "#34D399" },
+            { label: "Expense", amount: totalExpense, color: "#F97316" },
+            { label: profit < 0 ? "Loss" : "Profit", amount: Math.abs(profit), color: "#C9D1CC" },
+          ]}
+          comparison={comparisonLabel}
+          comparisonNeutral={!hasPreviousMonth || profit === previousProfit}
+          comparisonUp={comparisonUp}
+        >
         <View style={styles.donutBox}>
           <Svg width={155} height={155} viewBox="0 0 180 180">
             <Circle
@@ -729,6 +652,8 @@ export default function SelfEmployedAnalyticsScreen() {
               adjustsFontSizeToFit
               minimumFontScale={0.75}
               numberOfLines={1}
+              accessibilityLabel={formatMoney(heroMode === "expenseOnly" ? totalExpense : profit)}
+              maxFontSizeMultiplier={1.2}
               style={[
                 styles.donutAmount,
                 {
@@ -736,11 +661,12 @@ export default function SelfEmployedAnalyticsScreen() {
                 },
               ]}
             >
-              {heroMode === "empty" ? formatMoney(0) : heroCenterValue}
+              {formatCompactMoney(heroMode === "expenseOnly" ? totalExpense : profit)}
             </Text>
             {/* <Text style={styles.donutMeta}>{heroCenterSubtitle}</Text> */}
           </View>
         </View>
+        </FinancialOverview>
       </Animated.View>
 
       <Animated.View
@@ -804,14 +730,10 @@ export default function SelfEmployedAnalyticsScreen() {
                       <Text numberOfLines={1} style={styles.categoryName}>
                         {category}
                       </Text>
-                      <Text
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.72}
-                        numberOfLines={1}
+                      <MoneyText
                         style={[styles.categoryAmount, { color }]}
-                      >
-                        {formatMoney(value)}
-                      </Text>
+                       value={value}
+                     />
                     </View>
 
                     <Text style={styles.categoryPercent}>
@@ -825,7 +747,7 @@ export default function SelfEmployedAnalyticsScreen() {
                         styles.progressFill,
                         {
                           backgroundColor: color,
-                          width: `${Math.max(percent, value > 0 ? 3 : 0)}%`,
+                          width: `${Math.min(100, Math.max(percent, value > 0 ? 3 : 0))}%`,
                         },
                       ]}
                     />
@@ -868,12 +790,12 @@ export default function SelfEmployedAnalyticsScreen() {
           <View style={styles.savingsIcon}>
             <Ionicons color={GREEN} name="shield-checkmark-outline" size={31} />
           </View>
-          <View>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.savingsLabel}>Profit Margin</Text>
             <Text
               style={[styles.savingsPercent, { color: isLoss ? RED : GREEN }]}
             >
-              {profitMargin}%
+              {formatPercent(profitMargin)}
             </Text>
             <Text style={styles.savingsCaption}>
               {totals.income + totalExpense === 0
@@ -881,10 +803,10 @@ export default function SelfEmployedAnalyticsScreen() {
                 : totalExpense === 0
                   ? "No business spending recorded this month."
                   : isLoss
-                    ? `Loss of ${formatMoney(Math.abs(profit))}`
-                    : profitMargin >= 30
+                    ? `Loss of ${formatReadableMoney(Math.abs(profit))}`
+                    : (profitMargin ?? 0) >= 30
                       ? "Excellent business margin."
-                      : profitMargin >= 10
+                      : (profitMargin ?? 0) >= 10
                         ? "Healthy business performance."
                         : "Watch the biggest spend categories closely."}
             </Text>
@@ -901,7 +823,7 @@ export default function SelfEmployedAnalyticsScreen() {
                   styles.savingsFill,
                   {
                     backgroundColor: isLoss ? RED : GREEN,
-                    width: `${Math.min(Math.max(Math.abs(profitMargin), 0), 100)}%`,
+                    width: `${Math.min(Math.max(Math.abs(profitMargin ?? 0), 0), 100)}%`,
                   },
                 ]}
               />
@@ -912,18 +834,11 @@ export default function SelfEmployedAnalyticsScreen() {
                 { color: isLoss ? RED : GREEN },
               ]}
             >
-              {profitMargin}%
+              {formatPercent(profitMargin)}
             </Text>
           </View>
-          <Text
-            adjustsFontSizeToFit
-            numberOfLines={2}
-            style={styles.savingsAmount}
-          >
-            {isLoss
-              ? `${formatMoney(Math.abs(profit))} loss`
-              : `${formatMoney(profit)} profit`}
-          </Text>
+          <Text style={styles.savingsLabel}>{isLoss ? "Loss" : "Profit"}</Text>
+          <MoneyText value={Math.abs(profit)} style={styles.savingsAmount} />
           <Text numberOfLines={1} style={styles.cycleLabel}>
             {selectedMonth?.label}
           </Text>
@@ -940,9 +855,9 @@ function TrendChart({
   data: { label: string; value: number }[];
   styles: ReturnType<typeof getStyles>;
 }) {
-  const chartWidth = 300;
+  const [chartWidth, setChartWidth] = useState(300);
   const chartHeight = 160;
-  const left = 38;
+  const left = 68;
   const right = 10;
   const top = 12;
   const bottom = 32;
@@ -957,15 +872,6 @@ function TrendChart({
     (ratio) => maxValue - range * (1 - ratio),
   );
 
-  const formatAxisValue = (value: number) => {
-    const absolute = Math.abs(value);
-    const prefix = value < 0 ? "-" : "";
-    if (absolute === 0) return `${RUPEE}0`;
-    if (absolute < 1000) return `${prefix}${RUPEE}${Math.round(absolute)}`;
-
-    const thousands = absolute / 1000;
-    return `${prefix}${RUPEE}${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
-  };
 
   const points = data.map((item, index) => {
     const x = left + (plotWidth / Math.max(data.length - 1, 1)) * index;
@@ -981,7 +887,7 @@ function TrendChart({
     : "";
 
   return (
-    <View style={styles.trendChart}>
+    <View style={styles.trendChart} onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
       <Svg
         height={chartHeight}
         viewBox={`0 0 ${chartWidth} ${chartHeight}`}
@@ -1030,17 +936,12 @@ function TrendChart({
 
       {points.length > 0 && points[points.length - 1].value !== 0 ? (
         <Text
+          maxFontSizeMultiplier={1.2}
           style={[
             styles.pointLabel,
             {
               color: points[points.length - 1].value >= 0 ? GREEN : RED,
-              left: `${Math.min(
-                84,
-                Math.max(
-                  8,
-                  ((points[points.length - 1].x - 30) / chartWidth) * 100,
-                ),
-              )}%`,
+              right: 0,
               top: Math.max(0, points[points.length - 1].y - 24),
             },
           ]}
@@ -1051,9 +952,7 @@ function TrendChart({
 
       <View style={styles.yAxisLabels}>
         {yTicks.map((tick) => (
-          <Text key={tick} style={styles.axisText}>
-            {formatAxisValue(tick)}
-          </Text>
+          <MoneyText key={tick} value={tick} style={[styles.axisText, { width: "100%" }]} maxFontSizeMultiplier={1.1} />
         ))}
       </View>
 
@@ -1062,6 +961,7 @@ function TrendChart({
           <Text
             adjustsFontSizeToFit
             key={item.label}
+            maxFontSizeMultiplier={1.1}
             minimumFontScale={0.72}
             numberOfLines={1}
             style={styles.monthLabel}
@@ -1086,15 +986,15 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       paddingTop: 60,
     },
     headerRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: compact ? 8 : 12,
+      alignItems: compact ? "flex-start" : "center",
+      flexDirection: compact ? "column" : "row",
+      gap: compact ? 12 : 16,
       justifyContent: "space-between",
     },
     title: {
       color: dark ? "#FFFFFF" : "#070E2D",
       flexShrink: 0,
-      fontSize: compact ? 30 : 33,
+      fontSize: compact ? 28 : 33,
       fontWeight: "900",
     },
     monthSelector: {
@@ -1103,10 +1003,13 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       borderColor: dark ? "#2D3240" : "#D9DDE8",
       borderRadius: 16,
       borderWidth: 1,
-      flex: 1,
+      flexGrow: 0,
+      flexShrink: 1,
       flexDirection: "row",
       justifyContent: "space-between",
-      maxWidth: compact ? 176 : 196,
+      maxWidth: compact ? 220 : 196,
+      width: compact ? "100%" : undefined,
+      alignSelf: compact ? "flex-start" : undefined,
       minWidth: 0,
       paddingHorizontal: 4,
     },
@@ -1131,98 +1034,14 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       fontSize: compact ? 12 : 14,
       fontWeight: "800",
     },
-    overviewCard: {
-      backgroundColor: PURPLE_DARK,
-      borderRadius: 24,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 24,
-      minHeight: 250,
-      overflow: "hidden",
-      padding: compact ? 16 : 18,
-    },
-    overviewLeft: {
-      flex: 0.9,
-      minWidth: 0,
-      paddingRight: compact ? 8 : 8,
-      zIndex: 1,
-    },
-    cardTitleRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: 5,
-      marginBottom: 12,
-    },
-    overviewTitle: {
-      color: "rgba(255,255,255,0.86)",
-      fontSize: compact ? 14 : 16,
-      fontWeight: "600",
-    },
-    overviewLabel: {
-      color: "#FFFFFF",
-      fontSize: 12,
-      fontWeight: "700",
-      marginBottom: 8,
-    },
-    usedPercent: {
-      color: "#FFFFFF",
-      fontSize: compact ? 26 : 34,
-      fontWeight: "800",
-      lineHeight: 28,
-    },
-    usedAmount: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "800",
-      marginBottom: compact ? 14 : 20,
-    },
-    legendRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      marginTop: compact ? 8 : 11,
-    },
-    legendDot: {
-      borderRadius: 9,
-      height: 15,
-      marginRight: compact ? 8 : 12,
-      width: 15,
-    },
-    legendText: {
-      color: "#FFFFFF",
-      flex: 1,
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    legendAmount: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    comparisonPill: {
-      alignItems: "center",
-      alignSelf: "flex-start",
-      backgroundColor: "rgba(5, 36, 26, 0.45)",
-      borderRadius: 9,
-      flexDirection: "row",
-      gap: 8,
-      marginTop: compact ? 18 : 23,
-      paddingHorizontal: compact ? 8 : 8,
-      paddingVertical: compact ? 6 : 6,
-    },
-    comparisonText: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "900",
-    },
+    overviewCard: { marginTop: 24 },
     donutBox: {
       alignItems: "center",
-      flex: 1,
-      alignSelf: "flex-start",
+      alignSelf: "center",
       justifyContent: "center",
-      marginRight: 0,
-      marginTop: 8,
-      width: compact ? 150 : 170,
-      height: compact ? 150 : 170,
+      flexShrink: 0,
+      width: 155,
+      height: 155,
     },
     donutCenter: {
       alignItems: "center",
@@ -1252,7 +1071,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       fontSize: 12,
       fontWeight: "900",
       marginTop: 4,
-      maxWidth: compact ? 82 : 94,
+      maxWidth: 88,
     },
     donutMeta: {
       color: "#5A6174",
@@ -1322,6 +1141,8 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       marginBottom: 18,
     },
     sectionTitle: {
+      flexShrink: 1,
+      marginRight: 8,
       color: dark ? "#FFFFFF" : "#080D27",
       fontSize: compact ? 17 : 18,
       fontWeight: "900",
@@ -1376,6 +1197,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       marginLeft: 10,
     },
     categoryAmount: {
+      fontVariant: ["tabular-nums"],
       fontSize: compact ? 12 : 14,
       fontWeight: "800",
       marginTop: 3,
@@ -1409,7 +1231,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       left: 0,
       position: "absolute",
       top: 9,
-      width: 38,
+      width: 62,
     },
     axisText: {
       color: theme.subText,
@@ -1421,7 +1243,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       bottom: 0,
       flexDirection: "row",
       justifyContent: "space-between",
-      left: 44,
+      left: 68,
       position: "absolute",
       right: 5,
     },
@@ -1430,7 +1252,8 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       fontSize: compact ? 9 : 10,
       fontWeight: "900",
       textAlign: "center",
-      width: compact ? 40 : 44,
+      flex: 1,
+      minWidth: 0,
     },
     pointLabel: {
       backgroundColor: theme.card,
@@ -1438,6 +1261,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       fontSize: 11,
       fontWeight: "900",
       minWidth: 56,
+      maxWidth: 120,
       paddingHorizontal: 4,
       paddingVertical: 2,
       position: "absolute",
@@ -1498,7 +1322,7 @@ const getStyles = (theme: any, dark: boolean, compact: boolean) =>
       color: theme.subText,
       fontSize: 12,
       fontWeight: "700",
-      maxWidth: 170,
+      maxWidth: "100%",
     },
     savingsDivider: {
       alignSelf: "stretch",

@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 
 import { useTheme } from "@/context/ThemeContext";
@@ -16,7 +17,8 @@ export default function BottomNavbar({
   navigation,
   openModal,
 }: Props) {
-  const { theme, dark } = useTheme();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 || fontScale > 1.05;
 
@@ -31,11 +33,12 @@ export default function BottomNavbar({
   return (
     <View
       style={{
-        position: "absolute",
-        bottom: compact ? 10 : 20,
-        left: compact ? 8 : 20,
-        right: compact ? 8 : 20,
-        height: compact ? 82 : 85,
+        marginBottom: Math.max(insets.bottom, 10),
+        marginLeft: insets.left + (compact ? 8 : 20),
+        marginRight: insets.right + (compact ? 8 : 20),
+        marginTop: 24,
+        minHeight: 76,
+        paddingVertical: 12,
         backgroundColor: theme.card,
         borderRadius: 25,
         flexDirection: "row",
@@ -64,6 +67,8 @@ export default function BottomNavbar({
             <Pressable
               key={route.key}
               onPress={openModal}
+              accessibilityRole="button"
+              accessibilityLabel="Add transaction"
               style={{
                 width: 65,
                 height: 65,
@@ -71,7 +76,8 @@ export default function BottomNavbar({
                 backgroundColor: theme.primary,
                 justifyContent: "center",
                 alignItems: "center",
-                top: -28,
+                marginTop: -40,
+                flexShrink: 0,
               }}
             >
               <Ionicons name="add" size={34} color="white" />
@@ -83,8 +89,15 @@ export default function BottomNavbar({
           <Pressable
             key={route.key}
             onPress={onPress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isFocused }}
+            accessibilityLabel={getLabel(route.name)}
             style={{
               alignItems: "center",
+              justifyContent: "center",
+              flex: 1,
+              minWidth: 0,
+              minHeight: 48,
             }}
           >
             <Ionicons
@@ -95,13 +108,16 @@ export default function BottomNavbar({
 
             <Text
               style={{
-                fontSize: compact ? 9 : 12,
+                fontSize: compact ? 10 : 12,
                 marginTop: 4,
                 color: isFocused ? theme.primary : theme.text,
                 maxWidth: compact ? 72 : 82,
                 textAlign: "center",
               }}
               numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              maxFontSizeMultiplier={1.3}
             >
               {route.name === "add" ? "" : getLabel(route.name)}
             </Text>
