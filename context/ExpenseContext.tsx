@@ -7,59 +7,59 @@ import {
   useState,
 } from "react";
 
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
+
+import { auth, db } from "@/firebase";
+
 import { useAuth } from "@/context/AuthContext";
-import {
-  deleteExpense as removeExpenseRecord,
-  subscribeExpenses,
-  type ExpenseRecord,
-} from "@/repositories/expenseRepository";
-import { createId } from "@/repositories/shared";
-import {
-  getSalaryBalanceState,
-  isTransactionInOpenSalaryCycle,
-  saveExpenseWithAdditionalFunds,
-  saveTransactionWithSalaryValidation,
-} from "@/services/salaryBalance";
 
-type Expense = ExpenseRecord;
+type Expense = {
+  id: string;
 
-export type TransactionSaveResult =
-  | {
-      status: "saved";
-      expense: ExpenseRecord;
-    }
-  | {
-      status: "insufficient-funds";
-      available: number;
-      shortfall: number;
-    };
+  amount: number;
+
+  description: string;
+
+  category?: string;
+
+  type?: "income" | "expense";
+
+  createdAt: string | Date | { toDate?: () => Date };
+};
 
 type ExpenseContextType = {
   expenses: Expense[];
+
   salaryCycleExpenses: Expense[];
+
   currentMonthExpenses: Expense[];
+
   loading: boolean;
+
   addExpense: (
     amount: string,
     description: string,
     category?: string,
+
     type?: "income" | "expense",
-  ) => Promise<TransactionSaveResult>;
-  addExpenseWithFunds: (input: {
-    amount: string;
-    description: string;
-    category?: string;
-    additionalFunds: string;
-    fundsDescription?: string;
-  }) => Promise<TransactionSaveResult>;
-  deleteExpense: (expenseOrId: Expense | string) => Promise<void>;
+  ) => Promise<void>;
+
+  deleteExpense: (id: string) => Promise<void>;
 };
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
 
 const getExpenseDate = (value: Expense["createdAt"]) => {
   const date =
-    typeof value === "object" && value && "toDate" in value && value.toDate
+    typeof value === "object" && "toDate" in value && value.toDate
       ? value.toDate()
       : new Date(value as string | Date);
 
@@ -67,43 +67,90 @@ const getExpenseDate = (value: Expense["createdAt"]) => {
 };
 
 export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
-  const { user, userData } = useAuth();
+  const { userData } = useAuth();
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.uid) {
-      setExpenses([]);
-      setLoading(false);
-      return;
-    }
+    let unsubscribeSnapshot: (() => void) | undefined;
 
-    setLoading(true);
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
 
-    const subscription = subscribeExpenses(
-      user.uid,
-      (items) => {
-        setExpenses(items);
+      if (!user?.uid) {
+        setExpenses([]);
+
         setLoading(false);
-      },
-      (error) => {
-        console.log("Expense listener error:", error);
-        setLoading(false);
-      },
-    );
 
-    return () => {
-      if (typeof subscription === "function") {
-        subscription();
         return;
       }
 
-      subscription.remove?.();
+      setLoading(true);
+
+      const q = query(
+        collection(db, "users", user.uid, "expenses"),
+
+        orderBy("createdAt", "desc"),
+      );
+
+      unsubscribeSnapshot = onSnapshot(
+        q,
+
+        (snapshot) => {
+          if (snapshot.empty) {
+            setExpenses([]);
+
+            setLoading(false);
+
+            return;
+          }
+
+          const expenseData = snapshot.docs.map((doc) => ({
+            id: doc.id,
+
+            ...doc.data(),
+
+            type: doc.data()?.type || "expense",
+          })) as Expense[];
+
+          setExpenses(expenseData);
+
+          setLoading(false);
+        },
+
+        (error) => {
+          console.log("Expense listener error:", error);
+
+          setExpenses([]);
+
+          setLoading(false);
+        },
+      );
+    });
+
+    return () => {
+      unsubscribeAuth();
+
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
     };
-  }, [user?.uid]);
+  }, []);
+
+  /*
+    SALARY CYCLE FILTER
+    Example:
+    salary date = 5
+    cycle = 5th → next 5th
+  */
 
   const salaryCycleExpenses = useMemo(() => {
     const salaryDate = Number(userData?.salaryDate || 1);
+
     const now = new Date();
 
     let cycleStart = new Date(now.getFullYear(), now.getMonth(), salaryDate);
@@ -113,6 +160,7 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     }
 
     let cycleEnd = new Date(cycleStart);
+
     cycleEnd.setMonth(cycleEnd.getMonth() + 1);
 
     return expenses.filter((item) => {
@@ -126,9 +174,16 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [expenses, userData?.salaryDate]);
 
+  /*
+    CURRENT MONTH FILTER
+    FOR SELF-EMPLOYED USERS
+  */
+
   const currentMonthExpenses = useMemo(() => {
     const now = new Date();
+
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
     const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     return expenses.filter((item) => {
@@ -146,104 +201,51 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     amount: string,
     description: string,
     category = "Other",
+
     type: "income" | "expense" = "expense",
-  ): Promise<TransactionSaveResult> => {
-    if (!user?.uid) {
-      throw new Error("Sign in before saving a transaction.");
-    }
+  ) => {
+    const user = auth.currentUser;
 
-    const parsedAmount = Number(amount);
+    if (!user) return;
 
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      throw new Error("Enter a valid amount.");
-    }
+    await addDoc(
+      collection(db, "users", user.uid, "expenses"),
 
-    return saveTransactionWithSalaryValidation({
-      expenses,
-      profile: userData || {},
-      transaction: {
-      id: createId(),
-      amount: parsedAmount,
-      description,
-      category,
-      type,
-      createdAt: new Date().toISOString(),
-      updatedAt: Date.now(),
-      },
-      userId: user.uid,
-    });
-  };
+      {
+        amount: Number(amount),
 
-  const addExpenseWithFunds: ExpenseContextType["addExpenseWithFunds"] =
-    async ({
-      amount,
-      description,
-      category = "Other",
-      additionalFunds,
-      fundsDescription = "Additional funds",
-    }) => {
-      if (!user?.uid || userData?.type !== "salary") {
-        throw new Error("Additional Funds are available for salary accounts.");
-      }
-
-      const parsedAmount = Number(amount);
-      const parsedFunds = Number(additionalFunds);
-
-      if (
-        !Number.isFinite(parsedAmount) ||
-        parsedAmount <= 0 ||
-        !Number.isFinite(parsedFunds) ||
-        parsedFunds <= 0
-      ) {
-        throw new Error("Enter valid expense and Additional Funds amounts.");
-      }
-
-      return saveExpenseWithAdditionalFunds({
-        additionalFunds: parsedFunds,
-        category,
         description,
-        expenseAmount: parsedAmount,
-        fundsDescription,
-        profile: userData,
-        userId: user.uid,
-      });
+
+        category,
+
+        type,
+
+        createdAt: new Date().toISOString(),
+      },
+    );
   };
 
-  const deleteExpense = async (expenseOrId: Expense | string) => {
-    if (!user?.uid) {
-      return;
-    }
+  const deleteExpense = async (id: string) => {
+    const user = auth.currentUser;
 
-    const expense =
-      typeof expenseOrId === "string"
-        ? expenses.find((item) => item.id === expenseOrId)
-        : expenseOrId;
-    const expenseId = typeof expenseOrId === "string" ? expenseOrId : expenseOrId.id;
+    if (!user) return;
 
-    if (userData?.type === "salary" && expense) {
-      const balance = await getSalaryBalanceState({
-        expenses,
-        profile: userData,
-        userId: user.uid,
-      });
-
-      if (!isTransactionInOpenSalaryCycle(expense, balance)) {
-        throw new Error("Completed salary cycles are read-only.");
-      }
-    }
-
-    await removeExpenseRecord(user.uid, expenseId);
+    await deleteDoc(doc(db, "users", user.uid, "expenses", id));
   };
 
   return (
     <ExpenseContext.Provider
       value={{
         expenses,
+
         salaryCycleExpenses,
+
         currentMonthExpenses,
+
         loading,
+
         addExpense,
-        addExpenseWithFunds,
+
         deleteExpense,
       }}
     >

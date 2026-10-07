@@ -12,6 +12,8 @@ import { useState } from "react";
 
 import Animated, { FadeInUp } from "react-native-reanimated";
 
+import { router } from "expo-router";
+
 import { Ionicons } from "@expo/vector-icons";
 
 import * as Haptics from "expo-haptics";
@@ -56,7 +58,11 @@ export default function LoginScreen() {
 
         await signup(email.trim(), password);
 
+        router.dismissAll();
 
+        // IMPORTANT FIX 🔥
+        // user-type first
+        router.replace("/(auth)/user-type" as any);
       } else {
         await loginWithEmail(email.trim(), password);
       }
@@ -69,8 +75,6 @@ export default function LoginScreen() {
         setError("Email already exists");
       } else if (err.message?.includes("auth/weak-password")) {
         setError("Password should be at least 6 characters");
-      } else if (err.message?.includes("User account does not exist")) {
-        setError("User account does not exist");
       } else {
         setError("Something went wrong");
       }

@@ -1,15 +1,13 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
 import {
-  Pressable,
+  Dimensions,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
+
 import Animated, {
   FadeInUp,
   type SharedValue,
@@ -17,10 +15,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import Svg, { Circle, Path, Polyline } from "react-native-svg";
 
 import { getCategoryMeta } from "@/components/categoryMeta";
-<<<<<<< HEAD
 import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -32,233 +28,159 @@ import { useExpense } from "@/context/ExpenseContext";
 
 import { useFocusEffect } from "@react-navigation/native";
 
-=======
->>>>>>> new-sms
 import { useAuth } from "@/context/AuthContext";
-import { useExpense } from "@/context/ExpenseContext";
-import { useSalary } from "@/context/SalaryContext";
-import { useTheme } from "@/context/ThemeContext";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 
+const screenWidth = Dimensions.get("window").width;
+
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const RUPEE = "\u20B9";
-const PURPLE = "#6E3CFF";
-const PURPLE_DARK = "#371872"; //"#35108E";
-const GREEN = "#0F9B58";
-const BLUE = "#1877F2";
-const ORANGE = "#F97316";
 
-const formatCycleDate = (date: Date) =>
-  date.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-  });
-
-const getExpenseDate = (value: any) => {
-  const date = value?.toDate ? value.toDate() : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
-const formatMoney = (value: number) => {
-  const amount = Number(value || 0);
-
-  if (amount >= 10000000) {
-    const cr = amount / 10000000;
-    return `${RUPEE}${Number(cr.toFixed(1))} Cr`;
-  }
-
-  if (amount >= 1000000) {
-    const lakh = amount / 100000;
-    return `${RUPEE}${Number(lakh.toFixed(1))} L`;
-  }
-
-  return `${RUPEE}${amount.toLocaleString("en-IN")}`;
-};
-
-const formatCompactMoney = (value: number) => {
-  const amount = Number(value || 0);
-  if (Math.abs(amount) < 1000) return formatMoney(amount);
-
-  const thousands = amount / 1000;
-  return `${RUPEE}${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}k`;
-};
-
-const categoryColor = (category: string, index: number) => {
-  const metaColor = getCategoryMeta(category).color;
-  const fallback = [PURPLE, "#FF202A", GREEN, BLUE, ORANGE][index % 5];
-  return metaColor || fallback;
-};
-
-type DonutProgressProps = {
+type DonutSegmentProps = {
+  color: string;
   circumference: number;
+  dash: number;
+  gap: number;
   progress: SharedValue<number>;
   radius: number;
-  salaryUsed: number;
+  rotation: number;
   strokeWidth: number;
 };
 
-function DonutProgress({
+function DonutSegment({
+  color,
   circumference,
+  dash,
+  gap,
   progress,
   radius,
-  salaryUsed,
+  rotation,
   strokeWidth,
-}: DonutProgressProps) {
+}: DonutSegmentProps) {
   const animatedProps = useAnimatedProps(() => ({
-    strokeDasharray: [
-      circumference * (salaryUsed / 100) * progress.value,
-      circumference,
-    ],
+    strokeDasharray: [dash * progress.value, circumference],
   }));
 
   return (
     <AnimatedCircle
-      animatedProps={animatedProps}
       cx="90"
       cy="90"
-      fill="none"
       r={radius}
-      stroke="#7B61FF"
-      strokeLinecap="round"
+      stroke={color}
       strokeWidth={strokeWidth}
-      strokeOpacity={0.95}
-      transform="rotate(-90 90 90)"
+      fill="none"
+      animatedProps={animatedProps}
+      strokeDasharray={`${dash} ${gap}`}
+      strokeDashoffset={0}
+      transform={`rotate(${rotation - 90} 90 90)`}
+      strokeLinecap="round"
     />
   );
 }
 
-export default function SalaryAnalyticsScreen() {
-  const { expenses } = useExpense();
-  const { theme, dark } = useTheme();
-  const { userData } = useAuth();
-  const {
-    getCurrentArrivalStatus,
-    getCycleExpenses,
-    getCycleSummary,
-    getCycleTimeline,
-  } = useSalary();
+export default function AnalyticsScreen() {
+  const { salaryCycleExpenses, expenses } = useExpense();
+  const monthScrollRef = useRef<any>(null);
+  const { theme } = useTheme();
   const { salary: onboardingSalary } = useOnboardingStore();
-  const { width, fontScale } = useWindowDimensions();
+
+  const { userData } = useAuth();
+
+  const [selectedDate, setSelectedDate] = useState(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
 
   const [refreshing, setRefreshing] = useState(false);
-  const progress = useSharedValue(0);
-  const compact = width < 422 || fontScale > 1.05;
 
-  const styles = useMemo(
-    () => getStyles(theme, dark, compact),
-    [compact, dark, theme],
-  );
-  const arrivalStatus = getCurrentArrivalStatus();
+  const onRefresh = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-  const salaryCycles = useMemo(
-    () =>
-      getCycleTimeline(12).map((cycle, index, array) => ({
-        ...cycle,
-        end: cycle.end,
-        label: `${formatCycleDate(cycle.start)} - ${formatCycleDate(
-          new Date(cycle.end.getTime() - MS_PER_DAY),
-        )}`,
-        shortLabel:
-          index === array.length - 1
-            ? "This Month"
-            : cycle.start.toLocaleDateString("en-IN", {
-                month: "short",
-                year: "2-digit",
-              }),
-      })),
-    [getCycleTimeline],
-  );
-  const visibleSalaryCycles = useMemo(() => {
-    if (!arrivalStatus.needsConfirmation) {
-      return salaryCycles;
-    }
+    setRefreshing(true);
 
-    const activeIndex = salaryCycles.findIndex(
-      (cycle) => cycle.start.getTime() === arrivalStatus.start.getTime(),
+    setSelectedDate(
+      new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     );
 
-    if (activeIndex < 0) {
-      return salaryCycles;
-    }
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
 
-    return salaryCycles.slice(0, activeIndex + 1);
-  }, [arrivalStatus.needsConfirmation, arrivalStatus.start, salaryCycles]);
-  const [selectedDate, setSelectedDate] = useState(
-    () =>
-      arrivalStatus.start ||
-      visibleSalaryCycles[visibleSalaryCycles.length - 1]?.start ||
-      new Date(),
-  );
+  const progress = useSharedValue(0);
 
   useEffect(() => {
     progress.value = 0;
-    progress.value = withTiming(1, { duration: 1200 });
+
+    progress.value = withTiming(1, {
+      duration: 1400,
+    });
   }, [progress, selectedDate]);
 
-  const selectedCycle = salaryCycles.find(
-    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setSelectedDate(
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      );
+    }, []),
   );
-  const visibleSelectedCycle = visibleSalaryCycles.find(
-    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
-  );
-  const activeSelectedCycle =
-    visibleSelectedCycle &&
-    arrivalStatus.needsConfirmation &&
-    visibleSelectedCycle.start.getTime() === arrivalStatus.start.getTime()
-      ? {
-          ...visibleSelectedCycle,
-          end: arrivalStatus.end,
-        }
-      : visibleSelectedCycle;
 
   useEffect(() => {
-    if (!visibleSelectedCycle) {
-      setSelectedDate(
-        arrivalStatus.start ||
-          visibleSalaryCycles[visibleSalaryCycles.length - 1]?.start ||
-          new Date(),
-      );
-    }
-  }, [arrivalStatus.start, visibleSelectedCycle, visibleSalaryCycles]);
-  const selectedCycleEnd = useMemo(
-    () => activeSelectedCycle?.end || new Date(selectedDate),
-    [activeSelectedCycle, selectedDate],
-  );
+    monthScrollRef.current?.scrollTo({
+      x: Math.max(0, (selectedDate.getMonth() - 2) * 95),
+      animated: true,
+    });
+  }, [selectedDate]);
 
   const filteredExpenses = useMemo(() => {
-    if (!activeSelectedCycle) {
-      return [];
-    }
+    return expenses.filter((item) => {
+      const rawDate: any = item.createdAt;
 
-    return getCycleExpenses(activeSelectedCycle, expenses);
-  }, [
-    expenses,
-    getCycleExpenses,
-    activeSelectedCycle,
-    selectedCycleEnd,
-    selectedDate,
-  ]);
+      const date = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
 
-  const groupedCategories = useMemo(
-    () =>
-      filteredExpenses.reduce((acc: Record<string, number>, item: any) => {
-        const category = item.category || "Other";
-        acc[category] = (acc[category] || 0) + Number(item.amount || 0);
-        return acc;
-      }, {}),
-    [filteredExpenses],
+      if (
+        Number.isNaN(date.getTime()) ||
+        (item.type || "expense") !== "expense"
+      ) {
+        return false;
+      }
+
+      return (
+        date.getMonth() === selectedDate.getMonth() &&
+        date.getFullYear() === selectedDate.getFullYear()
+      );
+    });
+  }, [expenses, selectedDate]);
+
+  const groupedCategories = filteredExpenses.reduce(
+    (acc: Record<string, number>, item: any) => {
+      const category = item.category || "Other";
+
+      acc[category] = (acc[category] || 0) + Number(item.amount);
+
+      return acc;
+    },
+    {},
   );
 
-  const ranges = useMemo(
-    () =>
-      Object.entries(groupedCategories).sort(
-        (left: any, right: any) => right[1] - left[1],
-      ) as [string, number][],
-    [groupedCategories],
+  const totalSpent = Object.values(groupedCategories).reduce(
+    (sum, value) => sum + value,
+    0,
   );
 
-<<<<<<< HEAD
   const salaryAmount = Number(userData?.salary ?? onboardingSalary ?? 0);
 
   const salaryUsed =
@@ -327,320 +249,220 @@ export default function SalaryAnalyticsScreen() {
       day === 1 || day === daysInSelectedMonth || day % 5 === 0;
 
     return shouldShowLabel ? String(day) : "";
-=======
-  const totalSpent = ranges.reduce((sum, item) => sum + item[1], 0);
-  const selectedCycleSummary = getCycleSummary(selectedDate, {
-    expectedCycleStart: activeSelectedCycle?.expectedStart,
-    referenceDate:
-      activeSelectedCycle?.start.getTime() === arrivalStatus.start.getTime()
-        ? new Date()
-        : selectedDate,
->>>>>>> new-sms
   });
-  const salaryAmount = Number(
-    selectedCycleSummary.salary || userData?.salary || onboardingSalary || 0,
-  );
-  const carryForward = Number(selectedCycleSummary.carryForward || 0);
-  const additionalFunds = Number(selectedCycleSummary.additionalFunds || 0);
-  const availableTotal = carryForward + salaryAmount + additionalFunds;
-  const remaining = availableTotal - totalSpent;
-  const salaryUsed =
-    availableTotal > 0 ? Math.min((totalSpent / availableTotal) * 100, 100) : 0;
-  const salaryUsedLabel =
-    totalSpent > 0 && salaryUsed < 1
-      ? salaryUsed.toFixed(1)
-      : String(Math.round(salaryUsed));
-  const savingsRate =
-    availableTotal > 0 ? Math.round((remaining / availableTotal) * 100) : 0;
-  const savingsBarWidth = Math.min(Math.max(savingsRate, 0), 100);
 
-  const isOverspent = remaining < 0;
+  const chartValues = monthDays.map((day) => groupedByDay[day] || 0);
+
+  const chartData = {
+    labels: chartLabels,
+
+    datasets: [
+      {
+        data: chartValues,
+      },
+    ],
+  };
+
+  const highestExpense = filteredExpenses.reduce(
+    (max, item) => (Number(item.amount) > Number(max.amount) ? item : max),
+    filteredExpenses[0] || {},
+  );
+
+  const totalTransactions = filteredExpenses.length;
+
+  const averagePerDay =
+    sortedDays.length > 0 ? totalSpent / sortedDays.length : 0;
+
+  const highestDay = Object.entries(groupedByDay).sort(
+    (a: any, b: any) => b[1] - a[1],
+  )[0];
+
   const topCategory = ranges[0];
-  const displayRanges = ranges.slice(0, 6);
-
-  const trendBuckets = useMemo(() => {
-    const now = new Date();
-    const tomorrow = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1,
-    );
-    const trendEnd =
-      now >= selectedDate && now < selectedCycleEnd
-        ? tomorrow
-        : selectedCycleEnd;
-    const totalDays = Math.max(
-      1,
-      Math.ceil((trendEnd.getTime() - selectedDate.getTime()) / MS_PER_DAY),
-    );
-    const bucketCount = Math.min(6, totalDays);
-    const buckets = Array.from({ length: bucketCount }, (_value, index) => {
-      const dayOffset = Math.floor((index * totalDays) / bucketCount);
-      const bucketDate = new Date(
-        selectedDate.getTime() + dayOffset * MS_PER_DAY,
-      );
-
-      return {
-        label: bucketDate.toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-        }),
-        value: 0,
-      };
-    });
-
-    filteredExpenses.forEach((item) => {
-      const date = getExpenseDate(item.createdAt);
-      if (!date) return;
-
-      const dayOffset = Math.max(
-        0,
-        Math.floor((date.getTime() - selectedDate.getTime()) / MS_PER_DAY),
-      );
-      const bucketIndex = Math.min(
-        bucketCount - 1,
-        Math.floor((dayOffset * bucketCount) / totalDays),
-      );
-      buckets[bucketIndex].value += Number(item.amount || 0);
-    });
-
-    let cumulativeSpend = 0;
-    return buckets.map((bucket) => {
-      cumulativeSpend += bucket.value;
-      return { ...bucket, value: cumulativeSpend };
-    });
-  }, [filteredExpenses, selectedCycleEnd, selectedDate]);
-  const showTrend = trendBuckets.some((item) => item.value > 0);
-  const previousCycleSpend = useMemo(() => {
-    const selectedCycleIndex = visibleSalaryCycles.findIndex(
-      (cycle) => cycle.start.getTime() === selectedDate.getTime(),
-    );
-    const previousCycle = visibleSalaryCycles[selectedCycleIndex - 1];
-
-    if (!previousCycle) {
-      return 0;
-    }
-
-    return expenses.reduce((sum, item: any) => {
-      const date = getExpenseDate(item.createdAt);
-
-      if (!date || (item.type || "expense") !== "expense") return sum;
-
-      return date >= previousCycle.start && date < previousCycle.end
-        ? sum + Number(item.amount || 0)
-        : sum;
-    }, 0);
-  }, [expenses, selectedDate, visibleSalaryCycles]);
-
-  const hasPreviousCycle = previousCycleSpend > 0;
-  const comparisonPercent =
-    previousCycleSpend > 0
-      ? Math.round(
-          ((totalSpent - previousCycleSpend) / previousCycleSpend) * 100,
-        )
-      : 0;
-  const comparisonUp = comparisonPercent >= 0;
-  const visibleSelectedCycleIndex = visibleSalaryCycles.findIndex(
-    (cycle) => cycle.start.getTime() === selectedDate.getTime(),
-  );
-
-  const selectAdjacentCycle = (offset: number) => {
-    const nextCycle = visibleSalaryCycles[visibleSelectedCycleIndex + offset];
-
-    if (!nextCycle) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedDate(nextCycle.start);
-  };
-
-  const onRefresh = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setRefreshing(true);
-    setSelectedDate(
-      visibleSalaryCycles[visibleSalaryCycles.length - 1]?.start || new Date(),
-    );
-    setTimeout(() => setRefreshing(false), 700);
-  };
-
-  const donutRadius = 74;
-  const donutStrokeWidth = 10;
-  const donutCircumference = 2 * Math.PI * donutRadius;
 
   return (
     <ScrollView
-      contentContainerStyle={styles.content}
+      style={{
+        flex: 1,
+        backgroundColor: theme.background,
+      }}
       refreshControl={
         <RefreshControl
-          colors={[PURPLE]}
-          onRefresh={onRefresh}
-          progressBackgroundColor={theme.card}
-          progressViewOffset={70}
           refreshing={refreshing}
-          tintColor={PURPLE}
+          onRefresh={onRefresh}
+          tintColor={theme.primary}
+          progressViewOffset={60}
         />
       }
+      contentContainerStyle={{
+        padding: 20,
+        paddingTop: 70,
+        paddingBottom: 120,
+        flexGrow: 1,
+      }}
       showsVerticalScrollIndicator={false}
-      style={styles.screen}
     >
-      <Animated.View entering={FadeInUp.duration(500)} style={styles.headerRow}>
-        <Text style={styles.title}>Analytics</Text>
-        <View style={styles.monthSelector}>
-          <Pressable
-            accessibilityLabel="Previous salary cycle"
-            disabled={visibleSelectedCycleIndex <= 0}
-            hitSlop={8}
-            onPress={() => selectAdjacentCycle(-1)}
-            style={styles.monthArrow}
-          >
-            <Ionicons
-              color={
-                visibleSelectedCycleIndex <= 0 ? theme.border : theme.subText
-              }
-              name="chevron-back"
-              size={17}
-            />
-          </Pressable>
-          <View style={styles.monthButton}>
-            <Ionicons
-              color={GREEN}
-              name="calendar-clear-outline"
-              size={compact ? 17 : 19}
-            />
-            <Text numberOfLines={1} style={styles.monthButtonTextActive}>
-              {activeSelectedCycle?.shortLabel ?? "This Month"}
+      <Text
+        style={{
+          fontSize: 32,
+          fontWeight: "800",
+          color: theme.text,
+        }}
+      >
+        Analytics
+      </Text>
+
+      <ScrollView
+        ref={monthScrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          marginTop: 24,
+          paddingRight: 20,
+        }}
+      >
+        {months.map((month, index) => {
+          const active = selectedDate.getMonth() === index;
+
+          return (
+            <Text
+              key={month}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+                setSelectedDate(new Date(selectedDate.getFullYear(), index, 1));
+              }}
+              style={{
+                backgroundColor: active ? theme.primary : theme.card,
+
+                color: active ? theme.card : theme.subText,
+
+                paddingVertical: 12,
+
+                paddingHorizontal: 18,
+
+                borderRadius: 999,
+
+                marginRight: 10,
+
+                fontWeight: "700",
+
+                overflow: "hidden",
+              }}
+            >
+              {month}
             </Text>
-          </View>
-          <Pressable
-            accessibilityLabel="Next salary cycle"
-            disabled={
-              visibleSelectedCycleIndex >= visibleSalaryCycles.length - 1
-            }
-            hitSlop={8}
-            onPress={() => selectAdjacentCycle(1)}
-            style={styles.monthArrow}
-          >
-            <Ionicons
-              color={
-                visibleSelectedCycleIndex >= visibleSalaryCycles.length - 1
-                  ? theme.border
-                  : theme.subText
-              }
-              name="chevron-forward"
-              size={17}
-            />
-          </Pressable>
-        </View>
-      </Animated.View>
+          );
+        })}
+      </ScrollView>
 
       <Animated.View
-        entering={FadeInUp.delay(80).duration(550)}
-        style={styles.overviewCard}
+        entering={FadeInUp.delay(100).duration(700)}
+        style={{
+          backgroundColor: theme.card,
+
+          borderRadius: 28,
+
+          padding: 24,
+
+          marginTop: 28,
+
+          alignItems: "center",
+        }}
       >
-        <View style={styles.overviewLeft}>
-          <View style={styles.cardTitleRow}>
-            <Ionicons
-              color="rgba(255,255,255,0.86)"
-              name="pie-chart-outline"
-              size={compact ? 20 : 24}
-            />
-            <Text style={styles.overviewTitle}>Salary Overview</Text>
-          </View>
+        <Text
+          style={{
+            fontSize: 22,
 
-          <Text style={styles.overviewLabel}>Used</Text>
-          <Text style={styles.usedPercent}>{salaryUsedLabel}%</Text>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.75}
-            numberOfLines={1}
-            style={styles.usedAmount}
-          >
-            {formatMoney(totalSpent)} of {formatMoney(availableTotal)}
-          </Text>
+            fontWeight: "700",
 
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#34D399" }]} />
-            <Text style={styles.legendText}>Carry Forward</Text>
-            <Text style={styles.legendAmount}>{formatMoney(carryForward)}</Text>
-          </View>
+            color: theme.text,
 
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#60A5FA" }]} />
-            <Text style={styles.legendText}>Salary</Text>
-            <Text style={styles.legendAmount}>{formatMoney(salaryAmount)}</Text>
-          </View>
+            marginBottom: 26,
+          }}
+        >
+          Spending Distribution
+        </Text>
 
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#FBBF24" }]} />
-            <Text style={styles.legendText}>Additional Funds</Text>
-            <Text style={styles.legendAmount}>
-              {formatMoney(additionalFunds)}
-            </Text>
-          </View>
+        {displayRanges.length > 0 ? (
+          <>
+            <Animated.View
+              key={`donut-${selectedDate.getMonth()}-${refreshing}`}
+              style={{
+                justifyContent: "center",
 
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#7A4CFF" }]} />
-            <Text style={styles.legendText}>Used</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              numberOfLines={1}
-              style={styles.legendAmount}
+                alignItems: "center",
+              }}
             >
-              {formatMoney(totalSpent)}
-            </Text>
-          </View>
+              <Svg width={180} height={180}>
+                <Circle
+                  cx="90"
+                  cy="90"
+                  r={radius}
+                  stroke={theme.border}
+                  strokeWidth={strokeWidth}
+                  fill="none"
+                />
 
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#C9D1CC" }]} />
-            <Text style={styles.legendText}>Remaining</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              numberOfLines={1}
-              style={styles.legendAmount}
-            >
-              {formatMoney(remaining)}
-            </Text>
-          </View>
+                {(() => {
+                  let cumulativePercent = 0;
 
-          <View style={styles.comparisonPill}>
-            <Ionicons
-              color={comparisonUp ? "#11D86E" : "#FF7474"}
-              name={comparisonUp ? "arrow-up" : "arrow-down"}
-              size={22}
-            />
-            <Text style={styles.comparisonText}>
-              {hasPreviousCycle
-                ? `${Math.abs(comparisonPercent)}% vs Last Month`
-                : "First Cycle"}
-            </Text>
-          </View>
-        </View>
+                  return ranges.map(([key, value], index) => {
+                    const percent = totalSpent > 0 ? value / totalSpent : 0;
 
-        {availableTotal > 0 && (
-          <View style={styles.donutBox}>
-            <Svg width={155} height={155} viewBox="0 0 180 180">
-              <Circle
-                cx="90"
-                cy="90"
-                fill="none"
-                r={donutRadius}
-                stroke="#F3F4F1"
-                strokeWidth={donutStrokeWidth}
-              />
-              <DonutProgress
-                circumference={donutCircumference}
-                progress={progress}
-                radius={donutRadius}
-                salaryUsed={salaryUsed}
-                strokeWidth={donutStrokeWidth}
-              />
-            </Svg>
-            <View style={styles.donutCenter}>
-              <View style={styles.walletIcon}>
-                <Ionicons color={PURPLE} name="wallet" size={21} />
+                    const dash = circumference * percent;
+
+                    const gap = circumference - dash + 6;
+
+                    const rotation = cumulativePercent * 360;
+
+                    cumulativePercent += percent;
+
+                    return (
+                      <DonutSegment
+                        key={key}
+                        color={getCategoryMeta(key).color}
+                        circumference={circumference}
+                        dash={dash}
+                        gap={gap}
+                        progress={progress}
+                        radius={radius}
+                        rotation={rotation}
+                        strokeWidth={strokeWidth}
+                      />
+                    );
+                  });
+                })()}
+              </Svg>
+
+              <View
+                style={{
+                  position: "absolute",
+
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 28,
+
+                    fontWeight: "800",
+
+                    color: theme.text,
+                  }}
+                >
+                  {salaryUsedLabel}%
+                </Text>
+
+                <Text
+                  style={{
+                    color: theme.subText,
+
+                    marginTop: 4,
+                  }}
+                >
+                  Salary Used
+                </Text>
               </View>
-<<<<<<< HEAD
             </Animated.View>
 
             <View
@@ -749,24 +571,56 @@ export default function SalaryAnalyticsScreen() {
                   </View>
                 );
               })}
-=======
-              <Text style={styles.donutLabel}>Available</Text>
-              <Text
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-                numberOfLines={1}
-                style={styles.donutAmount}
-              >
-                {formatMoney(availableTotal)}
-              </Text>
->>>>>>> new-sms
             </View>
+          </>
+        ) : (
+          <View
+            style={{
+              paddingVertical: 50,
+
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 52,
+              }}
+            >
+              📊
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 14,
+
+                fontSize: 18,
+
+                fontWeight: "800",
+
+                color: theme.text,
+              }}
+            >
+              No spending data
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 8,
+
+                color: theme.subText,
+
+                textAlign: "center",
+
+                lineHeight: 22,
+              }}
+            >
+              No analytics available for this month.
+            </Text>
           </View>
         )}
       </Animated.View>
 
       <Animated.View
-<<<<<<< HEAD
         entering={FadeInUp.delay(100).duration(700)}
         style={{
           backgroundColor: theme.card,
@@ -967,793 +821,193 @@ export default function SalaryAnalyticsScreen() {
               are added.
             </Text>
           </View>
-=======
-        entering={FadeInUp.delay(140).duration(550)}
-        style={styles.insightCard}
-      >
-        <View style={styles.insightIcon}>
-          <Ionicons color={GREEN} name="bulb" size={25} />
-        </View>
-        <View style={styles.insightCopy}>
-          <Text style={styles.insightTitle}>Insight</Text>
-          <Text style={styles.insightText}>
-            {topCategory ? (
-              <>
-                {topCategory[0]} is your largest expense{" "}
-                <Text style={styles.insightStrong}>
-                  {totalSpent > 0
-                    ? Math.round((topCategory[1] / totalSpent) * 100)
-                    : 0}
-                  %
-                </Text>{" "}
-                this cycle.
-              </>
-            ) : (
-              "Add expenses to unlock spending insights this cycle."
-            )}
-          </Text>
-        </View>
-        {/* <Ionicons color={GREEN} name="chevron-forward" size={25} /> */}
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInUp.delay(200).duration(550)}
-        style={styles.sectionCard}
-      >
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Category Breakdown</Text>
-        </View>
-
-        {displayRanges.length === 0 ? (
-          <Text style={styles.emptyTrendText}>
-            No expenses recorded in this salary cycle.
-          </Text>
-        ) : (
-          displayRanges.map(([category, value], index) => {
-            const percent = totalSpent > 0 ? (value / totalSpent) * 100 : 0;
-            const color = categoryColor(category, index);
-            const meta = getCategoryMeta(category);
-
-            return (
-              <View key={category} style={styles.categoryRow}>
-                <View
-                  style={[styles.categoryIcon, { backgroundColor: meta.tint }]}
-                >
-                  <Ionicons color={color} name={meta.icon} size={18} />
-                </View>
-
-                <View style={styles.categoryContent}>
-                  <View style={styles.categoryTopRow}>
-                    <View style={styles.categoryTextGroup}>
-                      <Text numberOfLines={1} style={styles.categoryName}>
-                        {category}
-                      </Text>
-                      <Text
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.72}
-                        numberOfLines={1}
-                        style={[styles.categoryAmount, { color }]}
-                      >
-                        {formatMoney(value)}
-                      </Text>
-                    </View>
-
-                    <Text style={styles.categoryPercent}>
-                      {percent.toFixed(1)}%
-                    </Text>
-                  </View>
-
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          backgroundColor: color,
-                          width: `${Math.max(percent, value > 0 ? 3 : 0)}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              </View>
-            );
-          })
->>>>>>> new-sms
         )}
       </Animated.View>
 
-      <Animated.View
-        entering={FadeInUp.delay(260).duration(550)}
-        style={styles.sectionCard}
+      <View
+        style={{
+          backgroundColor: theme.card,
+
+          borderRadius: 28,
+
+          padding: 24,
+
+          marginTop: 24,
+        }}
       >
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Progress</Text>
-          <View style={styles.trendPill}>
-            <Ionicons color={GREEN} name="calendar-clear-outline" size={15} />
-            <Text numberOfLines={1} style={styles.trendPillText}>
-              {activeSelectedCycle?.shortLabel ?? "This Month"}
-            </Text>
-          </View>
-        </View>
+        <Text
+          style={{
+            fontSize: 22,
 
-        {showTrend ? (
-          <TrendChart data={trendBuckets} styles={styles} />
-        ) : (
-          <Text style={styles.emptyTrendText}>
-            No spending recorded for{" "}
-            {activeSelectedCycle?.label ?? "this cycle"}.
-          </Text>
-        )}
-      </Animated.View>
+            fontWeight: "700",
 
-      <Animated.View
-        entering={FadeInUp.delay(320).duration(550)}
-        style={styles.savingsCard}
-      >
-        <View style={styles.savingsLeft}>
-          <View style={styles.savingsIcon}>
-            <Ionicons color={GREEN} name="shield-checkmark-outline" size={31} />
-          </View>
-          <View>
-            <Text style={styles.savingsLabel}>Savings Rate</Text>
-            <Text style={styles.savingsPercent}>{savingsRate}%</Text>
-            <Text style={styles.savingsCaption}>
-              {salaryAmount <= 0
-                ? "Add salary to unlock analytics."
-                : totalSpent === 0
-                  ? "No spending recorded this cycle."
-                  : isOverspent
-                    ? `Overspent by ${formatMoney(Math.abs(remaining))}`
-                    : savingsRate >= 30
-                      ? "Excellent saving rate."
-                      : savingsRate >= 10
-                        ? "Healthy spending habits."
-                        : "Keep watching the big categories."}
-            </Text>
-          </View>
-        </View>
+            color: theme.text,
 
-        <View style={styles.savingsDivider} />
+            marginBottom: 24,
+          }}
+        >
+          Insights
+        </Text>
 
-        <View style={styles.savingsRight}>
-          <View style={styles.savingsBarRow}>
-            <View style={styles.savingsTrack}>
-              <View
-                style={[
-                  styles.savingsFill,
-                  {
-                    backgroundColor: GREEN,
-                    width: `${savingsBarWidth}%`,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.savingsSmallPercent}>{savingsRate}%</Text>
-          </View>
+        <View
+          style={{
+            backgroundColor: theme.primary + "10",
+
+            padding: 18,
+
+            borderRadius: 20,
+
+            marginBottom: 24,
+          }}
+        >
           <Text
-            adjustsFontSizeToFit
-            numberOfLines={2}
-            style={styles.savingsAmount}
+            style={{
+              color: theme.primary,
+
+              fontWeight: "700",
+
+              fontSize: 15,
+
+              lineHeight: 24,
+            }}
           >
-            {isOverspent
-              ? `${formatMoney(Math.abs(remaining))} overspent`
-              : `${formatMoney(remaining)} remaining`}
-          </Text>
-          <Text numberOfLines={1} style={styles.cycleLabel}>
-            {activeSelectedCycle?.label}
+            {topCategory
+              ? `You spent most on ${topCategory[0]} this month 🔥`
+              : "No spending insights yet"}
           </Text>
         </View>
-      </Animated.View>
+
+        <View
+          style={{
+            flexDirection: "row",
+
+            justifyContent: "space-between",
+
+            marginBottom: 20,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.subText,
+
+              fontSize: 16,
+            }}
+          >
+            Total Transactions
+          </Text>
+
+          <Text
+            style={{
+              fontWeight: "700",
+
+              fontSize: 16,
+
+              color: theme.text,
+            }}
+          >
+            {totalTransactions}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+
+            justifyContent: "space-between",
+
+            marginBottom: 20,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.subText,
+
+              fontSize: 16,
+            }}
+          >
+            Highest Expense
+          </Text>
+
+          <Text
+            style={{
+              fontWeight: "700",
+
+              fontSize: 16,
+
+              color: theme.text,
+            }}
+          >
+            ₹
+            {highestExpense?.amount
+              ? Number(highestExpense.amount).toLocaleString()
+              : 0}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+
+            justifyContent: "space-between",
+
+            marginBottom: 20,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.subText,
+
+              fontSize: 16,
+            }}
+          >
+            Avg Per Day
+          </Text>
+
+          <Text
+            style={{
+              fontWeight: "700",
+
+              fontSize: 16,
+
+              color: theme.text,
+            }}
+          >
+            ₹{Math.round(averagePerDay).toLocaleString()}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+
+            justifyContent: "space-between",
+          }}
+        >
+          <Text
+            style={{
+              color: theme.subText,
+
+              fontSize: 16,
+            }}
+          >
+            Highest Spending Day
+          </Text>
+
+          <Text
+            style={{
+              fontWeight: "700",
+
+              fontSize: 16,
+
+              color: theme.text,
+            }}
+          >
+            {highestDay
+              ? `${highestDay[0]} • ₹${Number(highestDay[1]).toLocaleString()}`
+              : "N/A"}
+          </Text>
+        </View>
+      </View>
     </ScrollView>
   );
 }
-
-function TrendChart({
-  data,
-  styles,
-}: {
-  data: { label: string; value: number }[];
-  styles: ReturnType<typeof getStyles>;
-}) {
-  const chartWidth = 300;
-  const chartHeight = 160;
-  const left = 38;
-  const right = 10;
-  const top = 12;
-  const bottom = 32;
-  const plotWidth = chartWidth - left - right;
-  const plotHeight = chartHeight - top - bottom;
-  const highestValue = Math.max(1, ...data.map((item) => item.value));
-  const magnitude = 10 ** Math.floor(Math.log10(highestValue));
-  const maxValue = Math.ceil(highestValue / magnitude) * magnitude;
-  const yTicks = [1, 0.75, 0.5, 0.25, 0].map((ratio) => maxValue * ratio);
-
-  const formatAxisValue = (value: number) => {
-    if (value === 0) return `${RUPEE}0`;
-    if (value < 1000) return `${RUPEE}${Math.round(value)}`;
-
-    const thousands = value / 1000;
-    return `${RUPEE}${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
-  };
-
-  const points = data.map((item, index) => {
-    const x = left + (plotWidth / Math.max(data.length - 1, 1)) * index;
-    const y = top + plotHeight - (item.value / maxValue) * plotHeight;
-    return { ...item, x, y };
-  });
-
-  const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const areaPath = points.length
-    ? `M ${points[0].x} ${plotHeight + top} L ${points
-        .map((point) => `${point.x} ${point.y}`)
-        .join(" L ")} L ${points[points.length - 1].x} ${plotHeight + top} Z`
-    : "";
-
-  return (
-    <View style={styles.trendChart}>
-      <Svg
-        height={chartHeight}
-        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-        width="100%"
-      >
-        {yTicks.map((tick) => {
-          const y = top + plotHeight - (tick / maxValue) * plotHeight;
-          return (
-            <React.Fragment key={tick}>
-              <Path
-                d={`M ${left} ${y} H ${chartWidth - right}`}
-                opacity={tick === 0 ? 0.9 : 0.55}
-                stroke="#D6DAE2"
-                strokeWidth="1"
-              />
-            </React.Fragment>
-          );
-        })}
-        <Path
-          d={`M ${left} ${top} V ${top + plotHeight} H ${chartWidth - right}`}
-          fill="none"
-          stroke="#D6DAE2"
-          strokeWidth="1.2"
-        />
-        {areaPath ? <Path d={areaPath} fill="rgba(15,155,88,0.14)" /> : null}
-        <Polyline
-          fill="none"
-          points={linePoints}
-          stroke={GREEN}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="3.2"
-        />
-        {points.map((point) => (
-          <Circle
-            key={`${point.label}-${point.x}`}
-            cx={point.x}
-            cy={point.y}
-            fill={GREEN}
-            r="7"
-            stroke="#FFFFFF"
-            strokeWidth="2"
-          />
-        ))}
-      </Svg>
-
-      {points.length > 0 && points[points.length - 1].value > 0 ? (
-        <Text
-          style={[
-            styles.pointLabel,
-            {
-              left: `${Math.min(
-                84,
-                Math.max(
-                  8,
-                  ((points[points.length - 1].x - 30) / chartWidth) * 100,
-                ),
-              )}%`,
-              top: Math.max(0, points[points.length - 1].y - 24),
-            },
-          ]}
-        >
-          {formatCompactMoney(points[points.length - 1].value)}
-        </Text>
-      ) : null}
-
-      <View style={styles.yAxisLabels}>
-        {yTicks.map((tick) => (
-          <Text key={tick} style={styles.axisText}>
-            {formatAxisValue(tick)}
-          </Text>
-        ))}
-      </View>
-
-      <View style={styles.xAxisLabels}>
-        {data.map((item) => (
-          <Text
-            adjustsFontSizeToFit
-            key={item.label}
-            minimumFontScale={0.72}
-            numberOfLines={1}
-            style={styles.monthLabel}
-          >
-            {item.label}
-          </Text>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-const getStyles = (theme: any, dark: boolean, compact: boolean) =>
-  StyleSheet.create({
-    screen: {
-      backgroundColor: dark ? "#101216" : "#F8F9FB",
-      flex: 1,
-    },
-    content: {
-      paddingBottom: 138,
-      paddingHorizontal: compact ? 10 : 14,
-      paddingTop: 60,
-    },
-    headerRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: compact ? 8 : 12,
-      justifyContent: "space-between",
-    },
-    title: {
-      color: dark ? "#FFFFFF" : "#070E2D",
-      flexShrink: 0,
-      fontSize: compact ? 30 : 33,
-      fontWeight: "900",
-    },
-    monthSelector: {
-      alignItems: "center",
-      backgroundColor: theme.card,
-      borderColor: dark ? "#2D3240" : "#D9DDE8",
-      borderRadius: 16,
-      borderWidth: 1,
-      flex: 1,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      maxWidth: compact ? 176 : 196,
-      minWidth: 0,
-      paddingHorizontal: 4,
-    },
-    monthArrow: {
-      alignItems: "center",
-      height: 46,
-      justifyContent: "center",
-      width: 26,
-    },
-    monthButton: {
-      alignItems: "center",
-      flex: 1,
-      flexDirection: "row",
-      gap: compact ? 5 : 7,
-      height: 48,
-      justifyContent: "center",
-      minWidth: 0,
-    },
-    monthButtonTextActive: {
-      color: GREEN,
-      flexShrink: 1,
-      fontSize: compact ? 12 : 14,
-      fontWeight: "800",
-    },
-    overviewCard: {
-      backgroundColor: PURPLE_DARK,
-      borderRadius: 24,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 24,
-      minHeight: 250,
-      overflow: "hidden",
-      padding: compact ? 16 : 18,
-    },
-    overviewLeft: {
-      flex: 0.9,
-      minWidth: 0,
-      paddingRight: compact ? 8 : 8,
-      zIndex: 1,
-    },
-    cardTitleRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: 5,
-      marginBottom: 12,
-    },
-    overviewTitle: {
-      color: "rgba(255,255,255,0.86)",
-      fontSize: compact ? 14 : 16,
-      fontWeight: "600",
-    },
-    overviewLabel: {
-      color: "#FFFFFF",
-      // fontSize: 12,
-      // fontWeight: "800",
-      marginBottom: 8,
-
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    usedPercent: {
-      color: "#FFFFFF",
-      fontSize: compact ? 26 : 34,
-      fontWeight: "800",
-      lineHeight: 28,
-    },
-    usedAmount: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "800",
-      marginBottom: compact ? 14 : 20,
-    },
-    legendRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      marginTop: compact ? 8 : 11,
-    },
-    legendDot: {
-      borderRadius: 9,
-      height: 15,
-      marginRight: compact ? 8 : 12,
-      width: 15,
-    },
-    legendText: {
-      color: "#FFFFFF",
-      flex: 1,
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    legendAmount: {
-      color: "#FFFFFF",
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    comparisonPill: {
-      alignItems: "center",
-      alignSelf: "flex-start",
-      backgroundColor: "rgba(6, 4, 44, 0.45)",
-      borderRadius: 9,
-      flexDirection: "row",
-      gap: 8,
-      marginTop: compact ? 18 : 23,
-      paddingHorizontal: compact ? 8 : 8,
-      paddingVertical: compact ? 6 : 6,
-    },
-    comparisonText: {
-      color: "#FFFFFF",
-      fontSize: compact ? 11 : 11,
-      fontWeight: "900",
-    },
-    donutBox: {
-      alignItems: "center",
-      flex: 1,
-      alignSelf: "flex-start",
-      marginTop: 8,
-      justifyContent: "center",
-      marginRight: 0,
-      width: compact ? 150 : 170,
-      height: compact ? 150 : 170,
-    },
-    donutCenter: {
-      alignItems: "center",
-      backgroundColor: "#FFFFFF",
-      width: 96,
-      height: 96,
-      borderRadius: 50,
-      justifyContent: "center",
-      position: "absolute",
-    },
-    walletIcon: {
-      alignItems: "center",
-      backgroundColor: "#ECE4FF",
-
-      justifyContent: "center",
-      marginBottom: 5,
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-    },
-    donutLabel: {
-      color: "#5A6174",
-      fontSize: compact ? 10 : 10,
-      fontWeight: "800",
-    },
-    donutAmount: {
-      color: "#0B102B",
-      fontSize: compact ? 12 : 12,
-      fontWeight: "900",
-      maxWidth: compact ? 82 : 94,
-      marginTop: 4,
-    },
-    insightCard: {
-      alignItems: "center",
-      backgroundColor: dark ? "#13201B" : "#F7FFFB",
-      borderColor: dark ? "#224D3B" : "#CDEBDD",
-      borderRadius: 18,
-      borderWidth: 1,
-      flexDirection: "row",
-      gap: compact ? 11 : 15,
-      marginTop: 22,
-      minHeight: 92,
-      paddingHorizontal: compact ? 14 : 18,
-      paddingVertical: 16,
-    },
-    insightIcon: {
-      alignItems: "center",
-      backgroundColor: dark ? "rgba(15,155,88,0.17)" : "#E2F6EB",
-      borderRadius: 32,
-      height: 45,
-      justifyContent: "center",
-      width: 45,
-    },
-    insightCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    insightTitle: {
-      color: GREEN,
-      fontSize: 15,
-      fontWeight: "900",
-      marginBottom: 6,
-    },
-    insightText: {
-      color: dark ? "#E8EDF2" : "#1C2338",
-      fontSize: 14,
-      fontWeight: "700",
-      lineHeight: 22,
-    },
-    insightStrong: {
-      color: GREEN,
-      fontWeight: "900",
-    },
-    sectionCard: {
-      backgroundColor: theme.card,
-      borderColor: dark ? "#252A35" : "#EAEDF3",
-      borderRadius: 22,
-      borderWidth: 1,
-      elevation: 2,
-      marginTop: 22,
-      padding: compact ? 16 : 18,
-      shadowColor: "#111827",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: dark ? 0.18 : 0.05,
-      shadowRadius: 18,
-    },
-    sectionHeader: {
-      alignItems: "center",
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 18,
-    },
-    sectionTitle: {
-      color: dark ? "#FFFFFF" : "#080D27",
-      fontSize: compact ? 17 : 18,
-      fontWeight: "900",
-    },
-    viewAllText: {
-      color: PURPLE,
-      fontSize: 14,
-      fontWeight: "900",
-    },
-    categoryRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: compact ? 9 : 13,
-      marginTop: 14,
-    },
-    categoryIcon: {
-      alignItems: "center",
-      borderRadius: 13,
-      height: 42,
-      justifyContent: "center",
-      width: 42,
-    },
-    categoryContent: {
-      flex: 1,
-      minWidth: 0,
-    },
-    categoryTopRow: {
-      alignItems: "flex-start",
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 8,
-    },
-    categoryTextGroup: {
-      flex: 1,
-      minWidth: 0,
-      paddingRight: 10,
-    },
-    categoryName: {
-      color: theme.text,
-      fontSize: 15,
-      fontWeight: "900",
-    },
-    progressTrack: {
-      backgroundColor: dark ? "#303541" : "#E4E6EC",
-      borderRadius: 999,
-      height: 6,
-      overflow: "hidden",
-    },
-    progressFill: {
-      borderRadius: 999,
-      height: "100%",
-    },
-    categoryPercent: {
-      color: theme.subText,
-      fontSize: 12,
-      fontWeight: "700",
-      marginLeft: 10,
-    },
-    categoryAmount: {
-      fontSize: compact ? 12 : 14,
-      fontWeight: "800",
-      marginTop: 3,
-    },
-    trendPill: {
-      alignItems: "center",
-      backgroundColor: dark ? "rgba(15,155,88,0.13)" : "#F1FAF6",
-      borderColor: dark ? "#28543F" : "#C9E9DA",
-      borderRadius: 14,
-      borderWidth: 1,
-      flexDirection: "row",
-      gap: 6,
-      maxWidth: compact ? 132 : 150,
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-    },
-    trendPillText: {
-      color: GREEN,
-      flexShrink: 1,
-      fontSize: 11,
-      fontWeight: "900",
-    },
-    trendChart: {
-      height: 190,
-      marginTop: 2,
-      position: "relative",
-    },
-    yAxisLabels: {
-      height: 122,
-      justifyContent: "space-between",
-      left: 0,
-      position: "absolute",
-      top: 9,
-      width: 38,
-    },
-    axisText: {
-      color: theme.subText,
-      fontSize: 11,
-      fontWeight: "800",
-      textAlign: "left",
-    },
-    xAxisLabels: {
-      bottom: 0,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      left: 44,
-      position: "absolute",
-      right: 5,
-    },
-    monthLabel: {
-      color: theme.subText,
-      fontSize: compact ? 9 : 10,
-      fontWeight: "900",
-      textAlign: "center",
-      width: compact ? 40 : 44,
-    },
-    pointLabel: {
-      backgroundColor: theme.card,
-      borderRadius: 6,
-      color: GREEN,
-      fontSize: 11,
-      fontWeight: "900",
-      minWidth: 56,
-      paddingHorizontal: 4,
-      paddingVertical: 2,
-      position: "absolute",
-      textAlign: "center",
-      zIndex: 2,
-    },
-    emptyTrendText: {
-      color: theme.text,
-      fontSize: 14,
-      lineHeight: 21,
-    },
-    savingsCard: {
-      alignItems: "center",
-      backgroundColor: theme.card,
-      borderColor: dark ? "#252A35" : "#EAEDF3",
-      borderRadius: 22,
-      borderWidth: 1,
-      elevation: 2,
-      flexDirection: "column",
-      gap: 14,
-      marginTop: 22,
-      minHeight: 124,
-      padding: 16,
-      shadowColor: "#111827",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: dark ? 0.18 : 0.05,
-      shadowRadius: 18,
-    },
-    savingsLeft: {
-      alignItems: "center",
-      flex: undefined,
-      flexDirection: "row",
-      gap: 14,
-      minWidth: 0,
-      width: "100%",
-    },
-    savingsIcon: {
-      alignItems: "center",
-      backgroundColor: dark ? "rgba(15,155,88,0.15)" : "#EAF8F1",
-      borderRadius: 28,
-      height: 52,
-      justifyContent: "center",
-      width: 52,
-    },
-    savingsLabel: {
-      color: theme.text,
-      fontSize: 13,
-      fontWeight: "800",
-    },
-    savingsPercent: {
-      color: GREEN,
-      fontSize: 20,
-      fontWeight: "900",
-      lineHeight: 30,
-      marginTop: 3,
-    },
-    savingsCaption: {
-      color: theme.subText,
-      fontSize: 12,
-      fontWeight: "700",
-      maxWidth: 170,
-    },
-    savingsDivider: {
-      alignSelf: "stretch",
-      backgroundColor: dark ? "#2A2F3B" : "#E5E7EF",
-      height: 1,
-      width: undefined,
-    },
-    savingsRight: {
-      flex: undefined,
-      minWidth: 0,
-      width: "100%",
-    },
-    savingsBarRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: 12,
-      marginBottom: 14,
-    },
-    savingsTrack: {
-      backgroundColor: dark ? "#303541" : "#E1E4EA",
-      borderRadius: 999,
-      flex: 1,
-      height: 12,
-      overflow: "hidden",
-    },
-    savingsFill: {
-      borderRadius: 999,
-      height: "100%",
-    },
-    savingsSmallPercent: {
-      color: GREEN,
-      fontSize: 12,
-      fontWeight: "900",
-    },
-    savingsAmount: {
-      color: theme.subText,
-      fontSize: compact ? 12 : 12,
-      fontWeight: "800",
-      lineHeight: 20,
-    },
-    cycleLabel: {
-      color: theme.subText,
-      fontSize: 11,
-      fontWeight: "700",
-      marginTop: 5,
-    },
-  });

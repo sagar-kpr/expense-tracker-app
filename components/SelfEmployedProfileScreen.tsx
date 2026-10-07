@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
+import { doc, updateDoc } from "firebase/firestore";
 import { useMemo, useState } from "react";
 import {
-  Platform,
+  Alert,
   ScrollView,
   Switch,
   Text,
@@ -11,13 +13,10 @@ import {
 } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
-import IphoneAutomationSetupCard from "@/components/IphoneAutomationSetupCard";
-import PrivacyDataSection from "@/components/PrivacyDataSection";
 import { useAuth } from "@/context/AuthContext";
 import { useExpense } from "@/context/ExpenseContext";
 import { useTheme } from "@/context/ThemeContext";
-import { auth } from "@/firebase";
-import { saveProfile, setProfileSyncMode } from "@/repositories/profileRepository";
+import { auth, db } from "@/firebase";
 
 const RUPEE = "\u20B9";
 
@@ -28,8 +27,7 @@ export default function SelfEmployedProfileScreen() {
   const { expenses } = useExpense();
   const { userData, logout } = useAuth();
   const { theme, dark, setDark } = useTheme();
-  const [syncSaving, setSyncSaving] = useState(false);
-  const syncEnabled = userData?.syncMode === "sync_enabled";
+  const [notifications, setNotifications] = useState(true);
 
   const totals = useMemo(
     () =>
@@ -65,12 +63,39 @@ export default function SelfEmployedProfileScreen() {
     }),
   ).size;
 
+  const handleEditBusinessName = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    Alert.prompt(
+      "Edit Business Name",
+      "Enter your business display name",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: async (value: any) => {
+            if (!value) return;
+
+            const user = auth.currentUser;
+            if (!user) return;
+
+            await updateDoc(doc(db, "users", user.uid), {
+              businessName: value,
+            });
+          },
+        },
+      ],
+      "plain-text",
+      String(userData?.businessName || ""),
+    );
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
       contentContainerStyle={{
         padding: 20,
-        paddingTop: 60,
+        paddingTop: 70,
         paddingBottom: 120,
       }}
       showsVerticalScrollIndicator={false}
@@ -89,7 +114,7 @@ export default function SelfEmployedProfileScreen() {
       <Animated.View
         entering={FadeInUp.delay(100).duration(700)}
         style={{
-          backgroundColor: "#371872",
+          backgroundColor: "#159665",
 
           borderRadius: 34,
 
@@ -265,9 +290,8 @@ export default function SelfEmployedProfileScreen() {
               textAlign: "left",
             }}
           >
-            {netProfit < 0
-              ? `${RUPEE} -${Math.abs(netProfit).toLocaleString("en-IN")}`
-              : formatMoney(Math.abs(netProfit))}
+            {netProfit < 0 ? "-" : ""}
+            {formatMoney(Math.abs(netProfit))}
           </Text>
         </View>
 
@@ -356,16 +380,33 @@ export default function SelfEmployedProfileScreen() {
 
       <SettingsSection
         dark={dark}
+        notifications={notifications}
         setDark={setDark}
-        syncEnabled={syncEnabled}
-        syncSaving={syncSaving}
-        setSyncSaving={setSyncSaving}
+        setNotifications={setNotifications}
         theme={theme}
       />
 
-      {Platform.OS !== "android" && <IphoneAutomationSetupCard />}
-
-      <PrivacyDataSection />
+      <Animated.View
+        entering={FadeInUp.delay(650).duration(700)}
+        style={{ marginTop: 24 }}
+      >
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => {
+            Alert.alert("Coming Soon", "Export feature will be added soon.");
+          }}
+          style={{
+            backgroundColor: theme.primary,
+            paddingVertical: 18,
+            borderRadius: 22,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}>
+            Export Business Data
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       <Animated.View
         entering={FadeInUp.delay(700).duration(700)}
@@ -375,6 +416,7 @@ export default function SelfEmployedProfileScreen() {
           onPress={async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             await logout();
+            router.replace("/(auth)/login");
           }}
           activeOpacity={0.8}
           style={{
@@ -540,17 +582,15 @@ function SettingsRow({
 
 function SettingsSection({
   dark,
+  notifications,
   setDark,
-  syncEnabled,
-  syncSaving,
-  setSyncSaving,
+  setNotifications,
   theme,
 }: {
   dark: boolean;
+  notifications: boolean;
   setDark: (value: boolean) => void;
-  syncEnabled: boolean;
-  syncSaving: boolean;
-  setSyncSaving: (value: boolean) => void;
+  setNotifications: (value: boolean) => void;
   theme: any;
 }) {
   return (
@@ -579,6 +619,23 @@ function SettingsSection({
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
+          marginBottom: 22,
+        }}
+      >
+        <Text style={{ fontSize: 16, color: theme.text }}>Notifications</Text>
+        <Switch
+          value={notifications}
+          onValueChange={setNotifications}
+          trackColor={{ false: theme.card, true: theme.primary }}
+          thumbColor={theme.background}
+        />
+      </View>
+
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
         <Text style={{ fontSize: 16, color: theme.text }}>Dark Mode</Text>
@@ -588,10 +645,10 @@ function SettingsSection({
             setDark(value);
 
             const user = auth.currentUser;
-            if (!user?.uid) return;
+            if (!user) return;
 
             try {
-              await saveProfile(user.uid, {
+              await updateDoc(doc(db, "users", user.uid), {
                 darkMode: value,
               });
             } catch (error) {
@@ -602,65 +659,6 @@ function SettingsSection({
           thumbColor={dark ? theme.background : "#FFFFFF"}
         />
       </View>
-
-      {Platform.OS !== "web" && (
-        <>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginTop: 18,
-            }}
-          >
-            <Text style={{ fontSize: 16, color: theme.text }}>Cloud Sync</Text>
-            <Switch
-              value={syncEnabled}
-              onValueChange={async (value) => {
-                const user = auth.currentUser;
-
-                if (!user?.uid || syncSaving) {
-                  return;
-                }
-
-                try {
-                  setSyncSaving(true);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  await setProfileSyncMode(
-                    user.uid,
-                    value ? "sync_enabled" : "local_only",
-                  );
-                  Haptics.notificationAsync(
-                    Haptics.NotificationFeedbackType.Success,
-                  );
-                } catch (error) {
-                  console.log("Cloud sync toggle error:", error);
-                  Haptics.notificationAsync(
-                    Haptics.NotificationFeedbackType.Error,
-                  );
-                } finally {
-                  setSyncSaving(false);
-                }
-              }}
-              disabled={syncSaving}
-              trackColor={{ false: theme.border, true: theme.primary }}
-              thumbColor={syncEnabled ? theme.background : "#FFFFFF"}
-            />
-          </View>
-
-          <Text
-            style={{
-              color: theme.subText,
-              fontSize: 12,
-              lineHeight: 18,
-              marginTop: 8,
-            }}
-          >
-            Turn it on to back up business data to Firestore. Turn it off to
-            stay local only.
-          </Text>
-        </>
-      )}
     </Animated.View>
   );
 }

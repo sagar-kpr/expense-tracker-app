@@ -1,9 +1,0 @@
-name = "expense-tracker-sms-ai"
-main = "src/index.js"
-compatibility_date = "2026-06-11"
-
-[vars]
-FIREBASE_PROJECT_ID = "expense-tracker-15f49"
-
-[observability]
-enabled = true

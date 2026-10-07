@@ -10,17 +10,11 @@ import * as Haptics from "expo-haptics";
 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
-import { useAuth } from "@/context/AuthContext";
-import { useOnboardingStore } from "@/store/useOnboardingStore";
+import { auth, db } from "@/firebase";
 
-import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
-import { saveProfile } from "@/repositories/profileRepository";
+import { doc, updateDoc } from "firebase/firestore";
 
 export default function BusinessSetupScreen() {
-  useBlockAndroidBack();
-  const { user } = useAuth();
-  const setShowSuccess = useOnboardingStore((state) => state.setShowSuccess);
-
   const [name, setName] = useState("");
 
   const [businessName, setBusinessName] = useState("");
@@ -42,7 +36,9 @@ export default function BusinessSetupScreen() {
       return;
     }
 
-    if (!user?.uid) return;
+    const user = auth.currentUser;
+
+    if (!user) return;
 
     try {
       setLoading(true);
@@ -50,25 +46,20 @@ export default function BusinessSetupScreen() {
       setError("");
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setShowSuccess(true);
 
-      await saveProfile(user.uid, {
+      await updateDoc(doc(db, "users", user.uid), {
         name: name.trim(),
+
         businessName: businessName.trim(),
-<<<<<<< HEAD
 
         type: "self-employed",
 
-=======
-        type: "self-employed",
->>>>>>> new-sms
         onboarding: true,
       });
 
       router.replace("/(auth)/success" as any);
     } catch {
       setError("Something went wrong");
-      setShowSuccess(false);
     } finally {
       setLoading(false);
     }
@@ -86,7 +77,7 @@ export default function BusinessSetupScreen() {
 
         paddingHorizontal: 24,
 
-        paddingTop: 60,
+        paddingTop: 70,
 
         paddingBottom: 40,
       }}

@@ -17,167 +17,195 @@ import {
   User,
 } from "firebase/auth";
 
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+
 import * as Google from "expo-auth-session/providers/google";
 
-import { auth } from "@/firebase";
-import {
-  ensureLocalProfile,
-  ensureRemoteAccountRecord,
-  saveProfile,
-  subscribeLocalProfile,
-  type UserProfile,
-} from "@/repositories/profileRepository";
-import { useAmountVisibilityStore } from "@/store/useAmountVisibilityStore";
+import { auth, db } from "@/firebase";
+
+type UserData = {
+  email: string;
+
+  onboarding: boolean;
+
+  type?: string;
+
+  salary?: number | null;
+
+  salaryDate?: number | null;
+
+  name?: string;
+
+  businessName?: string;
+
+  darkMode?: boolean;
+};
 
 type AuthContextType = {
   user: User | null;
-  userData: UserProfile | null;
+
+  userData: UserData | null;
+
   loading: boolean;
+
   login: () => Promise<void>;
+
   signup: (email: string, password: string) => Promise<void>;
+
   loginWithEmail: (email: string, password: string) => Promise<void>;
+
   forgotPassword: (email: string) => Promise<void>;
+
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const createProfile = (email: string, name = ""): UserProfile => ({
-  email,
-  onboarding: false,
-  type: "",
-  salary: null,
-  salaryDate: null,
-  name,
-  businessName: "",
-  darkMode: false,
-  syncMode: "local_only",
-});
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [userData, setUserData] = useState<UserProfile | null>(null);
+
+  const [userData, setUserData] = useState<UserData | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const resetAmountVisibility = useAmountVisibilityStore((state) => state.reset);
 
   const [, response, promptAsync] = Google.useAuthRequest({
     androidClientId: "YOUR_ANDROID_CLIENT_ID",
+
     iosClientId: "YOUR_IOS_CLIENT_ID",
+
     webClientId: "YOUR_WEB_CLIENT_ID",
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (!firebaseUser) {
-          resetAmountVisibility();
-          setUser(null);
-          setUserData(null);
+    let unsubUser: (() => void) | undefined;
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+
+      async (firebaseUser) => {
+        try {
+          if (firebaseUser) {
+            if (unsubUser) {
+              unsubUser();
+            }
+
+            setUser(firebaseUser);
+
+            unsubUser = onSnapshot(
+              doc(db, "users", firebaseUser.uid),
+
+              (snapshot) => {
+                if (snapshot.exists()) {
+                  setUserData(snapshot.data() as UserData);
+
+                  setLoading(false);
+                } else {
+                  setUserData(null);
+
+                  setLoading(false);
+                }
+              },
+
+              (error) => {
+                console.log("Snapshot error:", error);
+
+                setUserData(null);
+
+                setLoading(false);
+              },
+            );
+          } else {
+            setUser(null);
+
+            setUserData(null);
+
+            setLoading(false);
+          }
+        } catch (error) {
+          console.log("Auth listener error:", error);
+
           setLoading(false);
-          return;
         }
-
-        let localProfile = await ensureLocalProfile({
-          userId: firebaseUser.uid,
-          email: firebaseUser.email ?? "",
-          name: firebaseUser.displayName ?? "",
-        });
-
-        await ensureRemoteAccountRecord(firebaseUser.uid, {
-          email: firebaseUser.email ?? "",
-          displayName: firebaseUser.displayName ?? "",
-          syncMode: localProfile.syncMode ?? "local_only",
-        }, localProfile);
-
-        setUser(firebaseUser);
-        setUserData(localProfile);
-
-        setLoading(false);
-      } catch (error) {
-        console.log("Auth listener error:", error);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [resetAmountVisibility]);
-
-  useEffect(() => {
-    if (!user?.uid) {
-      return;
-    }
-
-    const subscription = subscribeLocalProfile(
-      user.uid,
-      (profile) => {
-        setUserData(profile);
-      },
-      (error) => {
-        console.log("Profile listener error:", error);
       },
     );
 
     return () => {
-      subscription.remove?.();
+      unsubscribe();
+
+      if (unsubUser) {
+        unsubUser();
+      }
     };
-  }, [user?.uid]);
+  }, []);
 
   useEffect(() => {
     const signIn = async () => {
-      if (response?.type !== "success") {
-        return;
+      if (response?.type === "success") {
+        const { id_token } = response.params;
+
+        const credential = GoogleAuthProvider.credential(id_token);
+
+        const result = await signInWithCredential(auth, credential);
+
+        const docRef = doc(db, "users", result.user.uid);
+
+        const snap = await getDoc(docRef);
+
+        if (!snap.exists()) {
+          const newUserData: UserData = {
+            email: result.user.email ?? "",
+
+            onboarding: false,
+
+            type: "",
+
+            salary: null,
+
+            salaryDate: null,
+
+            name: result.user.displayName || "",
+            darkMode: false,
+          };
+
+          await setDoc(docRef, newUserData);
+
+          setUserData(newUserData);
+        } else {
+          setUserData(snap.data() as UserData);
+        }
       }
-
-      const { id_token } = response.params;
-      const credential = GoogleAuthProvider.credential(id_token);
-      const result = await signInWithCredential(auth, credential);
-      let profile = await ensureLocalProfile({
-        userId: result.user.uid,
-        email: result.user.email ?? "",
-        name: result.user.displayName ?? "",
-      });
-
-      await ensureRemoteAccountRecord(result.user.uid, {
-        email: result.user.email ?? "",
-        displayName: result.user.displayName ?? "",
-        syncMode: profile.syncMode ?? "local_only",
-      }, profile);
-
-      setUser(result.user);
-      setUserData(profile);
-
     };
 
-    signIn().catch((error) => console.log("Google sign-in error:", error));
+    signIn();
   }, [response]);
 
   const signup = async (email: string, password: string) => {
     const result = await createUserWithEmailAndPassword(auth, email, password);
-    const profile = createProfile(email, "");
 
-    await saveProfile(result.user.uid, profile);
+    const newUserData: UserData = {
+      email,
+
+      onboarding: false,
+
+      type: "",
+
+      salary: null,
+
+      salaryDate: null,
+
+      name: "",
+      darkMode: false,
+    };
+
     setUser(result.user);
-    setUserData(profile);
+
+    await setDoc(doc(db, "users", result.user.uid), newUserData);
+
+    setUserData(newUserData);
   };
 
   const loginWithEmail = async (email: string, password: string) => {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    let profile = await ensureLocalProfile({
-      userId: result.user.uid,
-      email: result.user.email ?? email,
-      name: result.user.displayName ?? "",
-    });
-
-    await ensureRemoteAccountRecord(result.user.uid, {
-      email: result.user.email ?? email,
-      displayName: result.user.displayName ?? "",
-      syncMode: profile.syncMode ?? "local_only",
-    }, profile);
-
-    setUser(result.user);
-    setUserData(profile);
+    await signInWithEmailAndPassword(auth, email, password);
   };
 
   const forgotPassword = async (email: string) => {
@@ -186,21 +214,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await signOut(auth);
-    resetAmountVisibility();
-    setUser(null);
-    setUserData(null);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+
         userData,
+
         loading,
+
         login: promptAsync as any,
+
         signup,
+
         loginWithEmail,
+
         forgotPassword,
+
         logout,
       }}
     >

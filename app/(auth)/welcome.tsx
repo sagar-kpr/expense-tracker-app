@@ -121,7 +121,7 @@
 //   );
 // }
 
-import { Platform, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { router } from "expo-router";
 
@@ -134,15 +134,6 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 
 export default function WelcomeScreen() {
-  const features = [
-    "✓ Auto-detect Bank SMS",
-    "✓ Track Income & Expenses",
-    "✓ Secure Cloud Sync",
-    "✓ Smart Categories",
-    "✓ Powerful Analytics",
-    "✓ Budget & Cash Flow Tracking",
-  ];
-
   return (
     <View
       style={{
@@ -193,9 +184,9 @@ export default function WelcomeScreen() {
         }}
       /> */}
 
-      <View>
+      <Animated.View entering={FadeIn.delay(1000).duration(700)}>
         <Animated.Text
-          entering={FadeInUp.duration(450)}
+          entering={FadeInUp.delay(100).duration(700)}
           style={{
             fontSize: 46,
 
@@ -205,7 +196,7 @@ export default function WelcomeScreen() {
 
             lineHeight: 56,
 
-            letterSpacing: 0,
+            letterSpacing: -1,
           }}
         >
           Expense{"\n"}
@@ -219,7 +210,7 @@ export default function WelcomeScreen() {
         </Animated.Text>
 
         <Animated.Text
-          entering={FadeInUp.delay(80).duration(450)}
+          entering={FadeInUp.delay(250).duration(700)}
           style={{
             fontSize: 19,
 
@@ -236,42 +227,53 @@ export default function WelcomeScreen() {
         </Animated.Text>
 
         <Animated.Text
-          entering={FadeInUp.delay(140).duration(450)}
+          entering={FadeInUp.delay(400).duration(700)}
           style={{
             fontSize: 15,
 
-            color: "#5F6B6D",
+            color: "#888",
 
             marginTop: 28,
 
             lineHeight: 25,
           }}
         >
-          Manage your income, expenses, and savings with ease. Built for
-          salaried professionals and business owners.
+          A minimal and smart expense tracker for salary and self-employed
+          people.
         </Animated.Text>
 
         <View
           style={{
             marginTop: 42,
+
             gap: 18,
           }}
         >
-          {features.map((item, index) => (
+          {[
+            "Quick Add Expense",
+            "Smart Categories",
+            "Salary Cycle View",
+            "Beautiful Analytics",
+          ].map((item, index) => (
             <Animated.View
               key={item}
-              entering={FadeInDown.delay(180 + index * 70).duration(450)}
+              entering={FadeInDown.delay(500 + index * 120).duration(700)}
               style={{
                 flexDirection: "row",
+
                 alignItems: "center",
               }}
             >
               <View
                 style={{
                   width: 11,
+
                   height: 11,
+
                   borderRadius: 999,
+
                   backgroundColor: "#159B7D",
+
                   marginRight: 14,
                 }}
               />
@@ -279,7 +281,9 @@ export default function WelcomeScreen() {
               <Text
                 style={{
                   fontSize: 15,
+
                   color: "#444",
+
                   fontWeight: "600",
                 }}
               >
@@ -288,14 +292,12 @@ export default function WelcomeScreen() {
             </Animated.View>
           ))}
         </View>
-      </View>
+      </Animated.View>
 
-      <Animated.View entering={FadeIn.delay(260).duration(450)}>
+      <Animated.View entering={FadeIn.delay(1000).duration(700)}>
         <Pressable
           onPress={() => {
-            if (Platform.OS !== "web") {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            }
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
             router.push("/(auth)/login");
           }}
