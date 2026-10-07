@@ -1,21 +1,35 @@
 import { Tabs } from "expo-router";
 
 import { useRef } from "react";
-import { useExpense } from "../../context/ExpenseContext";
+import { SalaryProvider } from "@/context/SalaryContext";
+import {
+  ExpenseProvider,
+  useExpense,
+} from "../../context/ExpenseContext";
+import { usePendingTransactions } from "@/context/PendingTransactionContext";
 
 import BottomSheet from "@gorhom/bottom-sheet";
 
 import BottomNavbar from "../../components/BottomNavbar";
 
 import ExpenseModal from "../../components/ExpenseModal";
-
-export default function TabLayout() {
+import ScreenSkeleton from "@/components/ScreenSkeleton";
+function TabShell() {
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const { addExpense } = useExpense();
+  const {
+    addExpense,
+    addExpenseWithFunds,
+    loading: expensesLoading,
+  } = useExpense();
+  const { loading: pendingLoading } = usePendingTransactions();
 
   const openModal = () => {
     bottomSheetRef.current?.expand();
   };
+
+  if (expensesLoading || pendingLoading) {
+    return <ScreenSkeleton variant="dashboard" />;
+  }
 
   return (
     <>
@@ -61,7 +75,21 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      <ExpenseModal ref={bottomSheetRef} handleAddExpense={addExpense} />
+      <ExpenseModal
+        ref={bottomSheetRef}
+        handleAddExpense={addExpense}
+        handleAddExpenseWithFunds={addExpenseWithFunds}
+      />
     </>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <ExpenseProvider>
+      <SalaryProvider>
+        <TabShell />
+      </SalaryProvider>
+    </ExpenseProvider>
   );
 }

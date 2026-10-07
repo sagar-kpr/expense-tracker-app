@@ -1,0 +1,14 @@
+{
+  "name": "expense-tracker-sms-ai-worker",
+  "description": "Cloudflare Worker for manual SMS transaction detection",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "check": "node --check src/index.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

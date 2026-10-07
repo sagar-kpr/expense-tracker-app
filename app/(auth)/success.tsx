@@ -19,13 +19,14 @@ import { useEffect } from "react";
 import * as Haptics from "expo-haptics";
 
 import Svg, { Circle } from "react-native-svg";
+import { useOnboardingStore } from "@/store/useOnboardingStore";
 
 export default function SuccessScreen() {
   const scale = useSharedValue(0.7);
-
   const rotate = useSharedValue(0);
 
   const glow = useSharedValue(0.5);
+  const clearShowSuccess = useOnboardingStore((state) => state.setShowSuccess);
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -85,6 +86,7 @@ export default function SuccessScreen() {
 
   const handleContinue = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    clearShowSuccess(false);
 
     router.replace("/(tabs)" as any);
   };
@@ -257,7 +259,7 @@ export default function SuccessScreen() {
       >
         <Pressable
           onPress={handleContinue}
-          style={{
+          style={({ pressed }) => ({
             backgroundColor: "#159B7D",
 
             paddingVertical: 18,
@@ -281,7 +283,10 @@ export default function SuccessScreen() {
             },
 
             elevation: 10,
-          }}
+
+            opacity: pressed ? 0.85 : 1,
+            transform: [{ scale: pressed ? 0.985 : 1 }],
+          })}
         >
           <Text
             style={{

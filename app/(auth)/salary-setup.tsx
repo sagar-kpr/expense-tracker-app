@@ -8,28 +8,42 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 import * as Haptics from "expo-haptics";
 
+import SalaryDayPickerModal from "@/components/SalaryDayPickerModal";
+import { useAuth } from "@/context/AuthContext";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 import { useOnboardingStore } from "@/store/useOnboardingStore";
+import { auth } from "@/firebase";
 
-import { auth, db } from "@/firebase";
-
-import { doc, updateDoc } from "firebase/firestore";
+import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
+import { saveProfile } from "@/repositories/profileRepository";
+import { createId } from "@/repositories/shared";
+import {
+  upsertSalaryHistory,
+  upsertSalarySnapshot,
+} from "@/repositories/salaryRepository";
+import { buildSalaryCycleSnapshot, getCurrentSalaryCycle } from "@/services/salaryLedger";
 
 export default function SalarySetupScreen() {
-  const { salary, salaryDate, setSalary, setSalaryDate, reset } =
+  useBlockAndroidBack();
+  const { user } = useAuth();
+
+  const { salary, salaryDate, setSalary, setSalaryDate } =
     useOnboardingStore();
+  const setShowSuccess = useOnboardingStore((state) => state.setShowSuccess);
 
   const [name, setName] = useState("");
 
   const [error, setError] = useState("");
 
   const [loading, setLoading] = useState(false);
+<<<<<<< HEAD
   console.log("auth.currentUser", auth);
+=======
+  const [showSalaryDayPicker, setShowSalaryDayPicker] = useState(false);
+>>>>>>> new-sms
   useEffect(() => {
-    const user = auth.currentUser;
-
-    if (!user) return;
+    if (!user?.uid) return;
   }, []);
 
   const handleContinue = async () => {
@@ -61,28 +75,64 @@ export default function SalarySetupScreen() {
       setError("");
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowSuccess(true);
 
-      await updateDoc(
-        doc(db, "users", user.uid),
+      const salaryProfile = {
+        name,
+        salary: Number(salary),
+        salaryDate: Number(salaryDate),
+        type: "salary",
+        onboarding: true,
+      };
 
-        {
-          name,
+      await saveProfile(user.uid, salaryProfile);
 
+      const now = Date.now();
+
+      await upsertSalaryHistory(user.uid, {
+        id: createId(),
+        salary: Number(salary),
+        salaryDate: Number(salaryDate),
+        effectiveFromMs: now,
+        createdAtMs: now,
+        source: "onboarding",
+        note: "Baseline salary profile created during onboarding.",
+      });
+
+      const cycle = getCurrentSalaryCycle(Number(salaryDate));
+
+      const snapshot = buildSalaryCycleSnapshot({
+        profile: {
           salary: Number(salary),
-
           salaryDate: Number(salaryDate),
+<<<<<<< HEAD
 
           type: "salary",
 
           onboarding: true,
+=======
+>>>>>>> new-sms
         },
-      );
+        salaryHistory: [],
+        expenses: [],
+        cycleStart: cycle.start,
+        referenceDate: cycle.start,
+        preferCurrentProfile: true,
+      });
 
-      reset();
+      await upsertSalarySnapshot(user.uid, {
+        ...(snapshot as any),
+        userId: user.uid,
+      });
+
+      setSalary("");
+      setSalaryDate("");
 
       router.replace("/(auth)/success" as any);
     } catch (err) {
+      console.log("Salary setup error:", err);
       setError("Something went wrong");
+      setShowSuccess(false);
     } finally {
       setLoading(false);
     }
@@ -195,8 +245,6 @@ export default function SalarySetupScreen() {
 
                 paddingHorizontal: 18,
 
-                fontSize: 18,
-
                 borderWidth: 1,
 
                 borderColor: "#ECECEC",
@@ -239,8 +287,6 @@ export default function SalarySetupScreen() {
 
                 paddingHorizontal: 18,
 
-                fontSize: 18,
-
                 borderWidth: 1,
 
                 borderColor: "#ECECEC",
@@ -263,17 +309,11 @@ export default function SalarySetupScreen() {
               Salary Credit Date
             </Text>
 
-            <TextInput
-              value={salaryDate}
-              onChangeText={(text) => {
-                setSalaryDate(text.replace(/[^0-9]/g, ""));
-
-                setError("");
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowSalaryDayPicker(true);
               }}
-              keyboardType="decimal-pad"
-              returnKeyType="done"
-              placeholder="1"
-              placeholderTextColor="#AAA"
               style={{
                 backgroundColor: "white",
 
@@ -283,13 +323,23 @@ export default function SalarySetupScreen() {
 
                 paddingHorizontal: 18,
 
-                fontSize: 18,
-
                 borderWidth: 1,
 
                 borderColor: "#ECECEC",
+
+                justifyContent: "center",
               }}
-            />
+            >
+              <Text
+                style={{
+                  color: salaryDate ? "#111" : "#AAA",
+                  fontSize: 18,
+                  fontWeight: "600",
+                }}
+              >
+                {salaryDate ? `Every month on the ${salaryDate}${getDaySuffix(Number(salaryDate))}` : "Choose day"}
+              </Text>
+            </Pressable>
 
             <Text
               style={{
@@ -377,6 +427,36 @@ export default function SalarySetupScreen() {
           </Pressable>
         </Animated.View>
       </View>
+      <SalaryDayPickerModal
+        onClose={() => setShowSalaryDayPicker(false)}
+        onConfirm={(day) => {
+          setSalaryDate(String(day));
+          setError("");
+          setShowSalaryDayPicker(false);
+        }}
+        selectedDay={Number(salaryDate || 1)}
+        title="Pick Expected Salary Day"
+        visible={showSalaryDayPicker}
+      />
     </KeyboardAwareScrollView>
   );
 }
+
+const getDaySuffix = (day: number) => {
+  const lastTwo = day % 100;
+
+  if (lastTwo >= 11 && lastTwo <= 13) {
+    return "th";
+  }
+
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+};

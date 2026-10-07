@@ -14,17 +14,30 @@ import { router } from "expo-router";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 
+<<<<<<< HEAD
+=======
+import { useBlockAndroidBack } from "@/hooks/useBlockAndroidBack";
+
+>>>>>>> new-sms
 export default function UserTypeScreen() {
   const [loadingType, setLoadingType] = useState("");
+
+  useBlockAndroidBack();
 
   const handleSelect = async (type: string) => {
     try {
       setLoadingType(type);
 
       if (type === "salary") {
+<<<<<<< HEAD
         router.push("/(auth)/salary-setup" as any);
       } else {
         router.push("/(auth)/business-setup" as any);
+=======
+        router.replace("/(auth)/salary-setup" as any);
+      } else {
+        router.replace("/(auth)/business-setup" as any);
+>>>>>>> new-sms
       }
     } finally {
       setLoadingType("");
@@ -86,7 +99,7 @@ export default function UserTypeScreen() {
             gap: 18,
           }}
         >
-          <Animated.View entering={FadeInUp.delay(150).duration(700)}>
+          <Animated.View entering={FadeInUp.delay(250).duration(700)}>
             <Pressable
               onPress={() => handleSelect("salary")}
               style={({ pressed }) => ({
@@ -195,7 +208,7 @@ export default function UserTypeScreen() {
             </Pressable>
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.delay(260).duration(700)}>
+          <Animated.View entering={FadeInUp.delay(450).duration(700)}>
             <Pressable
               onPress={() => handleSelect("self-employed")}
               style={({ pressed }) => ({

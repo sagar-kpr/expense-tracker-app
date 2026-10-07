@@ -14,6 +14,51 @@
       },
       "oauth_client": [
         {
+          "client_id": "692538487477-a6f05panmknp1nfvful6mkfjjl7t24u5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sagarkpr.expensetracker",
+            "certificate_hash": "76b665efa031761b90f1a163f75f90c31ac87fd8"
+          }
+        },
+        {
+          "client_id": "692538487477-sj4c5gluak8dqlujau063hc86d16h1gd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sagarkpr.expensetracker",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "692538487477-18613hcmqg5cbnmm5sab799qrmher6dd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7ywA1Hm6dBLZ9cpxwvRXPHaVyk9TQQck"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "692538487477-18613hcmqg5cbnmm5sab799qrmher6dd.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:692538487477:android:d0d6b01346f9688b8c44fc",
+        "android_client_info": {
+          "package_name": "com.sagarkpr.expensetracker.preview"
+        }
+      },
+      "oauth_client": [
+        {
           "client_id": "692538487477-18613hcmqg5cbnmm5sab799qrmher6dd.apps.googleusercontent.com",
           "client_type": 3
         }
